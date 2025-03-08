@@ -1,0 +1,15 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Format Assembly",
+            "type": "shell",
+            "command": "nasmfmt",
+            "args": ["-ii", "4", "${file}"],
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "never"
+            }
+        }
+    ]
+}

@@ -1,0 +1,34 @@
+{
+    "name": "admac-dev",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "runArgs": [
+        "--privileged",
+        "--env=DISPLAY=${env:DISPLAY}",
+        "--volume=/tmp/.X11-unix:/tmp/.X11-unix"
+    ],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.makefile-tools",
+                "zixuanwang.linkerscript",
+                "doinkythederp.nasm-language-support",
+                "ms-vscode.cpptools-extension-pack",
+                "rust-lang.rust-analyzer",
+                "dustypomerleau.rust-syntax"
+            ],
+            "settings": {
+                "files.trimTrailingWhitespace": true,
+                "files.trimFinalNewlines": true,
+                "files.insertFinalNewline": true,
+                "nasm.checkOnType": true,
+                "nasm.outputFormat": "elf64",
+                "files.associations": {
+                    "*.s": "nasm"
+                }
+            }
+        }
+    }
+}
