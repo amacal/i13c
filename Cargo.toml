@@ -1,5 +1,5 @@
 [package]
-name = "admac"
+name = "i13c"
 version = "0.0.0"
 edition = "2021"
 authors = ["Adrian Macal <adma@amacal.pl>"]

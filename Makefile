@@ -3,12 +3,13 @@ LD=ld
 CC=gcc
 NASM=nasm
 
-CFLAGS=-Wall -Wextra -g -O1 -fno-pic -fno-pie -mno-shstk -fcf-protection=none -mno-red-zone -fno-merge-constants
+CFLAGS=-Wall -Wextra -g -O1 -fno-pic -fno-pie -mno-shstk -fcf-protection=none -mno-red-zone -fno-merge-constants -fno-stack-protector
 LDFLAGS=-static -no-pie -z noexecstack -nostdlib
 NASMFLAGS=-f elf64
+RUSTFLAGS=-C relocation-model=static
 
-BINOUTPUT=bin/admac
-LIBOUTPUT=bin/libadmac.a
+BINOUTPUT=bin/i13c
+LIBOUTPUT=bin/libi13c.a
 
 BINDIR=bin
 SRCDIR=src
@@ -29,7 +30,7 @@ debug: $(BINOUTPUT)
 	@edb --run $(BINOUTPUT) 2> /dev/null
 
 test: $(LIBOUTPUT)
-	@CARGO_TARGET_DIR=$(TMPDIR) cargo test --all-targets | grep -v '^-- '
+	@CARGO_TARGET_DIR=$(TMPDIR) RUSTFLAGS="$(RUSTFLAGS)" cargo test --all-targets -- --test-threads=1 | tr '\n' '@' | sed 's/-- [^@]*@//g' | tr '@' '\n'
 
 $(LIBOUTPUT): $(OBJS)
 	@mkdir -p bin

@@ -60,11 +60,12 @@ stdout_print:
 ; rax - returns 0 if no error, or negative value indicating an error
 stdout_printf:
     lea rax, [rsp + 8]                 ; compute RSP + 8
+    sub rsp, PRINTF_BUFFER_SIZE        ; reserve bytes on the stack for a buffer
+
     test rax, 15                       ; check stack alignment
     jnz .unaligned                     ; jump to .unaligned as error
     mov r8, rdi                        ; pointer to a template string
 
-    sub rsp, PRINTF_BUFFER_SIZE        ; reserve bytes on the stack for a buffer
     lea r9, [rsp]                      ; pointer to output buffer
     xor r10, r10                       ; output buffer offset
 

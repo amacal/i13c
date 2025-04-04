@@ -1,5 +1,5 @@
 {
-    "name": "admac-dev",
+    "name": "i13c-dev",
     "build": {
         "dockerfile": "Dockerfile",
         "context": ".."

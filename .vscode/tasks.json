@@ -5,7 +5,7 @@
             "label": "Format Assembly",
             "type": "shell",
             "command": "nasmfmt",
-            "args": ["-ii", "4", "${file}"],
+            "args": ["-ii", "4", "-ci", "60", "${file}"],
             "problemMatcher": [],
             "presentation": {
                 "reveal": "never"
