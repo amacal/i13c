@@ -67,6 +67,14 @@
     .reserved resq 2                                       ; Reserved for future extensions
     endstruc
 
+; timespec structure - Time Specification
+; Represents a time value with seconds and nanoseconds
+; Size - 16 bytes
+    struc timespec
+    .tv_sec resq 1                                         ; Seconds since the epoch
+    .tv_nsec resq 1                                        ; Nanoseconds within the second
+    endstruc
+
 ; coop_info structure - Cooperative Preemption Management
 ; Manages I/O ring and task scheduling data
 ; Size - 264 bytes
@@ -95,15 +103,15 @@
     .rx_cqes resq 1                                        ; Pointer to the RX CQE entries
 
 ; Transmit Queue Entries (SQEs) - 16 bytes
-    .tx_sqes resq 1                                        ; Mapped address of the SQE array
-    .tx_sqes_len resq 1                                    ; Length of the SQE array
+    .sq_ptr resq 1                                         ; Mapped address of the SQE array
+    .sq_len resq 1                                         ; Length of the SQE array
     endstruc
 
     section .text
-    global coop_init, coop_free, coop_spawn, coop_loop, coop_noop
+    global coop_init, coop_free, coop_spawn, coop_loop, coop_noop, coop_timeout
 
 ; initializes cooperative preemption
-; rdi - a pointer to the uninitialized structure
+; rdi - ptr to the uninitialized structure
 ; rsi - size (in slots) of the completion queue
 ; rax - returns 0 if no error, or negative value indicating an error
 coop_init:
@@ -116,7 +124,7 @@ coop_init:
     xor rax, rax                                           ; source value is 0
     mov rdi, rsp                                           ; destination pointer
     rep stosq                                              ; fill 120 bytes with 0
-    mov [rsp], esi                                         ; set sq_entries
+    mov [rsp + io_uring_params.sq_entries], esi            ; set sq_entries
 
     mov rdi, rsi                                           ; submission queue size
     mov rsi, rsp                                           ; ptr to io_uring_params
@@ -216,7 +224,7 @@ coop_init:
 
     mov esi, [rsp + io_uring_params.sq_entries]            ; sq_entries
     imul rsi, rsi, 64                                      ; * size of SQE slot (64 bytes)
-    mov [rdx + coop_info.tx_sqes_len], rsi                 ; remember it in coop_info
+    mov [rdx + coop_info.sq_len], rsi                      ; remember it in coop_info
 
     mov r8, [rdx + coop_info.fd]                           ; restore uring fd
     xor rdi, rdi                                           ; addr = NULL
@@ -232,7 +240,7 @@ coop_init:
 ; copy IORING_OFF_SQES pointers
 
     mov rdx, [rsp + 120]                                   ; copy from stack ptr to uring
-    mov [rdx + coop_info.tx_sqes], rax                     ; store pointer to mapped TX entries
+    mov [rdx + coop_info.sq_ptr], rax                      ; store pointer to mapped TX entries
 
 ; successful exit
 
@@ -283,14 +291,14 @@ coop_init:
     ret
 
 ; frees cooperative preemption
-; rdi - a pointer to the initialized structure
+; rdi - ptr to the initialized structure
 ; rax - returns 0 if no error, or negative value indicating the first error
 coop_free:
     mov rdx, rdi                                           ; remember in not affected register
     xor r12, r12                                           ; clear rcx to store any error code
 
-    mov rdi, [rdx + coop_info.tx_sqes]                     ; load TX entries pointer
-    mov rsi, [rdx + coop_info.tx_sqes_len]                 ; load TX ring size
+    mov rdi, [rdx + coop_info.sq_ptr]                      ; load TX entries pointer
+    mov rsi, [rdx + coop_info.sq_len]                      ; load TX ring size
     mov rax, 11                                            ; munmap syscall
     syscall
 
@@ -345,9 +353,9 @@ coop_free:
     ret
 
 ; spawns a cooperative preemption task
-; rdi - a pointer to the initialized structure
-; rsi - a pointer to the function to be executed
-; rdx - a pointer to the function argument
+; rdi - ptr to the initialized structure
+; rsi - ptr to the function to be executed
+; rdx - ptr to the function argument
 ; rax - returns 0 if no error, or negative value indicating an error
 coop_spawn:
     push rdi                                               ; remember ptr to a coop struct
@@ -378,7 +386,7 @@ coop_spawn:
     mov rdx, [rdi + coop_info.tx_tail]                     ; load TX tail pointer
     mov rcx, [rdi + coop_info.tx_mask]                     ; load TX mask pointer
     mov rsi, [rdi + coop_info.tx_indx]                     ; load TX index pointer
-    mov rdi, [rdi + coop_info.tx_sqes]                     ; load TX entries pointer
+    mov rdi, [rdi + coop_info.sq_ptr]                      ; load TX entries pointer
 
 ; find next SQE slot
 
@@ -478,7 +486,7 @@ coop_spawn:
     jmp r11                                                ; continue
 
 ; runs a cooperative preemption loop
-; rdi - a pointer to the initialized coop structure
+; rdi - ptr to the initialized coop structure
 ; rax - returns 0 if no error, or negative value indicating an error
 coop_loop:
     push rdi                                               ; remember ptr to a coop struct
@@ -536,22 +544,22 @@ coop_loop:
     mov r11, [rsp]                                         ; return address
     lea rdx, [rdi + coop_info.regs]                        ; load addr of the regs
 
-    mov [rdx + 0*8], rax                                   ; regs[0] = rax
-    mov [rdx + 1*8], rbx                                   ; regs[1] = rbx
-    mov [rdx + 2*8], rcx                                   ; regs[2] = rcx
-    mov [rdx + 3*8], rdx                                   ; regs[3] = registers
-    mov [rdx + 4*8], rsi                                   ; regs[4] = rsi
-    mov [rdx + 5*8], rdi                                   ; regs[5] = coop info
-    mov [rdx + 6*8], r8                                    ; regs[6] = r8
-    mov [rdx + 7*8], r9                                    ; regs[7] = r9
-    mov [rdx + 8*8], r10                                   ; regs[8] = r10
-    mov [rdx + 9*8], r11                                   ; regs[9] = return address
-    mov [rdx + 10*8], r12                                  ; regs[10] = r12
-    mov [rdx + 11*8], r13                                  ; regs[11] = r13
-    mov [rdx + 12*8], r14                                  ; regs[12] = r14
-    mov [rdx + 13*8], r15                                  ; regs[13] = r15
-    mov [rdx + 14*8], rbp                                  ; regs[14] = rbp
-    mov [rdx + 15*8], rsp                                  ; regs[15] = rsp
+    mov [rdx + 0*8], rax                                   ; rax
+    mov [rdx + 1*8], rbx                                   ; rbx
+    mov [rdx + 2*8], rcx                                   ; rcx
+    mov [rdx + 3*8], rdx                                   ; rdx = registers
+    mov [rdx + 4*8], rsi                                   ; rsi = CQE entry
+    mov [rdx + 5*8], rdi                                   ; rdi = coop info
+    mov [rdx + 6*8], r8                                    ; r8
+    mov [rdx + 7*8], r9                                    ; r9
+    mov [rdx + 8*8], r10                                   ; r10
+    mov [rdx + 9*8], r11                                   ; r11 = return address
+    mov [rdx + 10*8], r12                                  ; r12
+    mov [rdx + 11*8], r13                                  ; r13
+    mov [rdx + 12*8], r14                                  ; r14
+    mov [rdx + 13*8], r15                                  ; r15
+    mov [rdx + 14*8], rbp                                  ; rbp
+    mov [rdx + 15*8], rsp                                  ; rsp
 
 ; extract stack pointer from the CQE entry
 
@@ -563,7 +571,7 @@ coop_loop:
     mov rax, [rax + 0*8]                                   ; rax = task registers
     mov rbx, [rax + 1*8]                                   ; rbx
     mov rcx, [rax + 2*8]                                   ; rcx = coop info
-    mov rdx, [rax + 3*8]                                   ; rdx
+    mov rdx, rsi                                           ; rdx = CQE entry
     mov rsi, [rax + 4*8]                                   ; rsi = .done callback
     mov rdi, [rax + 5*8]                                   ; rdi = function argument
     mov r8, [rax + 6*8]                                    ; r8
@@ -587,7 +595,7 @@ coop_loop:
     ret
 
 ; performs a noop operation
-; rdi - a pointer to the initialized coop structure
+; rdi - ptr to the initialized coop structure
 ; rax - returns 0 if no error, or negative value indicating an error
 coop_noop:
     push rdi                                               ; remember ptr to a coop struct
@@ -598,7 +606,7 @@ coop_noop:
     mov rdx, [rdi + coop_info.tx_tail]                     ; load TX tail pointer
     mov rcx, [rdi + coop_info.tx_mask]                     ; load TX mask pointer
     mov rsi, [rdi + coop_info.tx_indx]                     ; load TX index pointer
-    mov rdi, [rdi + coop_info.tx_sqes]                     ; load TX entries pointer
+    mov rdi, [rdi + coop_info.sq_ptr]                      ; load TX entries pointer
 
 ; find next SQE slot
 
@@ -661,7 +669,7 @@ coop_noop:
     syscall
 
     test rax, rax                                          ; check for error
-    js .fail_enter                                         ; if error, clean and exit
+    js .exit                                               ; if error, clean and exit
 
     cmp rax, 0                                             ; check for error
     je .fail_one                                           ; if 0, clean and exit
@@ -675,29 +683,128 @@ coop_noop:
 .fail_one:
     mov rax, -33
 
-.fail_enter:
-    push r12
-    mov r12, rax                                           ; save error code
-
-    mov rdi, [rsp]                                         ; the allocated stack
-    mov rsi, 0x1000                                        ; the size of the stack
-    mov rax, 11                                            ; munmap syscall
-    syscall
-
-    mov rax, r12                                           ; restore error code
-    pop r12
-
 .exit:
-    add rsp, 40                                            ; clean stack usage
+    add rsp, 8                                             ; clean stack usage
     ret
 
 .done:
-    mov rax, 0                                             ; success
+    mov eax, [rdx + io_uring_cqe.result]                   ; success
+    cdqe                                                   ; sign extend
     jmp r11                                                ; continue task
 
+; performs a timeout operation
+; rdi - ptr to the initialized coop structure
+; rsi - number of seconds to wait
+; rax - returns 0 if no error, or negative value indicating an error
+coop_timeout:
+    sub rsp, 16                                            ; space for a timespec struct
+    push rdi                                               ; remember ptr to a coop struct
 
+    mov [rsp + 8 + timespec.tv_sec], rsi                   ; set seconds
+    mov qword [rsp + 8 + timespec.tv_nsec], 0x00000000     ; set nanoseconds
+
+; pull TX offsets
+
+    mov r10, [rdi + coop_info.fd]                          ; load uring file descriptor
+    mov rdx, [rdi + coop_info.tx_tail]                     ; load TX tail pointer
+    mov rcx, [rdi + coop_info.tx_mask]                     ; load TX mask pointer
+    mov rsi, [rdi + coop_info.tx_indx]                     ; load TX index pointer
+    mov rdi, [rdi + coop_info.sq_ptr]                      ; load TX entries pointer
+
+; find next SQE slot
+
+    mov ecx, [rcx]                                         ; load TX mask value
+    mov eax, [rdx]                                         ; load TX tail value
+
+    and rax, rcx                                           ; mask TX tail value
+    mov r11, rax                                           ; save current TX tail
+    imul rax, rax, 64                                      ; * size of SQE slot (64 bytes)
+    add rdi, rax                                           ; add TX entries pointer
+
+; clear SQE slot
+
+    xor rax, rax                                           ; clear rax
+    mov rcx, 8                                             ; 64 iterations, each 8 bytes
+    rep stosq                                              ; fill 64 bytes with 0
+    sub rdi, 64                                            ; move back to the SQE beginning
+
+    mov byte [rdi + io_uring_sqe.opcode], 11               ; IORING_OP_TIMEOUT
+    mov byte [rdi + io_uring_sqe.len], 1                   ; required one structure
+
+    lea rax, [rsp + 8]                                     ; load addr of the timespec struct
+    mov [rdi + io_uring_sqe.addr], rax                     ; set addr of the timespec struct
+
+; prepare stack
+
+    mov rax, rsp                                           ; load addr of the stack
+    and rax, ~0x0fff                                       ; compute addr of the regs
+    mov rcx, [rsp]                                         ; load addr of the coop struct
+
+    mov qword [rdi + io_uring_sqe.user_data], rax          ; set user data
+    mov [rsi + r11 * 4], r11d                              ; set TX index
+
+    lea r8, [rsp + 32]
+    mov r11, [rsp + 24]                                    ; load function callback
+    lea rsi, .done                                         ; load function pointer
+
+    mov [rax + 0*8], rax                                   ; rax = registers
+    mov [rax + 1*8], rbx                                   ; rbx
+    mov [rax + 2*8], rcx                                   ; rcx = coop info
+    mov [rax + 3*8], rdx                                   ; rdx
+    mov [rax + 4*8], rsi                                   ; rsi = noop .done
+    mov [rax + 5*8], rdi                                   ; rdi
+    mov [rax + 6*8], r8                                    ; r8
+    mov [rax + 7*8], r9                                    ; r9
+    mov [rax + 8*8], r10                                   ; r10
+    mov [rax + 9*8], r11                                   ; r11 = just after noop
+    mov [rax + 10*8], r12                                  ; r12
+    mov [rax + 11*8], r13                                  ; r13
+    mov [rax + 12*8], r14                                  ; r14
+    mov [rax + 13*8], r15                                  ; r15
+    mov [rax + 14*8], rbp                                  ; rbp
+    mov [rax + 15*8], r8                                   ; rsp = stack
+
+    inc dword [rdx]                                        ; increment TX tail
+
+; call uring submission with noop (0x00) operation
+
+    mov rdi, r10                                           ; uring file descriptor
+    mov rsi, 1                                             ; 1 SQE
+    xor rdx, rdx                                           ; 0 CQE
+    xor r10, r10                                           ; no flags
+    xor r8, r8                                             ; no sigset
+    xor r9, r9                                             ; no sigset
+    mov rax, 426                                           ; io_uring_enter syscall
+    syscall
+
+    test rax, rax                                          ; check for error
+    js .exit                                               ; if error, clean and exit
+
+    cmp rax, 0                                             ; check for error
+    je .fail_one                                           ; if 0, clean and exit
+
+    mov rdi, [rsp]                                         ; load ptr to a coop struct
+    inc qword [rdi + coop_info.tx_loop]                    ; increment number of entries in flight
+
+    add rsp, 32                                            ; clean the local stack usage
+    jmp coop_switch                                        ; switch to the main thread
+
+.fail_one:
+    mov rax, -33
+
+.exit:
+    add rsp, 24                                            ; clean stack usage
+    ret
+
+.done:
+    mov eax, [rdx + io_uring_cqe.result]                   ; success
+    cdqe                                                   ; sign extend
+    jmp r11                                                ; continue task
+
+; completes a cooperative preemption task
+; rsp - ptr to the stack of the task
+; rax - returns 0 if no error, or negative value indicating an error
 coop_end:
-
 ; find the allocated task and the registers of the main thread
 
     mov rax, rsp                                           ; current stack
@@ -723,7 +830,7 @@ coop_end:
     mov rbx, [rdx + 1*8]                                   ; rbx
     mov rcx, [rdx + 2*8]                                   ; rcx
     mov rdx, [rdx + 3*8]                                   ; rdx = registers
-    mov rsi, [rdx + 4*8]                                   ; rsi = return address
+    mov rsi, [rdx + 4*8]                                   ; rsi
     mov rdi, [rdx + 5*8]                                   ; rdi = coop info
     mov r8, [rdx + 6*8]                                    ; r8
     mov r9, [rdx + 7*8]                                    ; r9
@@ -738,7 +845,8 @@ coop_end:
 
     jmp coop_loop                                          ; continue looping
 
-
+; switches to the main thread
+; rsp - ptr to the stack of the task
 coop_switch:
 
 ; find the allocated task and the registers of the main thread
@@ -755,7 +863,7 @@ coop_switch:
     mov rbx, [rdx + 1*8]                                   ; rbx
     mov rcx, [rdx + 2*8]                                   ; rcx
     mov rdx, [rdx + 3*8]                                   ; rdx = registers
-    mov rsi, [rdx + 4*8]                                   ; rsi = return address
+    mov rsi, [rdx + 4*8]                                   ; rsi
     mov rdi, [rdx + 5*8]                                   ; rdi = coop info
     mov r8, [rdx + 6*8]                                    ; r8
     mov r9, [rdx + 7*8]                                    ; r9

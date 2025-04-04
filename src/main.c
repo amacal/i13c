@@ -2,54 +2,100 @@ typedef struct {
     long data[33];
 } coop_info;
 
+typedef struct {
+    coop_info* coop;
+    char* file_name;
+
+} coop_task;
+
 /// @brief prints a text in the stdout
-/// @param len the length of the text
-/// @param data the ptr to the text
-/// @return a negative error or 0 on success
+/// @param len length of the text
+/// @param data ptr to the text
+/// @return negative error or 0 on success
 extern long stdout_print(const long len, const char* data);
 
 /// @brief print a formatted text in the stdout
-/// @param fmt the ptr to the format
-/// @param arg1 the first substitute
+/// @param fmt ptr to the format
 /// @return a negative error or 0 on succcess
-extern long stdout_printf(const char* fmt, const char* arg1);
+extern long stdout_printf(const char* fmt, ...);
 
+/// @brief initializes cooperative preemption
+/// @param coop ptr to the uninitialized structure
+/// @param submissions size (in slots) of the completion queue
+/// @return 0 if no error, or negative value indicating an error
 extern long coop_init(coop_info* coop, unsigned int submissions);
+
+/// @brief frees cooperative preemption
+/// @param coop ptr to the initialized structure
+/// @return 0 if no error, or negative value indicating the first error
 extern long coop_free(const coop_info* coop);
-extern long coop_spawn(const coop_info* coop, long (*fn)(const coop_info*), const coop_info* ctx);
+
+/// @brief spawns a cooperative preemption task
+/// @param coop ptr to the initialized structure
+/// @param fn ptr to the function to be executed
+/// @param ctx ptr to the function argument
+/// @return 0 if no error, or negative value indicating an error
+extern long coop_spawn(const coop_info* coop, long (*fn)(const coop_task*), const coop_task* ctx);
+
+/// @brief runs a cooperative preemption loop
+/// @param coop ptr to the initialized coop structure
+/// @return 0 if no error, or negative value indicating an error
 extern long coop_loop(const coop_info* coop);
+
+/// @brief performs a noop operation
+/// @param coop ptr to the initialized coop structure
+/// @return 0 if no error, or negative value indicating an error
 extern long coop_noop(const coop_info* coop);
 
-long task_one(const coop_info* coop) {
-    stdout_printf("Hello from the task one before noop!\n", "");
-    coop_noop(coop);
+/// @brief performs a timeout operation
+/// @param coop ptr to the initialized coop structure
+/// @param seconds number of seconds to wait
+/// @return 0 if no error, or negative value indicating an error
+extern long coop_timeout(const coop_info* coop, unsigned int seconds);
 
-    stdout_printf("Hello from the task one after noop!\n", "");
+long task_one(const coop_task* task) {
+    stdout_printf("Hello from the task one before noop!\n", "");
+    coop_noop(task->coop);
+
+    stdout_printf("Hello from the task one after noop! %s\n", task->file_name);
+    coop_timeout(task->coop, 3);
+
+    stdout_printf("Hello from the task one after timeout!\n", "");
     return 0;
 }
 
-long task_two(const coop_info* coop) {
+long task_two(const coop_task* task) {
     stdout_printf("Hello from the task two before noop!\n", "");
-    coop_noop(coop);
+    coop_noop(task->coop);
 
-    stdout_printf("Hello from the task two after noop!\n", "");
+    stdout_printf("Hello from the task two after noop! %s\n", task->file_name);
+    coop_timeout(task->coop, 2);
+
+    stdout_printf("Hello from the task two after timeout!\n", "");
     return 0;
 }
 
 int main() {
     coop_info coop;
+    coop_task task_one_ctx, task_two_ctx;
+
+    task_one_ctx.coop = &coop;
+    task_one_ctx.file_name = "task_one.txt";
+
+    task_two_ctx.coop = &coop;
+    task_two_ctx.file_name = "task_two.txt";
 
     if (coop_init(&coop, 4) < 0) {
         stdout_printf("coop_init\n", "");
         return -1;
     }
 
-    if (coop_spawn(&coop, task_one, &coop) < 0) {
+    if (coop_spawn(&coop, task_one, &task_one_ctx) < 0) {
         stdout_printf("coop_spawn\n", "");
         return -1;
     }
 
-    if (coop_spawn(&coop, task_two, &coop) < 0) {
+    if (coop_spawn(&coop, task_two, &task_two_ctx) < 0) {
         stdout_printf("coop_spawn\n", "");
         return -1;
     }
