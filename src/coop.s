@@ -108,7 +108,7 @@
     endstruc
 
     section .text
-    global coop_init, coop_free, coop_spawn, coop_loop, coop_noop, coop_timeout, coop_openat, coop_read
+    global coop_init, coop_free, coop_spawn, coop_loop, coop_noop, coop_timeout, coop_openat, coop_close, coop_read
 
 ; initializes cooperative preemption
 ; rdi - ptr to the uninitialized structure
@@ -732,7 +732,7 @@ coop_openat:
 
     mov byte [rdi + io_uring_sqe.opcode], 18               ; IORING_OP_OPENAT
     mov dword [rdi + io_uring_sqe.fd], -100                ; AT_FDCWD
-    mov rax, [rsp + 8]                                    ; load file mode
+    mov rax, [rsp + 8]                                     ; load file mode
     mov [rdi + io_uring_sqe.offset], rax                   ; set file mode
     mov rax, [rsp + 16]                                    ; load file open flags
     mov [rdi + io_uring_sqe.opflags], eax                  ; set fil open flags
@@ -799,6 +799,111 @@ coop_openat:
 
 .exit:
     add rsp, 40                                            ; clean stack usage
+    ret
+
+.done:
+    mov eax, [rdx + io_uring_cqe.result]                   ; success
+    cdqe                                                   ; sign extend
+    jmp r11                                                ; continue task
+
+; performs a close operation
+; rdi - ptr to the initialized coop structure
+; rsi - file descriptor to close
+; rax - returns 0 if no error, or negative value indicating an error
+coop_close:
+    sub rsp, 8                                             ; align the stack
+    push rsi                                               ; save file descriptor
+    push rdi                                               ; remember ptr to a coop struct
+
+; pull TX offsets
+
+    mov r10, [rdi + coop_info.fd]                          ; load uring file descriptor
+    mov rdx, [rdi + coop_info.tx_tail]                     ; load TX tail pointer
+    mov rcx, [rdi + coop_info.tx_mask]                     ; load TX mask pointer
+    mov rsi, [rdi + coop_info.tx_indx]                     ; load TX index pointer
+    mov rdi, [rdi + coop_info.sq_ptr]                      ; load TX entries pointer
+
+; find next SQE slot
+
+    mov ecx, [rcx]                                         ; load TX mask value
+    mov eax, [rdx]                                         ; load TX tail value
+
+    and rax, rcx                                           ; mask TX tail value
+    mov r11, rax                                           ; save current TX tail
+    imul rax, rax, 64                                      ; * size of SQE slot (64 bytes)
+    add rdi, rax                                           ; add TX entries pointer
+
+; clear SQE slot
+
+    xor rax, rax                                           ; clear rax
+    mov rcx, 8                                             ; 64 iterations, each 8 bytes
+    rep stosq                                              ; fill 64 bytes with 0
+    sub rdi, 64                                            ; move back to the SQE beginning
+
+    mov byte [rdi + io_uring_sqe.opcode], 19               ; IORING_OP_CLOSE
+    mov eax, [rsp + 8]                                     ; load file descriptor
+    mov [rdi + io_uring_sqe.fd], rax                       ; set file descriptor
+
+; prepare stack
+
+    mov rax, rsp                                           ; load addr of the stack
+    and rax, ~0x0fff                                       ; compute addr of the regs
+    mov rcx, [rsp]                                         ; load addr of the coop struct
+
+    mov qword [rdi + io_uring_sqe.user_data], rax          ; set user data
+    mov [rsi + r11 * 4], r11d                              ; set TX index
+
+    lea r8, [rsp + 32]
+    mov r11, [rsp + 24]                                    ; load function callback
+    lea rsi, .done                                         ; load function pointer
+
+    mov [rax + 0*8], rax                                   ; rax = registers
+    mov [rax + 1*8], rbx                                   ; rbx
+    mov [rax + 2*8], rcx                                   ; rcx = coop info
+    mov [rax + 3*8], rdx                                   ; rdx
+    mov [rax + 4*8], rsi                                   ; rsi = noop .done
+    mov [rax + 5*8], rdi                                   ; rdi
+    mov [rax + 6*8], r8                                    ; r8
+    mov [rax + 7*8], r9                                    ; r9
+    mov [rax + 8*8], r10                                   ; r10
+    mov [rax + 9*8], r11                                   ; r11 = just after noop
+    mov [rax + 10*8], r12                                  ; r12
+    mov [rax + 11*8], r13                                  ; r13
+    mov [rax + 12*8], r14                                  ; r14
+    mov [rax + 13*8], r15                                  ; r15
+    mov [rax + 14*8], rbp                                  ; rbp
+    mov [rax + 15*8], r8                                   ; rsp = stack
+
+    inc dword [rdx]                                        ; increment TX tail
+
+; call uring submission with noop (0x00) operation
+
+    mov rdi, r10                                           ; uring file descriptor
+    mov rsi, 1                                             ; 1 SQE
+    xor rdx, rdx                                           ; 0 CQE
+    xor r10, r10                                           ; no flags
+    xor r8, r8                                             ; no sigset
+    xor r9, r9                                             ; no sigset
+    mov rax, 426                                           ; io_uring_enter syscall
+    syscall
+
+    test rax, rax                                          ; check for error
+    js .exit                                               ; if error, clean and exit
+
+    cmp rax, 0                                             ; check for error
+    je .fail_one                                           ; if 0, clean and exit
+
+    mov rdi, [rsp]                                         ; load ptr to a coop struct
+    inc qword [rdi + coop_info.tx_loop]                    ; increment number of entries in flight
+
+    add rsp, 32                                            ; clean the local stack usage
+    jmp coop_switch                                        ; switch to the main thread
+
+.fail_one:
+    mov rax, -33
+
+.exit:
+    add rsp, 24                                            ; clean stack usage
     ret
 
 .done:

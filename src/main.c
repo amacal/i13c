@@ -61,6 +61,12 @@ extern long coop_timeout(const coop_info* coop, unsigned int seconds);
 /// @return 0 if no error, or negative value indicating an error
 extern long coop_openat(const coop_info* coop, const char* file_name, unsigned int flags, unsigned int mode);
 
+/// @brief performs a close file operation
+/// @param coop ptr to the initialized coop structure
+/// @param fd file descriptor to close
+/// @return 0 if no error, or negative value indicating an error
+extern long coop_close(const coop_info* coop, unsigned int fd);
+
 /// @brief performs a read operation
 /// @param coop ptr to the initialized coop structure
 /// @param fd file descriptor to read from
@@ -105,6 +111,9 @@ long task_two(const coop_task* task) {
 
     buffer[3] = '\0';
     stdout_printf("Hello from the task two after read! %s\n", buffer);
+
+    coop_close(task->coop, fd);
+    stdout_printf("Hello from the task two after close!\n", "");
 
     return 0;
 }

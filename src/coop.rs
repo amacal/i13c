@@ -47,6 +47,7 @@ mod tests {
         fn coop_noop(coop: *const CoopInfo) -> i64;
         fn coop_timeout(coop: *const CoopInfo, timeout: u32) -> i64;
         fn coop_openat(coop: *const CoopInfo, file_path: *const u8, flags: u32, mode: u32) -> i64;
+        fn coop_close(coop: *const CoopInfo, fd: u32) -> i64;
         fn coop_read(coop: *const CoopInfo, fd: u32, buffer: *mut u8, size: u32, offset: u32) -> i64;
     }
 
@@ -288,10 +289,13 @@ mod tests {
             let buffer = buffer.as_ptr();
 
             unsafe {
-                let res = coop_openat((*ctx).coop, file_path, 0, 0);
-                (*ctx).add(if res < 0 { res } else { 0 });
+                let fd = coop_openat((*ctx).coop, file_path, 0, 0);
+                (*ctx).add(if fd < 0 { fd } else { 0 });
 
-                let res = coop_read((*ctx).coop, res as u32, buffer as *mut u8, 64, 0);
+                let res = coop_read((*ctx).coop, fd as u32, buffer as *mut u8, 64, 0);
+                (*ctx).add(res);
+
+                let res = coop_close((*ctx).coop, fd as u32);
                 (*ctx).add(res);
             }
 
