@@ -46,6 +46,8 @@ mod tests {
         fn coop_loop(coop: *const CoopInfo) -> i64;
         fn coop_noop(coop: *const CoopInfo) -> i64;
         fn coop_timeout(coop: *const CoopInfo, timeout: u32) -> i64;
+        fn coop_openat(coop: *const CoopInfo, file_path: *const u8, flags: u32, mode: u32) -> i64;
+        fn coop_read(coop: *const CoopInfo, fd: u32, buffer: *mut u8, size: u32, offset: u32) -> i64;
     }
 
     #[test]
@@ -268,5 +270,41 @@ mod tests {
         }
 
         assert_eq!(150 * 150 + 150, ctx.get());
+    }
+
+    #[test]
+    fn can_spawn_one_synchronous_task_and_read_makefile() {
+        let mut val: i64 = 0;
+        let mut coop = CoopInfo::default();
+
+        let ctx = CoopContext::new(&mut val, &coop);
+        let ptr = &ctx as *const CoopContext;
+
+        extern "C" fn task_fn(ctx: *const CoopContext) -> i64 {
+            let file_path = b"Makefile\0";
+            let file_path = file_path.as_ptr();
+
+            let buffer: [u8; 64] = [0; 64];
+            let buffer = buffer.as_ptr();
+
+            unsafe {
+                let res = coop_openat((*ctx).coop, file_path, 0, 0);
+                (*ctx).add(if res < 0 { res } else { 0 });
+
+                let res = coop_read((*ctx).coop, res as u32, buffer as *mut u8, 64, 0);
+                (*ctx).add(res);
+            }
+
+            return 0;
+        }
+
+        unsafe {
+            assert_eq!(0, coop_init(&mut coop, 32));
+            assert_eq!(0, coop_spawn(&coop, task_fn, ptr));
+            assert_eq!(0, coop_loop(&coop));
+            assert_eq!(0, coop_free(&coop));
+        }
+
+        assert_eq!(64, ctx.get());
     }
 }

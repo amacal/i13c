@@ -53,7 +53,26 @@ extern long coop_noop(const coop_info* coop);
 /// @return 0 if no error, or negative value indicating an error
 extern long coop_timeout(const coop_info* coop, unsigned int seconds);
 
+/// @brief performs an open file operation
+/// @param coop ptr to the initialized coop structure
+/// @param file_name ptr to the file name
+/// @param flags file open flags
+/// @param mode file open mode
+/// @return 0 if no error, or negative value indicating an error
+extern long coop_openat(const coop_info* coop, const char* file_name, unsigned int flags, unsigned int mode);
+
+/// @brief performs a read operation
+/// @param coop ptr to the initialized coop structure
+/// @param fd file descriptor to read from
+/// @param buffer ptr to the buffer to read into
+/// @param size size of the buffer
+/// @param offset offset to read from
+/// @return 0 if no error, or negative value indicating an error
+extern long coop_read(const coop_info* coop, unsigned int fd, char* buffer, unsigned int size, unsigned long offset);
+
 long task_one(const coop_task* task) {
+    char buffer[64];
+
     stdout_printf("Hello from the task one before noop!\n", "");
     coop_noop(task->coop);
 
@@ -61,10 +80,17 @@ long task_one(const coop_task* task) {
     coop_timeout(task->coop, 3);
 
     stdout_printf("Hello from the task one after timeout!\n", "");
+    coop_read(task->coop, 0, buffer, sizeof(buffer), 0);
+
+    buffer[3] = '\0';
+    stdout_printf("Hello from the task one after read! %s\n", buffer);
+
     return 0;
 }
 
 long task_two(const coop_task* task) {
+    char buffer[64];
+
     stdout_printf("Hello from the task two before noop!\n", "");
     coop_noop(task->coop);
 
@@ -72,6 +98,14 @@ long task_two(const coop_task* task) {
     coop_timeout(task->coop, 2);
 
     stdout_printf("Hello from the task two after timeout!\n", "");
+    unsigned int fd = coop_openat(task->coop, task->file_name, 0, 0);
+
+    stdout_printf("Hello from the task two after open!\n", "");
+    coop_read(task->coop, fd, buffer, sizeof(buffer), 0);
+
+    buffer[3] = '\0';
+    stdout_printf("Hello from the task two after read! %s\n", buffer);
+
     return 0;
 }
 
@@ -83,7 +117,7 @@ int main() {
     task_one_ctx.file_name = "task_one.txt";
 
     task_two_ctx.coop = &coop;
-    task_two_ctx.file_name = "task_two.txt";
+    task_two_ctx.file_name = "Makefile";
 
     if (coop_init(&coop, 4) < 0) {
         stdout_printf("coop_init\n", "");
