@@ -115,16 +115,15 @@
 ; rsi - size (in slots) of the completion queue
 ; rax - returns 0 if no error, or negative value indicating an error
 coop_init:
-    push rbp                                               ; make 8 bytes space on stack
+    sub rsp, 8                                             ; align the stack
     push rdi                                               ; remember ptr to a coop struct
 
-; prepare
+; prepare io_uring_params
     sub rsp, 120                                           ; reserve 120 bytes on stack
     mov rcx, 15                                            ; 15 iterations, each 8 bytes
     xor rax, rax                                           ; source value is 0
     mov rdi, rsp                                           ; destination pointer
     rep stosq                                              ; fill 120 bytes with 0
-    mov [rsp + io_uring_params.sq_entries], esi            ; set sq_entries
 
     mov rdi, rsi                                           ; submission queue size
     mov rsi, rsp                                           ; ptr to io_uring_params
@@ -395,7 +394,7 @@ coop_spawn:
 
     and rax, rcx                                           ; mask TX tail value
     mov r11, rax                                           ; save current TX tail
-    imul rax, rax, 64                                      ; * size of SQE slot (64 bytes)
+    shl rax, 6                                             ; * size of SQE slot (64 bytes)
     add rdi, rax                                           ; add TX entries pointer
 
 ; clear SQE slot
@@ -527,7 +526,7 @@ coop_loop:
     cmp rdx, r11                                           ; compare RX head and tail
     je .loop                                               ; if equal, loop
 
-; find next CQE slot and keep default values for NOOP
+; find next CQE slot
 
     and rdx, rcx                                           ; mask RX head value
     shl rdx, 4                                             ; * size of CQE slot (16 bytes)
@@ -587,7 +586,7 @@ coop_loop:
 
 ; to continue execution, we need to jump to the .done first
 
-    dec qword [rcx + coop_info.tx_loop]                    ; increment number of entries in flight
+    dec qword [rcx + coop_info.tx_loop]                    ; decrement number of entries in flight
     jmp rsi                                                ; call .done within the task stack
 
 .exit:
@@ -720,7 +719,7 @@ coop_openat:
 
     and rax, rcx                                           ; mask TX tail value
     mov r11, rax                                           ; save current TX tail
-    imul rax, rax, 64                                      ; * size of SQE slot (64 bytes)
+    shl rax, 6                                             ; * size of SQE slot (64 bytes)
     add rdi, rax                                           ; add TX entries pointer
 
 ; clear SQE slot
