@@ -64,12 +64,12 @@ int main() {
         return -1;
     }
 
-    if (coop_spawn(&coop, task_one, &task_one_ctx) < 0) {
+    if (coop_spawn(&coop, task_one, &task_one_ctx, sizeof(coop_task)) < 0) {
         stdout_printf("coop_spawn\n", "");
         return -1;
     }
 
-    if (coop_spawn(&coop, task_two, &task_two_ctx) < 0) {
+    if (coop_spawn(&coop, task_two, &task_two_ctx, sizeof(coop_task)) < 0) {
         stdout_printf("coop_spawn\n", "");
         return -1;
     }

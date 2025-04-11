@@ -355,12 +355,14 @@ coop_free:
 ; rdi - ptr to the initialized structure
 ; rsi - ptr to the function to be executed
 ; rdx - ptr to the function argument
+; rcx - size of the function argument
 ; rax - returns 0 if no error, or negative value indicating an error
 coop_spawn:
     push rdi                                               ; remember ptr to a coop struct
     push rsi                                               ; remember ptr to a function
     push rdx                                               ; remember ptr to a function argument
-    sub rsp, 16                                            ; make 16 bytes space on stack
+    push rcx                                               ; remember size of the function argument
+    sub rsp, 8                                             ; make 16 bytes space on stack
 
 ; allocate task stack
 
@@ -377,10 +379,23 @@ coop_spawn:
     js .exit                                               ; if error, exit
 
     mov [rsp], rax                                         ; save new stack pointer
-    mov rdi, [rsp + 32]                                    ; restore ptr to a coop struct
+
+; copy function context
+
+    mov rcx, [rsp + 8]                                    ; load size of the function argument
+    test rcx, rcx                                         ; check if size is 0
+    jz .skip_copy                                         ; if 0, skip copy
+
+    mov rsi, [rsp + 16]                                   ; load function context
+    lea rdi, [rax + 0x0080]                               ; just after dumped registers
+    mov [rsp + 16], rdi                                   ; save new function context
+    rep movsb                                             ; copy function argument
+
+.skip_copy:
 
 ; pull TX offsets
 
+    mov rdi, [rsp + 32]                                    ; restore ptr to a coop struct
     mov r10, [rdi + coop_info.fd]                          ; load uring file descriptor
     mov rdx, [rdi + coop_info.tx_tail]                     ; load TX tail pointer
     mov rcx, [rdi + coop_info.tx_mask]                     ; load TX mask pointer

@@ -17,8 +17,9 @@ extern long coop_free(const coop_info* coop);
 /// @param coop ptr to the initialized structure
 /// @param fn ptr to the function to be executed
 /// @param ctx ptr to the function argument
+/// @param size size of the function argument
 /// @return 0 if no error, or negative value indicating an error
-extern long coop_spawn(const coop_info* coop, long (*fn)(const void*), const void* ctx);
+extern long coop_spawn(const coop_info* coop, long (*fn)(const void*), const void* ctx, unsigned long size);
 
 /// @brief runs a cooperative preemption loop
 /// @param coop ptr to the initialized coop structure

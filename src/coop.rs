@@ -15,11 +15,16 @@ mod tests {
     struct CoopContext {
         ptr: *const i64,
         coop: *const CoopInfo,
+        this: *const CoopContext,
     }
 
     impl CoopContext {
         fn new(ptr: *const i64, coop: *const CoopInfo) -> Self {
-            CoopContext { ptr, coop }
+            CoopContext { ptr, coop, this: std::ptr::null() }
+        }
+
+        fn is_same(&self) -> bool {
+            self.this == self as *const CoopContext
         }
 
         fn get(&self) -> i64 {
@@ -42,7 +47,7 @@ mod tests {
     extern "C" {
         fn coop_init(coop: *mut CoopInfo, submissions: u32) -> i64;
         fn coop_free(coop: *const CoopInfo) -> i64;
-        fn coop_spawn(coop: *const CoopInfo, ptr: CoopFn, ctx: *const CoopContext) -> i64;
+        fn coop_spawn(coop: *const CoopInfo, ptr: CoopFn, ctx: *const CoopContext, size: usize) -> i64;
         fn coop_loop(coop: *const CoopInfo) -> i64;
         fn coop_noop(coop: *const CoopInfo) -> i64;
         fn coop_timeout(coop: *const CoopInfo, timeout: u32) -> i64;
@@ -78,7 +83,7 @@ mod tests {
 
         unsafe {
             assert_eq!(0, coop_init(&mut coop, 32));
-            assert_eq!(0, coop_spawn(&coop, task_fn, ptr));
+            assert_eq!(0, coop_spawn(&coop, task_fn, ptr, 0));
             assert_eq!(0, coop_free(&coop));
         }
 
@@ -90,24 +95,53 @@ mod tests {
         let mut val: i64 = 0;
         let mut coop = CoopInfo::default();
 
-        let ctx = CoopContext::new(&mut val, &coop);
+        let mut ctx = CoopContext::new(&mut val, &coop);
         let ptr = &ctx as *const CoopContext;
 
         extern "C" fn task_fn(ctx: *const CoopContext) -> i64 {
             unsafe {
-                (*ctx).add(42);
+                (*ctx).add(if (*ctx).is_same() { 42 } else { 41 });
                 return 0;
             }
         }
 
         unsafe {
+            ctx.this = ptr;
+
             assert_eq!(0, coop_init(&mut coop, 32));
-            assert_eq!(0, coop_spawn(&coop, task_fn, ptr));
+            assert_eq!(0, coop_spawn(&coop, task_fn, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
             assert_eq!(0, coop_free(&coop));
         }
 
         assert_eq!(42, ctx.get());
+    }
+
+    #[test]
+    fn can_spawn_one_synchronous_task_in_sized_mode_and_loop_through_it() {
+        let mut val: i64 = 13;
+        let mut coop = CoopInfo::default();
+
+        let mut ctx = CoopContext::new(&mut val, &coop);
+        let ptr = &ctx as *const CoopContext;
+
+        extern "C" fn task_fn(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                (*ctx).add(if (*ctx).is_same() { 41 } else { 42 });
+                return 0;
+            }
+        }
+
+        unsafe {
+            ctx.this = ptr;
+
+            assert_eq!(0, coop_init(&mut coop, 32));
+            assert_eq!(0, coop_spawn(&coop, task_fn, ptr, std::mem::size_of::<CoopContext>()));
+            assert_eq!(0, coop_loop(&coop));
+            assert_eq!(0, coop_free(&coop));
+        }
+
+        assert_eq!(55, ctx.get());
     }
 
     #[test]
@@ -134,8 +168,8 @@ mod tests {
 
         unsafe {
             assert_eq!(0, coop_init(&mut coop, 32));
-            assert_eq!(0, coop_spawn(&coop, task_one, ptr));
-            assert_eq!(0, coop_spawn(&coop, task_two, ptr));
+            assert_eq!(0, coop_spawn(&coop, task_one, ptr, 0));
+            assert_eq!(0, coop_spawn(&coop, task_two, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
             assert_eq!(0, coop_free(&coop));
         }
@@ -161,7 +195,7 @@ mod tests {
 
         unsafe {
             assert_eq!(0, coop_init(&mut coop, 32));
-            assert_eq!(0, coop_spawn(&coop, task_fn, ptr));
+            assert_eq!(0, coop_spawn(&coop, task_fn, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
             assert_eq!(0, coop_free(&coop));
         }
@@ -187,7 +221,7 @@ mod tests {
 
         unsafe {
             assert_eq!(0, coop_init(&mut coop, 32));
-            assert_eq!(0, coop_spawn(&coop, task_fn, ptr));
+            assert_eq!(0, coop_spawn(&coop, task_fn, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
             assert_eq!(0, coop_free(&coop));
         }
@@ -216,7 +250,7 @@ mod tests {
 
         unsafe {
             assert_eq!(0, coop_init(&mut coop, 32));
-            assert_eq!(0, coop_spawn(&coop, task_fn, ptr));
+            assert_eq!(0, coop_spawn(&coop, task_fn, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
             assert_eq!(0, coop_free(&coop));
         }
@@ -247,7 +281,7 @@ mod tests {
             assert_eq!(0, coop_init(&mut coop, 32));
 
             for _ in 0..150 {
-                assert_eq!(0, coop_spawn(&coop, task_fn, ptr));
+                assert_eq!(0, coop_spawn(&coop, task_fn, ptr, 0));
             }
 
             assert_eq!(0, coop_loop(&coop));
@@ -279,7 +313,7 @@ mod tests {
         extern "C" fn task_fn(ctx: *const CoopContext) -> i64 {
             unsafe {
                 for _ in 0..150 {
-                    let res = coop_spawn((*ctx).coop, minor_fn, ctx);
+                    let res = coop_spawn((*ctx).coop, minor_fn, ctx, 0);
                     (*ctx).add(1 + res);
                 }
 
@@ -289,7 +323,7 @@ mod tests {
 
         unsafe {
             assert_eq!(0, coop_init(&mut coop, 32));
-            assert_eq!(0, coop_spawn(&coop, task_fn, ptr));
+            assert_eq!(0, coop_spawn(&coop, task_fn, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
             assert_eq!(0, coop_free(&coop));
         }
@@ -328,7 +362,7 @@ mod tests {
 
         unsafe {
             assert_eq!(0, coop_init(&mut coop, 32));
-            assert_eq!(0, coop_spawn(&coop, task_fn, ptr));
+            assert_eq!(0, coop_spawn(&coop, task_fn, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
             assert_eq!(0, coop_free(&coop));
         }
