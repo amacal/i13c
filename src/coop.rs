@@ -62,6 +62,30 @@ mod tests {
     }
 
     #[test]
+    fn can_spawn_one_synchronous_task() {
+        let mut val: i64 = 0;
+        let mut coop = CoopInfo::default();
+
+        let ctx = CoopContext::new(&mut val, &coop);
+        let ptr = &ctx as *const CoopContext;
+
+        extern "C" fn task_fn(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                (*ctx).add(42);
+                return 0;
+            }
+        }
+
+        unsafe {
+            assert_eq!(0, coop_init(&mut coop, 32));
+            assert_eq!(0, coop_spawn(&coop, task_fn, ptr));
+            assert_eq!(0, coop_free(&coop));
+        }
+
+        assert_eq!(0, ctx.get());
+    }
+
+    #[test]
     fn can_spawn_one_synchronous_task_and_loop_through_it() {
         let mut val: i64 = 0;
         let mut coop = CoopInfo::default();

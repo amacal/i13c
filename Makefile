@@ -3,7 +3,10 @@ LD=ld
 CC=gcc
 NASM=nasm
 
-CFLAGS=-Wall -Wextra -g -O1 -fno-pic -fno-pie -mno-shstk -fcf-protection=none -mno-red-zone -fno-merge-constants -fno-stack-protector
+CFLAGS=-Wall -Wextra -Wno-incompatible-pointer-types \
+	   -g -O1 -fno-pic -fno-pie -mno-shstk -fcf-protection=none \
+	   -mno-red-zone -fno-merge-constants -fno-stack-protector -MMD -MP
+
 LDFLAGS=-static -no-pie -z noexecstack -nostdlib
 NASMFLAGS=-f elf64
 RUSTFLAGS=-C relocation-model=static
@@ -18,8 +21,11 @@ TMPDIR=tmp
 
 SRCS_C=$(wildcard $(SRCDIR)/*.c)
 SRCS_ASM=$(wildcard $(SRCDIR)/*.s)
+
 OBJS=$(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.c.o, $(SRCS_C)) \
      $(patsubst $(SRCDIR)/%.s, $(OBJDIR)/%.s.o, $(SRCS_ASM))
+
+-include $(OBJS:.o=.d)
 
 build: $(BINOUTPUT) $(LIBOUTPUT)
 
