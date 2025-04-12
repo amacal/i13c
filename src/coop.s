@@ -434,23 +434,7 @@ coop_spawn:
     mov r11, [rsp + 24]                                    ; load function pointer
     lea rsi, .done                                         ; load function callback
 
-    mov [rax + 0*8], rax                                   ; rax = registers
-    mov [rax + 1*8], rbx                                   ; rbx
-    mov [rax + 2*8], rcx                                   ; rcx = coop info
-    mov [rax + 3*8], rdx                                   ; rdx
-    mov [rax + 4*8], rsi                                   ; rsi = spawn .done
-    mov [rax + 5*8], rdi                                   ; rdi = function argument
-    mov [rax + 6*8], r8                                    ; r8
-    mov [rax + 7*8], r9                                    ; r9
-    mov [rax + 8*8], r10                                   ; r10
-    mov [rax + 9*8], r11                                   ; r11 = function pointer
-    mov [rax + 10*8], r12                                  ; r12
-    mov [rax + 11*8], r13                                  ; r13
-    mov [rax + 12*8], r14                                  ; r14
-    mov [rax + 13*8], r15                                  ; r15
-    mov [rax + 14*8], rbp                                  ; rbp
-    mov [rax + 15*8], r8                                   ; rsp = stack + 0x0ff8
-
+    call coop_push                                         ; dump task registers
     inc dword [rdx]                                        ; increment TX tail
 
 ; call uring submission with noop (0x00) operation
@@ -582,6 +566,7 @@ coop_loop:
 
 ; now we can switch to the task stack
 
+    ; call coop_pull                                         ; restore task registers
     mov rax, [rax + 0*8]                                   ; rax = task registers
     mov rbx, [rax + 1*8]                                   ; rbx
     mov rcx, [rax + 2*8]                                   ; rcx = coop info
@@ -652,23 +637,7 @@ coop_noop:
     mov r11, [rsp + 8]                                     ; load function callback
     lea rsi, .done                                         ; load function pointer
 
-    mov [rax + 0*8], rax                                   ; rax = registers
-    mov [rax + 1*8], rbx                                   ; rbx
-    mov [rax + 2*8], rcx                                   ; rcx = coop info
-    mov [rax + 3*8], rdx                                   ; rdx
-    mov [rax + 4*8], rsi                                   ; rsi = noop .done
-    mov [rax + 5*8], rdi                                   ; rdi
-    mov [rax + 6*8], r8                                    ; r8
-    mov [rax + 7*8], r9                                    ; r9
-    mov [rax + 8*8], r10                                   ; r10
-    mov [rax + 9*8], r11                                   ; r11 = just after noop
-    mov [rax + 10*8], r12                                  ; r12
-    mov [rax + 11*8], r13                                  ; r13
-    mov [rax + 12*8], r14                                  ; r14
-    mov [rax + 13*8], r15                                  ; r15
-    mov [rax + 14*8], rbp                                  ; rbp
-    mov [rax + 15*8], r8                                   ; rsp = stack
-
+    call coop_push                                         ; dump task registers
     inc dword [rdx]                                        ; increment TX tail
 
 ; call uring submission with noop (0x00) operation
@@ -766,23 +735,7 @@ coop_openat:
     mov r11, [rsp + 40]                                    ; load function callback
     lea rsi, .done                                         ; load function pointer
 
-    mov [rax + 0*8], rax                                   ; rax = registers
-    mov [rax + 1*8], rbx                                   ; rbx
-    mov [rax + 2*8], rcx                                   ; rcx = coop info
-    mov [rax + 3*8], rdx                                   ; rdx
-    mov [rax + 4*8], rsi                                   ; rsi = noop .done
-    mov [rax + 5*8], rdi                                   ; rdi
-    mov [rax + 6*8], r8                                    ; r8
-    mov [rax + 7*8], r9                                    ; r9
-    mov [rax + 8*8], r10                                   ; r10
-    mov [rax + 9*8], r11                                   ; r11 = just after noop
-    mov [rax + 10*8], r12                                  ; r12
-    mov [rax + 11*8], r13                                  ; r13
-    mov [rax + 12*8], r14                                  ; r14
-    mov [rax + 13*8], r15                                  ; r15
-    mov [rax + 14*8], rbp                                  ; rbp
-    mov [rax + 15*8], r8                                   ; rsp = stack
-
+    call coop_push                                         ; dump task registers
     inc dword [rdx]                                        ; increment TX tail
 
 ; call uring submission with noop (0x00) operation
@@ -871,23 +824,7 @@ coop_close:
     mov r11, [rsp + 24]                                    ; load function callback
     lea rsi, .done                                         ; load function pointer
 
-    mov [rax + 0*8], rax                                   ; rax = registers
-    mov [rax + 1*8], rbx                                   ; rbx
-    mov [rax + 2*8], rcx                                   ; rcx = coop info
-    mov [rax + 3*8], rdx                                   ; rdx
-    mov [rax + 4*8], rsi                                   ; rsi = noop .done
-    mov [rax + 5*8], rdi                                   ; rdi
-    mov [rax + 6*8], r8                                    ; r8
-    mov [rax + 7*8], r9                                    ; r9
-    mov [rax + 8*8], r10                                   ; r10
-    mov [rax + 9*8], r11                                   ; r11 = just after noop
-    mov [rax + 10*8], r12                                  ; r12
-    mov [rax + 11*8], r13                                  ; r13
-    mov [rax + 12*8], r14                                  ; r14
-    mov [rax + 13*8], r15                                  ; r15
-    mov [rax + 14*8], rbp                                  ; rbp
-    mov [rax + 15*8], r8                                   ; rsp = stack
-
+    call coop_push                                         ; dump task registers
     inc dword [rdx]                                        ; increment TX tail
 
 ; call uring submission with noop (0x00) operation
@@ -987,23 +924,7 @@ coop_read:
     mov r11, [rsp + 40]                                    ; load function callback
     lea rsi, .done                                         ; load function pointer
 
-    mov [rax + 0*8], rax                                   ; rax = registers
-    mov [rax + 1*8], rbx                                   ; rbx
-    mov [rax + 2*8], rcx                                   ; rcx = coop info
-    mov [rax + 3*8], rdx                                   ; rdx
-    mov [rax + 4*8], rsi                                   ; rsi = noop .done
-    mov [rax + 5*8], rdi                                   ; rdi
-    mov [rax + 6*8], r8                                    ; r8
-    mov [rax + 7*8], r9                                    ; r9
-    mov [rax + 8*8], r10                                   ; r10
-    mov [rax + 9*8], r11                                   ; r11 = just after noop
-    mov [rax + 10*8], r12                                  ; r12
-    mov [rax + 11*8], r13                                  ; r13
-    mov [rax + 12*8], r14                                  ; r14
-    mov [rax + 13*8], r15                                  ; r15
-    mov [rax + 14*8], rbp                                  ; rbp
-    mov [rax + 15*8], r8                                   ; rsp = stack
-
+    call coop_push                                         ; dump task registers
     inc dword [rdx]                                        ; increment TX tail
 
 ; call uring submission with noop (0x00) operation
@@ -1096,23 +1017,7 @@ coop_timeout:
     mov r11, [rsp + 24]                                    ; load function callback
     lea rsi, .done                                         ; load function pointer
 
-    mov [rax + 0*8], rax                                   ; rax = registers
-    mov [rax + 1*8], rbx                                   ; rbx
-    mov [rax + 2*8], rcx                                   ; rcx = coop info
-    mov [rax + 3*8], rdx                                   ; rdx
-    mov [rax + 4*8], rsi                                   ; rsi = noop .done
-    mov [rax + 5*8], rdi                                   ; rdi
-    mov [rax + 6*8], r8                                    ; r8
-    mov [rax + 7*8], r9                                    ; r9
-    mov [rax + 8*8], r10                                   ; r10
-    mov [rax + 9*8], r11                                   ; r11 = just after noop
-    mov [rax + 10*8], r12                                  ; r12
-    mov [rax + 11*8], r13                                  ; r13
-    mov [rax + 12*8], r14                                  ; r14
-    mov [rax + 13*8], r15                                  ; r15
-    mov [rax + 14*8], rbp                                  ; rbp
-    mov [rax + 15*8], r8                                   ; rsp = stack
-
+    call coop_push                                         ; dump task registers
     inc dword [rdx]                                        ; increment TX tail
 
 ; call uring submission with noop (0x00) operation
@@ -1226,3 +1131,52 @@ coop_switch:
     mov rsp, [rdx + 15*8]                                  ; rsp
 
     jmp coop_loop                                          ; continue looping
+
+; pushes task registers to the stack
+; rax - ptr to the dump area
+; rcx - ptr to the coop info
+; rsi - ptr to the .done function
+; rdi - ptr to the optional context
+; r11 - ptr to the resumption code
+; r8 - ptr to the RSP after resumption
+coop_push:
+    mov [rax + 0*8], rax                                   ; rax = registers
+    mov [rax + 1*8], rbx                                   ; rbx
+    mov [rax + 2*8], rcx                                   ; rcx = coop info
+    mov [rax + 3*8], rdx                                   ; rdx
+    mov [rax + 4*8], rsi                                   ; rsi = .done
+    mov [rax + 5*8], rdi                                   ; rdi = context
+    mov [rax + 6*8], r8                                    ; r8
+    mov [rax + 7*8], r9                                    ; r9
+    mov [rax + 8*8], r10                                   ; r10
+    mov [rax + 9*8], r11                                   ; r11 = resumption
+    mov [rax + 10*8], r12                                  ; r12
+    mov [rax + 11*8], r13                                  ; r13
+    mov [rax + 12*8], r14                                  ; r14
+    mov [rax + 13*8], r15                                  ; r15
+    mov [rax + 14*8], rbp                                  ; rbp
+    mov [rax + 15*8], r8                                   ; rsp = stack
+    ret
+
+; switches to the task stack
+; rax - ptr to the dump area
+; rsi - ptr to the CQE entry
+coop_pull:
+    pop r8
+    mov rax, [rax + 0*8]                                   ; rax = registers
+    mov rbx, [rax + 1*8]                                   ; rbx
+    mov rcx, [rax + 2*8]                                   ; rcx = coop info
+    mov rdx, rsi                                           ; rdx = CQE entry
+    mov rsi, [rax + 4*8]                                   ; rsi = .done
+    mov rdi, [rax + 5*8]                                   ; rdi = context
+    mov r8, r8                                             ; r8
+    mov r9, [rax + 7*8]                                    ; r9
+    mov r10, [rax + 8*8]                                   ; r10
+    mov r11, [rax + 9*8]                                   ; r11 = resumption
+    mov r12, [rax + 10*8]                                  ; r12
+    mov r13, [rax + 11*8]                                  ; r13
+    mov r14, [rax + 12*8]                                  ; r14
+    mov r15, [rax + 13*8]                                  ; r15
+    mov rbp, [rax + 14*8]                                  ; rbp
+    mov rsp, [rax + 15*8]                                  ; rsp = stack
+    jmp r8
