@@ -382,14 +382,14 @@ coop_spawn:
 
 ; copy function context
 
-    mov rcx, [rsp + 8]                                    ; load size of the function argument
-    test rcx, rcx                                         ; check if size is 0
-    jz .skip_copy                                         ; if 0, skip copy
+    mov rcx, [rsp + 8]                                     ; load size of the function argument
+    test rcx, rcx                                          ; check if size is 0
+    jz .skip_copy                                          ; if 0, skip copy
 
-    mov rsi, [rsp + 16]                                   ; load function context
-    lea rdi, [rax + 0x0080]                               ; just after dumped registers
-    mov [rsp + 16], rdi                                   ; save new function context
-    rep movsb                                             ; copy function argument
+    mov rsi, [rsp + 16]                                    ; load function context
+    lea rdi, [rax + 0x0080]                                ; just after dumped registers
+    mov [rsp + 16], rdi                                    ; save new function context
+    rep movsb                                              ; copy function argument
 
 .skip_copy:
 
@@ -566,23 +566,7 @@ coop_loop:
 
 ; now we can switch to the task stack
 
-    ; call coop_pull                                         ; restore task registers
-    mov rax, [rax + 0*8]                                   ; rax = task registers
-    mov rbx, [rax + 1*8]                                   ; rbx
-    mov rcx, [rax + 2*8]                                   ; rcx = coop info
-    mov rdx, rsi                                           ; rdx = CQE entry
-    mov rsi, [rax + 4*8]                                   ; rsi = .done callback
-    mov rdi, [rax + 5*8]                                   ; rdi = function argument
-    mov r8, [rax + 6*8]                                    ; r8
-    mov r9, [rax + 7*8]                                    ; r9
-    mov r10, [rax + 8*8]                                   ; r10
-    mov r11, [rax + 9*8]                                   ; r11 = next RIP
-    mov r12, [rax + 10*8]                                  ; r12
-    mov r13, [rax + 11*8]                                  ; r13
-    mov r14, [rax + 12*8]                                  ; r14
-    mov r15, [rax + 13*8]                                  ; r15
-    mov rbp, [rax + 14*8]                                  ; rbp
-    mov rsp, [rax + 15*8]                                  ; rsp = stack pointer
+    call coop_pull                                         ; restore task registers
 
 ; to continue execution, we need to jump to the .done first
 
@@ -660,6 +644,7 @@ coop_noop:
     mov rdi, [rsp]                                         ; load ptr to a coop struct
     inc qword [rdi + coop_info.tx_loop]                    ; increment number of entries in flight
 
+    xor rdx, rdx                                           ; clean the main dump location
     add rsp, 16                                            ; clean the local stack usage
     jmp coop_switch                                        ; switch to the main thread
 
@@ -758,6 +743,7 @@ coop_openat:
     mov rdi, [rsp]                                         ; load ptr to a coop struct
     inc qword [rdi + coop_info.tx_loop]                    ; increment number of entries in flight
 
+    xor rdx, rdx                                           ; clean the main dump location
     add rsp, 48                                            ; clean the local stack usage
     jmp coop_switch                                        ; switch to the main thread
 
@@ -847,6 +833,7 @@ coop_close:
     mov rdi, [rsp]                                         ; load ptr to a coop struct
     inc qword [rdi + coop_info.tx_loop]                    ; increment number of entries in flight
 
+    xor rdx, rdx                                           ; clean the main dump location
     add rsp, 32                                            ; clean the local stack usage
     jmp coop_switch                                        ; switch to the main thread
 
@@ -947,6 +934,7 @@ coop_read:
     mov rdi, [rsp]                                         ; load ptr to a coop struct
     inc qword [rdi + coop_info.tx_loop]                    ; increment number of entries in flight
 
+    xor rdx, rdx                                           ; clean the main dump location
     add rsp, 48                                            ; clean the local stack usage
     jmp coop_switch                                        ; switch to the main thread
 
@@ -1040,6 +1028,7 @@ coop_timeout:
     mov rdi, [rsp]                                         ; load ptr to a coop struct
     inc qword [rdi + coop_info.tx_loop]                    ; increment number of entries in flight
 
+    xor rdx, rdx                                           ; clean the main dump location
     add rsp, 32                                            ; clean the local stack usage
     jmp coop_switch                                        ; switch to the main thread
 
@@ -1077,31 +1066,15 @@ coop_end:
     syscall
 
     mov rdx, r12                                           ; revert registers pointer
-
-; switch back to the main thread
-
-    mov rax, [rdx + 0*8]                                   ; rax
-    mov rbx, [rdx + 1*8]                                   ; rbx
-    mov rcx, [rdx + 2*8]                                   ; rcx
-    mov rdx, [rdx + 3*8]                                   ; rdx = registers
-    mov rsi, [rdx + 4*8]                                   ; rsi
-    mov rdi, [rdx + 5*8]                                   ; rdi = coop info
-    mov r8, [rdx + 6*8]                                    ; r8
-    mov r9, [rdx + 7*8]                                    ; r9
-    mov r10, [rdx + 8*8]                                   ; r10
-    mov r11, [rdx + 9*8]                                   ; r11
-    mov r12, [rdx + 10*8]                                  ; r12
-    mov r13, [rdx + 11*8]                                  ; r13
-    mov r14, [rdx + 12*8]                                  ; r14
-    mov r15, [rdx + 13*8]                                  ; r15
-    mov rbp, [rdx + 14*8]                                  ; rbp
-    mov rsp, [rdx + 15*8]                                  ; rsp
-
-    jmp coop_loop                                          ; continue looping
+    jmp coop_switch                                        ; switch to the main thread
 
 ; switches to the main thread
 ; rsp - ptr to the stack of the task
+; rdx - optional ptr to the main dump
 coop_switch:
+
+    test rdx, rdx                                          ; check if dump is provided
+    jnz .jump                                              ; if set then jump to the main thread
 
 ; find the allocated task and the registers of the main thread
 
@@ -1113,6 +1086,7 @@ coop_switch:
 
 ; switch back to the main thread
 
+.jump:
     mov rax, [rdx + 0*8]                                   ; rax
     mov rbx, [rdx + 1*8]                                   ; rbx
     mov rcx, [rdx + 2*8]                                   ; rcx
@@ -1162,7 +1136,8 @@ coop_push:
 ; rax - ptr to the dump area
 ; rsi - ptr to the CQE entry
 coop_pull:
-    pop r8
+    pop r8                                                 ; remember return address
+
     mov rax, [rax + 0*8]                                   ; rax = registers
     mov rbx, [rax + 1*8]                                   ; rbx
     mov rcx, [rax + 2*8]                                   ; rcx = coop info
@@ -1179,4 +1154,5 @@ coop_pull:
     mov r15, [rax + 13*8]                                  ; r15
     mov rbp, [rax + 14*8]                                  ; rbp
     mov rsp, [rax + 15*8]                                  ; rsp = stack
-    jmp r8
+
+    jmp r8                                                 ; jump back
