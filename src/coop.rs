@@ -1,60 +1,73 @@
+use crate::channel::*;
+
+#[repr(C)]
+pub struct CoopInfo {
+    data: [u64; 33],
+}
+
+impl Default for CoopInfo {
+    fn default() -> Self {
+        CoopInfo { data: [0; 33] }
+    }
+}
+
+#[repr(C)]
+pub struct CoopContext {
+    ptr: *const i64,
+    coop: *const CoopInfo,
+    this: *const CoopContext,
+    channel: *const ChannelInfo,
+}
+
+impl CoopContext {
+    pub fn new(ptr: *const i64, coop: *const CoopInfo) -> Self {
+        CoopContext { ptr, coop, this: std::ptr::null(), channel: std::ptr::null() }
+    }
+
+    pub fn with_channel(self, channel: *const ChannelInfo) -> Self {
+        CoopContext { channel, ..self }
+    }
+
+    pub fn is_same(&self) -> bool {
+        self.this == self as *const CoopContext
+    }
+
+    pub fn channel(&self) -> *const ChannelInfo {
+        self.channel
+    }
+
+    pub fn get(&self) -> i64 {
+        unsafe { std::ptr::read_volatile(self.ptr) }
+    }
+
+    pub fn add(&self, val: i64) {
+        unsafe {
+            std::ptr::write_volatile(
+                self.ptr as *mut i64,
+                std::ptr::read_volatile(self.ptr) + val,
+            );
+        }
+    }
+}
+
+pub type CoopFn = extern "C" fn(*const CoopContext) -> i64;
+
+#[link(name = "i13c", kind = "static")]
+extern "C" {
+    pub fn coop_init(coop: *mut CoopInfo, submissions: u32) -> i64;
+    pub fn coop_free(coop: *const CoopInfo) -> i64;
+    pub fn coop_spawn(coop: *const CoopInfo, ptr: CoopFn, ctx: *const CoopContext, size: usize) -> i64;
+    pub fn coop_loop(coop: *const CoopInfo) -> i64;
+    pub fn coop_noop(coop: *const CoopInfo) -> i64;
+    pub fn coop_timeout(coop: *const CoopInfo, timeout: u32) -> i64;
+    pub fn coop_openat(coop: *const CoopInfo, file_path: *const u8, flags: u32, mode: u32) -> i64;
+    pub fn coop_close(coop: *const CoopInfo, fd: u32) -> i64;
+    pub fn coop_read(coop: *const CoopInfo, fd: u32, buffer: *mut u8, size: u32, offset: u32) -> i64;
+}
+
 #[cfg(test)]
 mod tests {
-    #[repr(C)]
-    struct CoopInfo {
-        data: [u64; 33],
-    }
-
-    impl Default for CoopInfo {
-        fn default() -> Self {
-            CoopInfo { data: [0; 33] }
-        }
-    }
-
-    #[repr(C)]
-    struct CoopContext {
-        ptr: *const i64,
-        coop: *const CoopInfo,
-        this: *const CoopContext,
-    }
-
-    impl CoopContext {
-        fn new(ptr: *const i64, coop: *const CoopInfo) -> Self {
-            CoopContext { ptr, coop, this: std::ptr::null() }
-        }
-
-        fn is_same(&self) -> bool {
-            self.this == self as *const CoopContext
-        }
-
-        fn get(&self) -> i64 {
-            unsafe { std::ptr::read_volatile(self.ptr) }
-        }
-
-        fn add(&self, val: i64) {
-            unsafe {
-                std::ptr::write_volatile(
-                    self.ptr as *mut i64,
-                    std::ptr::read_volatile(self.ptr) + val,
-                );
-            }
-        }
-    }
-
-    type CoopFn = extern "C" fn(*const CoopContext) -> i64;
-
-    #[link(name = "i13c", kind = "static")]
-    extern "C" {
-        fn coop_init(coop: *mut CoopInfo, submissions: u32) -> i64;
-        fn coop_free(coop: *const CoopInfo) -> i64;
-        fn coop_spawn(coop: *const CoopInfo, ptr: CoopFn, ctx: *const CoopContext, size: usize) -> i64;
-        fn coop_loop(coop: *const CoopInfo) -> i64;
-        fn coop_noop(coop: *const CoopInfo) -> i64;
-        fn coop_timeout(coop: *const CoopInfo, timeout: u32) -> i64;
-        fn coop_openat(coop: *const CoopInfo, file_path: *const u8, flags: u32, mode: u32) -> i64;
-        fn coop_close(coop: *const CoopInfo, fd: u32) -> i64;
-        fn coop_read(coop: *const CoopInfo, fd: u32, buffer: *mut u8, size: u32, offset: u32) -> i64;
-    }
+    use super::*;
 
     #[test]
     fn can_initialize_coop() {

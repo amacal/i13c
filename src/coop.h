@@ -1,3 +1,5 @@
+#pragma once
+
 typedef struct {
     long data[33];
 } coop_info;

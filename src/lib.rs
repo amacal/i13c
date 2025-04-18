@@ -1,2 +1,3 @@
-mod coop;
-mod stdout;
+pub mod coop;
+pub mod channel;
+pub mod stdout;
