@@ -2,7 +2,7 @@
 #include "coop.h"
 
 typedef struct {
-    long data[33];
+    long data[5];
 } channel_info;
 
 /// @brief initializes hand-off channel
@@ -11,6 +11,12 @@ typedef struct {
 /// @param participants number of participants in the channel
 /// @return 0 if no error, or negative value indicating an error
 extern long channel_init(channel_info* channel, coop_info* coop, unsigned long participants);
+
+/// @brief frees the hand-off channel instance
+/// @param channel ptr to channel structure
+/// @param flags 0 or 1 indicating whether to wait for all participants
+/// @return 0 if no error, or negative value indicating an error
+extern long channel_free(channel_info* channel, unsigned long flags);
 
 /// @brief sends a message to the channel
 /// @param channel ptr to channel structure

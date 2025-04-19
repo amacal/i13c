@@ -13,8 +13,8 @@ impl Default for ChannelInfo {
 
 #[link(name = "i13c", kind = "static")]
 extern "C" {
-    pub fn channel_init(channel: *mut ChannelInfo, coop: *const CoopInfo, size: usize) -> i64;
-    pub fn channel_free(channel: *const ChannelInfo) -> i64;
+    pub fn channel_init(channel: *mut ChannelInfo, coop: *const CoopInfo, size: u64) -> i64;
+    pub fn channel_free(channel: *const ChannelInfo, flags: u64) -> i64;
 
     pub fn channel_send(channel: *const ChannelInfo, data: *const i64) -> i64;
     pub fn channel_recv(channel: *const ChannelInfo, data: *mut *const i64) -> i64;
@@ -34,7 +34,7 @@ mod tests {
         unsafe {
             assert_eq!(0, coop_init(&mut coop, 32));
             assert_eq!(0, channel_init(&mut channel, &coop, 1));
-            assert_eq!(0, channel_free(&channel));
+            assert_eq!(0, channel_free(&channel, 1));
             assert_eq!(0, coop_free(&coop));
         }
     }
@@ -57,6 +57,7 @@ mod tests {
                 (*ctx).add(channel_recv((*ctx).channel(), &mut ptr));
                 (*ctx).add(*ptr);
 
+                (*ctx).add(channel_free((*ctx).channel(), 0));
                 return 0;
             }
         }
@@ -69,6 +70,7 @@ mod tests {
                 (*ctx).add(17);
                 (*ctx).add(channel_send((*ctx).channel(), ptr));
 
+                (*ctx).add(channel_free((*ctx).channel(), 0));
                 return 0;
             }
         }
@@ -79,7 +81,7 @@ mod tests {
             assert_eq!(0, coop_spawn(&coop, task_one, ptr, 0));
             assert_eq!(0, coop_spawn(&coop, task_two, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
-            assert_eq!(0, channel_free(&channel));
+            assert_eq!(0, channel_free(&channel, 1));
             assert_eq!(0, coop_free(&coop));
         }
 
@@ -108,6 +110,7 @@ mod tests {
                 (*ctx).add(channel_recv((*ctx).channel(), &mut ptr));
                 (*ctx).add(*ptr);
 
+                (*ctx).add(channel_free((*ctx).channel(), 0));
                 return 0;
             }
         }
@@ -124,6 +127,7 @@ mod tests {
                 (*ctx).add(channel_send((*ctx).channel(), ptr1));
                 (*ctx).add(channel_send((*ctx).channel(), ptr2));
 
+                (*ctx).add(channel_free((*ctx).channel(), 0));
                 return 0;
             }
         }
@@ -134,7 +138,7 @@ mod tests {
             assert_eq!(0, coop_spawn(&coop, task_one, ptr, 0));
             assert_eq!(0, coop_spawn(&coop, task_two, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
-            assert_eq!(0, channel_free(&channel));
+            assert_eq!(0, channel_free(&channel, 1));
             assert_eq!(0, coop_free(&coop));
         }
 
@@ -159,6 +163,7 @@ mod tests {
                 (*ctx).add(channel_recv((*ctx).channel(), &mut ptr));
                 (*ctx).add(*ptr);
 
+                (*ctx).add(channel_free((*ctx).channel(), 0));
                 return 0;
             }
         }
@@ -175,6 +180,7 @@ mod tests {
                 (*ctx).add(channel_send((*ctx).channel(), ptr1));
                 (*ctx).add(channel_send((*ctx).channel(), ptr2));
 
+                (*ctx).add(channel_free((*ctx).channel(), 0));
                 return 0;
             }
         }
@@ -186,7 +192,7 @@ mod tests {
             assert_eq!(0, coop_spawn(&coop, task_one, ptr, 0));
             assert_eq!(0, coop_spawn(&coop, task_two, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
-            assert_eq!(0, channel_free(&channel));
+            assert_eq!(0, channel_free(&channel, 1));
             assert_eq!(0, coop_free(&coop));
         }
 
@@ -211,6 +217,7 @@ mod tests {
                 (*ctx).add(17);
                 (*ctx).add(channel_send((*ctx).channel(), ptr));
 
+                (*ctx).add(channel_free((*ctx).channel(), 0));
                 return 0;
             }
         }
@@ -223,6 +230,7 @@ mod tests {
                 (*ctx).add(channel_recv((*ctx).channel(), &mut ptr));
                 (*ctx).add(*ptr);
 
+                (*ctx).add(channel_free((*ctx).channel(), 0));
                 return 0;
             }
         }
@@ -233,7 +241,7 @@ mod tests {
             assert_eq!(0, coop_spawn(&coop, task_one, ptr, 0));
             assert_eq!(0, coop_spawn(&coop, task_two, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
-            assert_eq!(0, channel_free(&channel));
+            assert_eq!(0, channel_free(&channel, 1));
             assert_eq!(0, coop_free(&coop));
         }
 
@@ -262,6 +270,7 @@ mod tests {
                 (*ctx).add(channel_send((*ctx).channel(), ptr1));
                 (*ctx).add(channel_send((*ctx).channel(), ptr2));
 
+                (*ctx).add(channel_free((*ctx).channel(), 0));
                 return 0;
             }
         }
@@ -278,6 +287,7 @@ mod tests {
                 (*ctx).add(channel_recv((*ctx).channel(), &mut ptr));
                 (*ctx).add(*ptr);
 
+                (*ctx).add(channel_free((*ctx).channel(), 0));
                 return 0;
             }
         }
@@ -288,7 +298,7 @@ mod tests {
             assert_eq!(0, coop_spawn(&coop, task_one, ptr, 0));
             assert_eq!(0, coop_spawn(&coop, task_two, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
-            assert_eq!(0, channel_free(&channel));
+            assert_eq!(0, channel_free(&channel, 1));
             assert_eq!(0, coop_free(&coop));
         }
 
@@ -313,6 +323,7 @@ mod tests {
                 (*ctx).add(17);
                 (*ctx).add(channel_send((*ctx).channel(), ptr1));
 
+                (*ctx).add(channel_free((*ctx).channel(), 0));
                 return 0;
             }
         }
@@ -329,6 +340,7 @@ mod tests {
                 (*ctx).add(channel_recv((*ctx).channel(), &mut ptr));
                 (*ctx).add(*ptr);
 
+                (*ctx).add(channel_free((*ctx).channel(), 0));
                 return 0;
             }
         }
@@ -340,7 +352,7 @@ mod tests {
             assert_eq!(0, coop_spawn(&coop, task_one, ptr, 0));
             assert_eq!(0, coop_spawn(&coop, task_two, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
-            assert_eq!(0, channel_free(&channel));
+            assert_eq!(0, channel_free(&channel, 1));
             assert_eq!(0, coop_free(&coop));
         }
 

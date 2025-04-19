@@ -26,8 +26,9 @@ long task_one(const coop_task* task) {
     stdout_printf("Hello from the task one after read! %s\n", buffer);
 
     channel_recv(task->channel, &msg);
-    stdout_printf("Hello from the task two after recv! %s\n", msg);
+    stdout_printf("Hello from the task one after recv! %s\n", msg);
 
+    channel_free(task->channel, 0);
     return 0;
 }
 
@@ -53,8 +54,9 @@ long task_two(const coop_task* task) {
     stdout_printf("Hello from the task two after close!\n");
 
     channel_send(task->channel, buffer);
-    stdout_printf("Hello from the task one after send!\n");
+    stdout_printf("Hello from the task two after send!\n");
 
+    channel_free(task->channel, 1);
     return 0;
 }
 
@@ -92,7 +94,12 @@ int main() {
     }
 
     if (coop_loop(&coop) < 0) {
-        stdout_printf("coop_run failed\n");
+        stdout_printf("coop_loop failed\n");
+        return -1;
+    }
+
+    if (channel_free(&channel, 1) < 0) {
+        stdout_printf("channel_free failed\n");
         return -1;
     }
 

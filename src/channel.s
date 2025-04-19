@@ -38,6 +38,7 @@ channel_init:
 ; rsi - 0 or 1 indicating whether to wait for all participants
 ; rax - returns 0 if no error, or negative value indicating an error
 channel_free:
+    xor rax, rax                                           ; set the return value to 0
     ret
 
 ; sends a message to the channel
@@ -131,7 +132,6 @@ channel_recv:
     mov rdi, [rdi + channel_info.coop]                     ; get the coop info pointer
     mov rcx, rax                                           ; set the current stack context
     lea rdx, .direct.done                                  ; set the .done function address
-; mov r9, [rax + channel_node.ptr]                       ; get the resume pointer
     call coop_noop_ex                                      ; pretend to noop
 
     pop rdi                                                ; get the channel pointer

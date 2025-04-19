@@ -623,11 +623,14 @@ coop_noop_ex:
 
     pop rax                                                ; load addr of th current stack
     mov r8, rax                                            ; save addr of the current stack
+    lea r9, coop_push_light                                ; assume we use light push
+
     test rax, rax                                          ; check if we need to use the default
     jnz .skip_stack                                        ; if not 0, skip stack setup
 
     mov rax, rsp                                           ; load addr of the stack
     lea r8, [rsp + 32]                                     ; remember old stack ptr
+    lea r9, coop_push                                      ; use full push
 
 .skip_stack:
     and rax, ~0x0fff                                       ; compute addr of the regs
@@ -639,11 +642,10 @@ coop_noop_ex:
     mov r11, [rsp + 16]                                    ; load function callback
     lea rsi, .done                                         ; load function pointer
 
-    call coop_push                                         ; dump task registers
+    call r9                                                ; dump task registers
     inc dword [rdx]                                        ; increment TX tail
 
 ; call uring submission with noop (0x00) operation
-
     mov rdi, r10                                           ; uring file descriptor
     mov rsi, 1                                             ; 1 SQE
     xor rdx, rdx                                           ; 0 CQE
@@ -1151,6 +1153,25 @@ coop_push:
     mov [rax + 12*8], r14                                  ; r14
     mov [rax + 13*8], r15                                  ; r15
     mov [rax + 14*8], rbp                                  ; rbp
+    mov [rax + 15*8], r8                                   ; rsp = stack
+    ret
+
+; pushes task registers to the stack
+; rax - ptr to the dump area
+; rsi - ptr to the .done function address
+; rdi - ptr to the .done function context
+; r11 - ptr to the resumption code
+; r8 - ptr to the RSP after resumption
+coop_push_light:
+    mov [rax + 0*8], rax                                   ; rax = registers
+    mov [rax + 2*8], rcx                                   ; rcx = coop info
+    mov [rax + 3*8], rdx                                   ; rdx
+    mov [rax + 4*8], rsi                                   ; rsi = .done address
+    mov [rax + 5*8], rdi                                   ; rdi = .done context
+    mov [rax + 6*8], r8                                    ; r8
+    mov [rax + 7*8], r9                                    ; r9
+    mov [rax + 8*8], r10                                   ; r10
+    mov [rax + 9*8], r11                                   ; r11 = resumption
     mov [rax + 15*8], r8                                   ; rsp = stack
     ret
 
