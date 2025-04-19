@@ -92,6 +92,7 @@ long coordinator(const coop_task* task) {
         return -1;
     }
 
+    stdout_printf("Coordinator completed.\n");
     return 0;
 }
 

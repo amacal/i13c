@@ -20,7 +20,6 @@ extern "C" {
     pub fn channel_recv(channel: *const ChannelInfo, data: *mut *const i64) -> i64;
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -81,7 +80,7 @@ mod tests {
             assert_eq!(0, coop_spawn(&coop, task_one, ptr, 0));
             assert_eq!(0, coop_spawn(&coop, task_two, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
-            assert_eq!(0, channel_free(&channel, 1));
+            assert_eq!(0, channel_free(&channel, 0));
             assert_eq!(0, coop_free(&coop));
         }
 
@@ -138,7 +137,7 @@ mod tests {
             assert_eq!(0, coop_spawn(&coop, task_one, ptr, 0));
             assert_eq!(0, coop_spawn(&coop, task_two, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
-            assert_eq!(0, channel_free(&channel, 1));
+            assert_eq!(0, channel_free(&channel, 0));
             assert_eq!(0, coop_free(&coop));
         }
 
@@ -192,7 +191,7 @@ mod tests {
             assert_eq!(0, coop_spawn(&coop, task_one, ptr, 0));
             assert_eq!(0, coop_spawn(&coop, task_two, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
-            assert_eq!(0, channel_free(&channel, 1));
+            assert_eq!(0, channel_free(&channel, 0));
             assert_eq!(0, coop_free(&coop));
         }
 
@@ -241,7 +240,7 @@ mod tests {
             assert_eq!(0, coop_spawn(&coop, task_one, ptr, 0));
             assert_eq!(0, coop_spawn(&coop, task_two, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
-            assert_eq!(0, channel_free(&channel, 1));
+            assert_eq!(0, channel_free(&channel, 0));
             assert_eq!(0, coop_free(&coop));
         }
 
@@ -298,7 +297,7 @@ mod tests {
             assert_eq!(0, coop_spawn(&coop, task_one, ptr, 0));
             assert_eq!(0, coop_spawn(&coop, task_two, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
-            assert_eq!(0, channel_free(&channel, 1));
+            assert_eq!(0, channel_free(&channel, 0));
             assert_eq!(0, coop_free(&coop));
         }
 
@@ -352,10 +351,71 @@ mod tests {
             assert_eq!(0, coop_spawn(&coop, task_one, ptr, 0));
             assert_eq!(0, coop_spawn(&coop, task_two, ptr, 0));
             assert_eq!(0, coop_loop(&coop));
-            assert_eq!(0, channel_free(&channel, 1));
+            assert_eq!(0, channel_free(&channel, 0));
             assert_eq!(0, coop_free(&coop));
         }
 
         assert_eq!(val, 85);
+    }
+
+    #[test]
+    fn can_handle_coordinator_freed_channel() {
+        let mut val: i64 = 0;
+
+        let mut coop = CoopInfo::default();
+
+        let ctx = CoopContext::new(&mut val, &coop);
+        let ptr = &ctx as *const CoopContext;
+
+        extern "C" fn coordinate(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                let mut channel = ChannelInfo::default();
+                let ctx = (*ctx).with_channel(&channel);
+                let ptr = &ctx as *const CoopContext;
+
+                ctx.add(1);
+                ctx.add(channel_init(&mut channel, ctx.coop(), 3));
+                ctx.add(coop_spawn(ctx.coop(), task_one, ptr, 0));
+                ctx.add(coop_spawn(ctx.coop(), task_two, ptr, 0));
+                ctx.add(channel_free(&channel, 1));
+            }
+
+            return 0;
+        }
+
+        extern "C" fn task_one(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                let mut ptr: *const i64 = core::ptr::null_mut();
+
+                (*ctx).add(13);
+                (*ctx).add(channel_recv((*ctx).channel(), &mut ptr));
+                (*ctx).add(*ptr);
+
+                (*ctx).add(channel_free((*ctx).channel(), 0));
+                return 0;
+            }
+        }
+
+        extern "C" fn task_two(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                let data: [i64; 3] = [19; 3];
+                let ptr = data.as_ptr();
+
+                (*ctx).add(17);
+                (*ctx).add(channel_send((*ctx).channel(), ptr));
+
+                (*ctx).add(channel_free((*ctx).channel(), 0));
+                return 0;
+            }
+        }
+
+        unsafe {
+            assert_eq!(0, coop_init(&mut coop, 32));
+            assert_eq!(0, coop_spawn(&coop, coordinate, ptr, 0));
+            assert_eq!(0, coop_loop(&coop));
+            assert_eq!(0, coop_free(&coop));
+        }
+
+        assert_eq!(val, 50);
     }
 }

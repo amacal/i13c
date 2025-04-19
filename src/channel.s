@@ -42,18 +42,14 @@ channel_free:
     mov rax, [rdi + channel_info.size]                     ; get the number of participants
 
     test rax, rax                                          ; check if it is 0
-    jz .exit                                               ; if 0, free the channel
+    jz .zero                                               ; if 0, free the channel
 
     test rsi, rsi                                          ; check if we need to wait
     jz .exit                                               ; if not, free the channel
 
-; the channel_info.free will contain a location of a function pointer where
-; any participant can resume this blocking code, because this flow will never
-; complete naturally, it will end in the loop
+; the channel_info.free will contain a task that is waiting for all participants
+; to finish, but it cannot complete now; it will enter the coop preemptive loop
 
-    sub rsp, 8                                             ; make space for the resume address
-    lea rax, .resume                                       ; get the resume address
-    mov [rsp], rax                                         ; set the resume address
     mov [rdi + channel_info.free], rsp                     ; set the free pointer
 
     mov rax, rsp                                           ; get the current stack
@@ -69,12 +65,35 @@ channel_free:
     xor rdx, rdx                                           ; the main thread dump area is not known
     jmp coop_switch                                        ; switch to the main thread
 
+; the zero code has to successfully return to the caller, but also trigger
+; the channel_info.free function pointer, so the caller will be resumed
+
+.zero:
+    mov rax, [rdi + channel_info.free]                     ; get the free pointer
+    test rax, rax                                          ; check if it is null
+    jz .exit                                               ; if null, exit
+
+; the channel_info.free identifies the stack of the task we need to switch to
+; behind the channel_info.free there is a pointer to the resume address after
+
+    mov rsi, 1                                             ; just schedule and no loop
+    mov rdi, [rdi + channel_info.coop]                     ; get the coop info pointer
+    mov rcx, rax                                           ; set the current stack context
+    lea rdx, .done                                         ; set the .done function address
+    call coop_noop_ex                                      ; pretend to noop
+
+; now we can naturally complete the current task and return to the caller
+; the noop should trigger the .done function in the correct context
+
 .exit:
     xor rax, rax                                           ; set the return value to 0
     ret
 
-.resume:
-    ud2
+; the .done function is called when the noop is completed
+; it executes in the corrent context, so the code just returns
+
+.done:
+    ret
 
 ; sends a message to the channel
 ; rdi - ptr to channel structure

@@ -12,6 +12,7 @@ impl Default for CoopInfo {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct CoopContext {
     ptr: *const i64,
     coop: *const CoopInfo,
@@ -30,6 +31,10 @@ impl CoopContext {
 
     pub fn is_same(&self) -> bool {
         self.this == self as *const CoopContext
+    }
+
+    pub fn coop(&self) -> *const CoopInfo {
+        self.coop
     }
 
     pub fn channel(&self) -> *const ChannelInfo {
