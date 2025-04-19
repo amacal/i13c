@@ -581,8 +581,10 @@ coop_loop:
 ; rdi - ptr to the initialized coop structure
 ; rsi - flags - 0 to continue looping, 1 to exit
 ; rdx - ptr to the return address or 0 to use the default
+; rcx - ptr to the stack context or 0 to use the default
 ; rax - returns 0 if no error, or negative value indicating an error
 coop_noop:
+    xor rcx, rcx                                           ; set default value to 0
     xor rsi, rsi                                           ; set default value to 0
     mov rdx, [rsp]                                         ; set default return address
 
@@ -590,6 +592,7 @@ coop_noop_ex:
     push rdx                                               ; remember return address
     push rsi                                               ; remember flags
     push rdi                                               ; remember ptr to a coop struct
+    push rcx                                               ; remember ptr to the stack context
 
 ; pull TX offsets
 
@@ -618,14 +621,21 @@ coop_noop_ex:
 
 ; prepare stack
 
+    pop rax                                                ; load addr of th current stack
+    mov r8, rax                                            ; save addr of the current stack
+    test rax, rax                                          ; check if we need to use the default
+    jnz .skip_stack                                        ; if not 0, skip stack setup
+
     mov rax, rsp                                           ; load addr of the stack
+    lea r8, [rsp + 32]                                     ; remember old stack ptr
+
+.skip_stack:
     and rax, ~0x0fff                                       ; compute addr of the regs
     mov rcx, [rsp]                                         ; load addr of the coop struct
 
     mov qword [rdi + io_uring_sqe.user_data], rax          ; set user data
     mov [rsi + r11 * 4], r11d                              ; set TX index
 
-    lea r8, [rsp + 32]                                     ; remember old stack ptr
     mov r11, [rsp + 16]                                    ; load function callback
     lea rsi, .done                                         ; load function pointer
 
@@ -1146,19 +1156,21 @@ coop_push:
 
 ; switches to the task stack
 ; rax - ptr to the dump area
-; rsi - optional ptr to the CQE entry
+; rsp - contains the return address at the top
+; rsi - optional ptr preserved in rdx
+; r10 - optional ptr preserved in r10
 coop_pull:
     pop r8                                                 ; remember return address
 
     mov rax, [rax + 0*8]                                   ; rax = registers
     mov rbx, [rax + 1*8]                                   ; rbx
     mov rcx, [rax + 2*8]                                   ; rcx = coop info
-    mov rdx, rsi                                           ; rdx = CQE entry
+    mov rdx, rsi                                           ; rdx = preserved rsi
     mov rsi, [rax + 4*8]                                   ; rsi = .done function
     mov rdi, [rax + 5*8]                                   ; rdi = .done context
     mov r8, r8                                             ; r8
     mov r9, [rax + 7*8]                                    ; r9
-    mov r10, [rax + 8*8]                                   ; r10
+    mov r10, r10                                           ; r10 = preserved r10
     mov r11, [rax + 9*8]                                   ; r11 = resumption
     mov r12, [rax + 10*8]                                  ; r12
     mov r13, [rax + 11*8]                                  ; r13

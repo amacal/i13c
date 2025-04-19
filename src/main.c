@@ -11,6 +11,7 @@ typedef struct {
 
 long task_one(const coop_task* task) {
     char buffer[64];
+    char *msg;
 
     stdout_printf("Hello from the task one before noop!\n");
     coop_noop(task->coop);
@@ -24,15 +25,14 @@ long task_one(const coop_task* task) {
     buffer[3] = '\0';
     stdout_printf("Hello from the task one after read! %s\n", buffer);
 
-    channel_send(task->channel, buffer);
-    stdout_printf("Hello from the task one after send!\n");
+    channel_recv(task->channel, &msg);
+    stdout_printf("Hello from the task two after recv! %s\n", msg);
 
     return 0;
 }
 
 long task_two(const coop_task* task) {
     char buffer[64];
-    char *msg;
 
     stdout_printf("Hello from the task two before noop!\n");
     coop_noop(task->coop);
@@ -52,10 +52,8 @@ long task_two(const coop_task* task) {
     coop_close(task->coop, fd);
     stdout_printf("Hello from the task two after close!\n");
 
-    for (int i = 0; i < 1; i++) {
-        channel_recv(task->channel, &msg);
-        stdout_printf("Hello from the task two after recv! %s\n", msg);
-    }
+    channel_send(task->channel, buffer);
+    stdout_printf("Hello from the task one after send!\n");
 
     return 0;
 }
@@ -87,11 +85,6 @@ int main() {
         stdout_printf("coop_spawn failed\n");
         return -1;
     }
-
-    // if (coop_spawn(&coop, task_one, &task_two_ctx, sizeof(coop_task)) < 0) {
-    //     stdout_printf("coop_spawn failed\n");
-    //     return -1;
-    // }
 
     if (coop_spawn(&coop, task_two, &task_two_ctx, sizeof(coop_task)) < 0) {
         stdout_printf("coop_spawn failed\n");
