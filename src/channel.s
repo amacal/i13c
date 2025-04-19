@@ -38,8 +38,43 @@ channel_init:
 ; rsi - 0 or 1 indicating whether to wait for all participants
 ; rax - returns 0 if no error, or negative value indicating an error
 channel_free:
+    dec qword [rdi + channel_info.size]                    ; decrement the number of participants
+    mov rax, [rdi + channel_info.size]                     ; get the number of participants
+
+    test rax, rax                                          ; check if it is 0
+    jz .exit                                               ; if 0, free the channel
+
+    test rsi, rsi                                          ; check if we need to wait
+    jz .exit                                               ; if not, free the channel
+
+; the channel_info.free will contain a location of a function pointer where
+; any participant can resume this blocking code, because this flow will never
+; complete naturally, it will end in the loop
+
+    sub rsp, 8                                             ; make space for the resume address
+    lea rax, .resume                                       ; get the resume address
+    mov [rsp], rax                                         ; set the resume address
+    mov [rdi + channel_info.free], rsp                     ; set the free pointer
+
+    mov rax, rsp                                           ; get the current stack
+    and rax, ~0x0fff                                       ; find the dump area
+
+    mov rcx, [rdi + channel_info.coop]                     ; get the coop info pointer
+    xor rsi, rsi                                           ; set the .done function address
+    xor rdi, rdi                                           ; set the .done function context
+    mov r11, [rsp]                                         ; set the code resumption address
+    lea r8, [rsp + 8]                                      ; set the old stack ptr
+    call coop_push                                         ; dump task registers
+
+    xor rdx, rdx                                           ; the main thread dump area is not known
+    jmp coop_switch                                        ; switch to the main thread
+
+.exit:
     xor rax, rax                                           ; set the return value to 0
     ret
+
+.resume:
+    ud2
 
 ; sends a message to the channel
 ; rdi - ptr to channel structure

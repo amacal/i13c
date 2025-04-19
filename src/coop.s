@@ -362,7 +362,7 @@ coop_spawn:
     push rsi                                               ; remember ptr to a function
     push rdx                                               ; remember ptr to a function argument
     push rcx                                               ; remember size of the function argument
-    sub rsp, 8                                             ; make 16 bytes space on stack
+    sub rsp, 8                                             ; make 8 bytes space on stack
 
 ; allocate task stack
 

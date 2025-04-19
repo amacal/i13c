@@ -60,46 +60,59 @@ long task_two(const coop_task* task) {
     return 0;
 }
 
-int main() {
-    coop_info coop;
-    coop_task task_one_ctx, task_two_ctx;
+long coordinator(const coop_task* task) {
     channel_info channel;
+    coop_task task_one_ctx, task_two_ctx;
 
-    task_one_ctx.coop = &coop;
+    task_one_ctx.coop = task->coop;
     task_one_ctx.channel = &channel;
     task_one_ctx.file_name = "build.rs";
 
-    task_two_ctx.coop = &coop;
+    task_two_ctx.coop = task->coop;
     task_two_ctx.channel = &channel;
     task_two_ctx.file_name = "Makefile";
+
+    if (channel_init(&channel, task->coop, 3) < 0) {
+        stdout_printf("channel_init failed\n");
+        return -1;
+    }
+
+    if (coop_spawn(task->coop, task_one, &task_one_ctx, sizeof(coop_task)) < 0) {
+        stdout_printf("coop_spawn failed\n");
+        return -1;
+    }
+
+    if (coop_spawn(task->coop, task_two, &task_two_ctx, sizeof(coop_task)) < 0) {
+        stdout_printf("coop_spawn failed\n");
+        return -1;
+    }
+
+    if (channel_free(&channel, 1) < 0) {
+        stdout_printf("channel_free failed\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+int main() {
+    coop_info coop;
+    coop_task task;
+
+    task.coop = &coop;
 
     if (coop_init(&coop, 4) < 0) {
         stdout_printf("coop_init failed\n");
         return -1;
     }
 
-    if (channel_init(&channel, &coop, 3) < 0) {
-        stdout_printf("channel_init failed\n");
-        return -1;
-    }
-
-    if (coop_spawn(&coop, task_one, &task_one_ctx, sizeof(coop_task)) < 0) {
-        stdout_printf("coop_spawn failed\n");
-        return -1;
-    }
-
-    if (coop_spawn(&coop, task_two, &task_two_ctx, sizeof(coop_task)) < 0) {
+    if (coop_spawn(&coop, coordinator, &task, sizeof(coop_task)) < 0) {
         stdout_printf("coop_spawn failed\n");
         return -1;
     }
 
     if (coop_loop(&coop) < 0) {
         stdout_printf("coop_loop failed\n");
-        return -1;
-    }
-
-    if (channel_free(&channel, 1) < 0) {
-        stdout_printf("channel_free failed\n");
         return -1;
     }
 
