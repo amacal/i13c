@@ -23,13 +23,22 @@
 ; rdx - number of participants in the channel
 ; rax - returns 0 if no error, or negative value indicating an error
 channel_init:
+
+; the channel structure is 40 bytes long, so we need to allocate zeroed memory
+; which has to be aligned to 8 bytes boundary
+
     mov rcx, 5                                             ; 5 iterations, each 8 bytes
     xor rax, rax                                           ; source value is 0
-    rep stosq                                              ; fill 48 bytes with 0
+    rep stosq                                              ; fill 40 bytes with 0
     sub rdi, 40                                            ; rewind the pointer
+
+; the coop info and size are known at this point, so we can set them
+; the other pointers are set to 0 and will be popullated later when needed
 
     mov [rdi + channel_info.coop], rsi                     ; set the coop info pointer
     mov [rdi + channel_info.size], rdx                     ; set the number of participants
+
+; simply return, the RAX is already set to 0
 
     ret
 
@@ -66,7 +75,7 @@ channel_free:
 ; we don't need to pass r11 and r8, because they will be overriden by the noop
 
     mov rcx, [rdi + channel_info.coop]                     ; get the coop info pointer
-    call coop_push                                         ; dump task registers
+    call coop_push                                         ; dump task registers, never fails
 
     xor rdx, rdx                                           ; the main thread dump area is not known
     jmp coop_switch                                        ; switch to the main thread
@@ -97,7 +106,6 @@ channel_free:
     xor rax, rax                                           ; source value is 0
     rep stosq                                              ; fill 40 bytes with 0
 
-
 ; now we can naturally complete the current task and return to the caller
 ; the noop should trigger the .done function in the correct context
 
@@ -107,6 +115,8 @@ channel_free:
 
 ; the .done function is called when the noop is completed
 ; it executes in the corrent context, so the code just returns
+; we don't assume any registers are preserved, just the callee saved ones
+; but it is guaranteed by the coop_noop_ex behaviour
 
 .done:
     xor rax, rax                                           ; set the return value to 0
@@ -117,14 +127,26 @@ channel_free:
 ; rsi - ptr to message or just a message
 ; rax - returns 0 if no error, or negative value indicating an error
 channel_send:
+
+; initially distinguishes between the direct and insert model
+
     mov rax, [rdi + channel_info.recv]                     ; get the current rx pointer
     test rax, rax                                          ; check if it is null
     jz .insert                                             ; if null, insert the message
 
+.direct:
+
+; in the direct mode we need to remember passed parameters
+; so that after calling the coop_noop_ex we can restore them
+
     push rsi                                               ; save the message pointer
     push rdi                                               ; save the channel pointer
 
-.direct:
+; the coop_noop_ex will be called with the current stack
+; without running th event loop, the callback will be picked
+; in the near future, when the actual receiver alredy consumed
+; passed message from the sender stack
+
     mov rsi, 1                                             ; just schedule and no loop
     mov rdi, [rdi + channel_info.coop]                     ; get the coop info pointer
 
@@ -132,28 +154,57 @@ channel_send:
     lea rdx, .direct.resume                                ; set the .resume function address
     call coop_noop_ex                                      ; pretend to noop
 
+; now we can restore the parameters and set the message
+; in order to use them when waking up the receiver
+
     pop rdi                                                ; get the channel pointer
     pop rsi                                                ; get the message pointer
+
+; the channel_node.ptr behind the channel_info.recv is the resume address
+; needed to be placed on the stack, picked up automatically by the coop_pull
 
     mov rax, [rdi + channel_info.recv]                     ; get the current rx pointer
     mov rcx, [rax + channel_node.ptr]                      ; get the resume pointer
     push rcx                                               ; set where pull will resume
 
+; the channel_node.val contains a slot where the message will be stored
+; on the receiver stack, so we need to place inside the message value (RSI)
+
     mov rcx, [rax + channel_node.val]                      ; get the message slot
     mov [rcx], rsi                                         ; set the message value
+
+; the channel_node.next contains a pointer to the next node
+; we need to shift the linked list to consume the message
 
     mov rcx, [rax + channel_node.next]                     ; get the next node
     mov [rdi + channel_info.recv], rcx                     ; set the recv pointer
 
+; finally we need to pull the receiver registers, but we are the sender
+; so we need to find the dump area and jump there, the coop_pull will
+; restore the context and resume the receiver already placed in RCX
+
     and rax, ~0x0fff                                       ; find the dump area
     jmp coop_pull                                          ; restore the context and resume
+
+; the .resume function is called when the noop_ex is completed, already
+; when the receiver consumed the message, so we can just clean the stack
+; and return to the caller, the sendr will be resumed in the correct context
 
 .direct.resume:
     xor rax, rax                                           ; set the return value to 0
     add rsp, 16                                            ; clean the stack
     ret
 
+
+; the insert mode handles the case when the receiver is not ready
+; the message is inserted into the channel queue
+
 .insert:
+
+; reserve space for the message node, which is 32 bytes long
+; and set the message value to the passed message, the ptr
+; will point to the resume address, just above the node
+
     sub rsp, 32                                            ; reserve slot for a node
     mov [rsp + channel_node.val], rsi                      ; set the message payload
 
@@ -163,25 +214,36 @@ channel_send:
     mov qword [rsp + channel_node.next], 0                 ; set the next pointer
     mov qword [rsp + channel_node.last], 0                 ; set the last pointer
 
+; the previous send node will be extracted
+
     mov rcx, [rdi + channel_info.send]                     ; get the current send pointer
     test rcx, rcx                                          ; check if it is null
+
+; optionally the next node will point at the previous send
 
     jz .insert.link                                        ; if null, skip relinking
     mov [rsp + channel_node.next], rcx                     ; set the next pointer
 
+; the channel_info.send will contain the curret node
+
 .insert.link:
     mov [rdi + channel_info.send], rsp                     ; set the send pointer
+
+; we need to dump the current task registers, because we block and jump
+; later to the coop event loop in the main task thread
 
     mov rax, rsp                                           ; get the current stack
     and rax, ~0x0fff                                       ; find the dump area
 
+; critical values are stored in R11 and R8, pointing at the resume address
+; and the old stack pointer, so we need to set them before calling the push
+
     mov rcx, [rdi + channel_info.coop]                     ; get the coop info pointer
-    xor rsi, rsi                                           ; set the .done function address
-    xor rdi, rdi                                           ; set the .done function context
     mov r11, [rsp + 32]                                    ; set the code resumption address
     lea r8, [rsp + 40]                                     ; set the old stack ptr
-
     call coop_push                                         ; dump task registers
+
+; finally we need to jump into the main thread for event loop
 
     xor rdx, rdx                                           ; the main thread dump area is not known
     jmp coop_switch                                        ; switch to the main thread
@@ -191,38 +253,72 @@ channel_send:
 ; rsi - ptr to a slot where the message will be stored
 ; rax - returns a message if no error, or negative value indicating an error
 channel_recv:
+
+; initially distinguishes between the direct and insert model
+
     mov rax, [rdi + channel_info.send]                     ; get the current send pointer
     test rax, rax                                          ; check if it is null
     jz .insert                                             ; if null, insert the message
 
+.direct:
+
+; in the direct mode we need to remember passed parameters
+; so that after calling the coop_noop_ex we can restore them
+
     push rsi                                               ; save the message slot
     push rdi                                               ; save the channel pointer
 
-.direct:
+; the coop_noop_ex will be called with the sender stack
+; without running th event loop, the callback will be picked
+; in the near future, when the actual receiver alredy consumed
+; passed message from the sender stack
+
     mov rsi, 1                                             ; just schedule and no loop
     mov rdi, [rdi + channel_info.coop]                     ; get the coop info pointer
     mov rcx, rax                                           ; set the current stack context
     lea rdx, .direct.done                                  ; set the .done function address
     call coop_noop_ex                                      ; pretend to noop
 
+; now we can restore the parameters and set the message
+; in order to use them when waking up the receiver
+
     pop rdi                                                ; get the channel pointer
-    pop rsi                                                ; get the message pointer
+    pop rsi                                                ; get the message slot
+
+; the channel_node.val behind the channel_info.send is the message value
+; which needs to be placed in the slot
 
     mov rax, [rdi + channel_info.send]                     ; get the current send pointer
     mov rcx, [rax + channel_node.val]                      ; get the message value
     mov [rsi], rcx                                         ; set the message into the slot
 
+; the channel_info.send nodes are shifted, consuming the node
+
     mov rcx, [rax + channel_node.next]                     ; get the next node
     mov [rdi + channel_info.send], rcx                     ; set the send pointer
 
+; finally we report the success to the receiver, letting it consume the message
+; while the sender still blocks and waits for the quick noop completion
+
     xor rax, rax                                           ; set the return value to 0
     ret
+
+; when the noop_ex is completed, the sender will be resumed (not the sender)
+; and it means that we need to clean the stack and return the succeed value
 
 .direct.done:
     add rsp, 32                                            ; clean the sender stack by removing node from the stack
     ret                                                    ; pretend returned, expected sender to be resumed
 
+; the insert mode handles the case when the sender is not ready
+; the message slot is inserted into the channel queue
+
 .insert:
+
+; reserve space for the message node, which is 32 bytes long
+; and set the message value to the passed slot, the ptr
+; will point to the resume address, just above the node
+
     sub rsp, 32                                            ; reserve slot for a node
     mov [rsp + channel_node.val], rsi                      ; set the message holder
 
@@ -232,28 +328,44 @@ channel_recv:
     mov qword [rsp + channel_node.next], 0                 ; set the next pointer
     mov qword [rsp + channel_node.last], 0                 ; set the last pointer
 
+; the previous recv node will be extracted
+
     mov rcx, [rdi + channel_info.recv]                     ; get the current recv pointer
     test rcx, rcx                                          ; check if it is null
+
+; optionally the next node will point at the previous recv
 
     jz .insert.link                                        ; if null, skip relinking
     mov [rsp + channel_node.next], rcx                     ; set the next pointer
 
+; the channel_info.recv will contain the curret node
+
 .insert.link:
     mov [rdi + channel_info.recv], rsp                     ; set the recv pointer
+
+; we need to dump the current task registers, because we block and jump
+; later to the coop event loop in the main task thread
 
     mov rax, rsp                                           ; get the current stack
     and rax, ~0x0fff                                       ; find the dump area
 
+; critical values are stored in R11 and R8, pointing at the resume address
+; and the old stack pointer, so we need to set them before calling the push
+
     mov rcx, [rdi + channel_info.coop]                     ; get the coop info pointer
-    xor rsi, rsi                                           ; set the .done function address
-    xor rdi, rdi                                           ; set the .done function context
     mov r11, [rsp + 32]                                    ; set the code resumption address
     lea r8, [rsp + 40]                                     ; set the old stack ptr
-
     call coop_push                                         ; dump task registers
+
+; finally we need to jump into the main thread for event loop
 
     xor rdx, rdx                                           ; the main thread dump area is not known
     jmp coop_switch                                        ; switch to the main thread
+
+; the .done function is called when the sender completes the coop_pull
+; from the receiver stack, so R11 holds the receiver resume address
+; the receiver will be resumed first, and the sender still blocks in the noop
+; the receiver stack is already cleaned by the coop_push with R8 + R11
 
 .insert.done:
     xor rax, rax                                           ; set the return value to 0
