@@ -38,6 +38,10 @@ channel_init:
 ; rsi - 0 or 1 indicating whether to wait for all participants
 ; rax - returns 0 if no error, or negative value indicating an error
 channel_free:
+
+; initially decrements the number of participants and checks if it is 0
+; only the last participant can free the channel or unblock the waiting task
+
     dec qword [rdi + channel_info.size]                    ; decrement the number of participants
     mov rax, [rdi + channel_info.size]                     ; get the number of participants
 
@@ -52,14 +56,16 @@ channel_free:
 
     mov [rdi + channel_info.free], rsp                     ; set the free pointer
 
+; to push the current task registers, we need to find the dump area
+; the dump area is aligned to 0x1000, so we can use the stack pointer
+
     mov rax, rsp                                           ; get the current stack
     and rax, ~0x0fff                                       ; find the dump area
 
+; finally we need to prepare the coop info, resumption address (used in .done)
+; we don't need to pass r11 and r8, because they will be overriden by the noop
+
     mov rcx, [rdi + channel_info.coop]                     ; get the coop info pointer
-    xor rsi, rsi                                           ; set the .done function address
-    xor rdi, rdi                                           ; set the .done function context
-    mov r11, [rsp]                                         ; set the code resumption address
-    lea r8, [rsp + 8]                                      ; set the old stack ptr
     call coop_push                                         ; dump task registers
 
     xor rdx, rdx                                           ; the main thread dump area is not known
@@ -77,10 +83,20 @@ channel_free:
 ; behind the channel_info.free there is a pointer to the resume address after
 
     mov rsi, 1                                             ; just schedule and no loop
+    push rdi                                               ; save the channel pointer
     mov rdi, [rdi + channel_info.coop]                     ; get the coop info pointer
-    mov rcx, rax                                           ; set the current stack context
+    mov rcx, rax                                           ; set the expected stack context
     lea rdx, .done                                         ; set the .done function address
     call coop_noop_ex                                      ; pretend to noop
+
+; to prevent any accidental references to the channel at all, the channel
+; structure is filled with 0s, so the caller will not be able to use it
+
+    pop rdi                                                ; get the channel pointer
+    mov rcx, 5                                             ; 5 iterations, each 8 bytes
+    xor rax, rax                                           ; source value is 0
+    rep stosq                                              ; fill 40 bytes with 0
+
 
 ; now we can naturally complete the current task and return to the caller
 ; the noop should trigger the .done function in the correct context
@@ -93,6 +109,7 @@ channel_free:
 ; it executes in the corrent context, so the code just returns
 
 .done:
+    xor rax, rax                                           ; set the return value to 0
     ret
 
 ; sends a message to the channel
