@@ -2,7 +2,7 @@
 #include "coop.h"
 
 typedef struct {
-    long data[5];
+    long data[7];
 } channel_info;
 
 /// @brief initializes hand-off channel
