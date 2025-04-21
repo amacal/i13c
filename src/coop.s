@@ -642,7 +642,7 @@ coop_noop_ex:
     mov r11, [rsp + 16]                                    ; load function callback
     lea rsi, .done                                         ; load function pointer
 
-    call r9                                                ; dump task registers
+    call r9                                                ; dump task registers, won't fail
     inc dword [rdx]                                        ; increment TX tail
 
 ; call uring submission with noop (0x00) operation

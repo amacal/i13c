@@ -23,7 +23,7 @@
 
     section .text
     global channel_init, channel_free, channel_send, channel_recv
-    extern coop_noop_ex, coop_pull, coop_push, coop_switch
+    extern coop_noop_ex, coop_pull, coop_push, coop_switch, stdout_printf
 
 ; initializes a hand-off channel
 ; rdi - ptr to uninitialized structure
@@ -106,6 +106,12 @@ channel_free:
     lea rdx, .done                                         ; set the .done function address
     call coop_noop_ex                                      ; pretend to noop
 
+; the noop_ex in theory may fail, the panic will be used only
+; to log the reason for further troubleshooting
+
+    test rax, rax                                          ; check if the noop was successful
+    js channel_panic                                       ; if not, panic
+
 ; to prevent any accidental references to the channel at all, the channel
 ; structure is filled with 0s, so the caller will not be able to use it
 
@@ -161,6 +167,12 @@ channel_send:
     xor rcx, rcx                                           ; set the current stack context
     lea rdx, .direct.resume                                ; set the .resume function address
     call coop_noop_ex                                      ; pretend to noop
+
+; the noop_ex in theory may fail, the panic will be used only
+; to log the reason for further troubleshooting
+
+    test rax, rax                                          ; check if the noop was successful
+    js channel_panic                                       ; if not, panic
 
 ; now we can restore the parameters and set the message
 ; in order to use them when waking up the receiver
@@ -258,7 +270,7 @@ channel_send:
     mov rcx, [rdi + channel_info.coop]                     ; get the coop info pointer
     mov r11, [rsp + CHANNEL_NODE_SIZE]                     ; set the code resumption address
     lea r8, [rsp + CHANNEL_NODE_SIZE + 8]                  ; set the old stack ptr
-    call coop_push                                         ; dump task registers
+    call coop_push                                         ; dump task registers, never fails
 
 ; finally we need to jump into the main thread for event loop
 
@@ -295,6 +307,12 @@ channel_recv:
     mov rcx, rax                                           ; set the current stack context
     lea rdx, .direct.done                                  ; set the .done function address
     call coop_noop_ex                                      ; pretend to noop
+
+; the noop_ex in theory may fail, the panic will be used only
+; to log the reason for further troubleshooting
+
+    test rax, rax                                          ; check if the noop was successful
+    js channel_panic                                       ; if not, panic
 
 ; now we can restore the parameters and set the message
 ; in order to use them when waking up the receiver
@@ -382,7 +400,7 @@ channel_recv:
     mov rcx, [rdi + channel_info.coop]                     ; get the coop info pointer
     mov r11, [rsp + CHANNEL_NODE_SIZE]                     ; set the code resumption address
     lea r8, [rsp + CHANNEL_NODE_SIZE + 8]                  ; set the old stack ptr
-    call coop_push                                         ; dump task registers
+    call coop_push                                         ; dump task registers, never fails
 
 ; finally we need to jump into the main thread for event loop
 
@@ -397,3 +415,8 @@ channel_recv:
 .insert.done:
     xor rax, rax                                           ; set the return value to 0
     jmp r11                                                ; simply resume after channel_recv
+
+; panics when non-recoverable error occurs, never returns
+; rax - error code
+channel_panic:
+    ud2
