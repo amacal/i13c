@@ -456,7 +456,7 @@ mod tests {
                 ctx.add(channel_select(channels.as_ptr(), &mut ptr));
                 ctx.add(*ptr);
 
-                channel_select(channels.as_ptr(), &mut ptr);
+                ctx.add(channel_select(channels.as_ptr(), &mut ptr));
                 ctx.add(channel_free(&ch1, 1));
             }
 
@@ -494,6 +494,6 @@ mod tests {
             assert_eq!(0, coop_free(&coop));
         }
 
-        assert_eq!(val, 54);
+        assert_eq!(val, 55);
     }
 }

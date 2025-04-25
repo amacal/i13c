@@ -2,12 +2,13 @@
 ; single-threaded environment; the channel is a FIFO queue, solely based on the linked list
 ; backed up by multiple stacks of each enqueued sender and receiver
 
-    CHANNEL_NODE_SIZE equ 24
+    CHANNEL_NODE_SIZE equ 32
     CHANNEL_INFO_SIZE equ 56
 
     struc channel_node
     .val resq 1                                            ; value of the message
     .ptr resq 1                                            ; pointer to the resume
+    .prev resq 1                                           ; pointer to the prev node
     .next resq 1                                           ; pointer to the next node
     endstruc
 
@@ -202,8 +203,17 @@ channel_send:
 ; the node can be the last one, in such case we need to clear the tail
 
     test rcx, rcx                                          ; check if it is null
-    jnz .direct.exit                                       ; if not null, skip the cleanup
+    jnz .direct.prev                                       ; if not null, skip the cleanup
+
     mov [rdi + channel_info.recv_tail], rcx                ; if null, set the tail pointer
+    jmp .direct.exit                                       ; skip the prev node cleanup
+
+; if node is not the last one, the newly shifted node
+; won't have any prev pointer, so we need to set it to null
+
+.direct.prev:
+
+    mov qword [rcx + channel_node.prev], 0                 ; set the prev pointer
 
 ; finally we need to pull the receiver registers, but we are the sender
 ; so we need to find the dump area and jump there, the coop_pull will
@@ -237,6 +247,7 @@ channel_send:
     mov rax, [rsp + CHANNEL_NODE_SIZE]                     ; get the resume address
     mov [rsp + channel_node.ptr], rax                      ; set the message pointer
 
+    mov qword [rsp + channel_node.prev], 0                 ; set the prev pointer
     mov qword [rsp + channel_node.next], 0                 ; set the next pointer
 
 ; the previous send node will be extracted
@@ -249,9 +260,10 @@ channel_send:
     jz .insert.create                                      ; if null, skip linking
     mov [rcx + channel_node.next], rsp                     ; set the next pointer
     mov [rdi + channel_info.send_tail], rsp                ; set the tail pointer
+    mov [rsp + channel_node.prev], rcx                     ; set the prev pointer
     jmp .insert.dump                                       ; skip creating a new node
 
-; the channel_info.send_head will contain the curret node
+; the channel_info.send_head will contain the current node
 
 .insert.create:
     mov [rdi + channel_info.send_head], rsp                ; set the head pointer
@@ -335,8 +347,17 @@ channel_recv:
 ; the node can be the last one, in such case we need to clear the tail
 
     test rcx, rcx                                          ; check if it is null
-    jnz .direct.exit                                       ; if not null, skip the cleanup
+    jnz .direct.prev                                       ; if not null, skip the cleanup
+
     mov [rdi + channel_info.send_tail], rcx                ; if null, set the tail pointer
+    jmp .direct.exit                                       ; skip the prev node cleanup
+
+; if node is not the last one, the newly shifted node
+; won't have any prev pointer, so we need to set it to null
+
+.direct.prev:
+
+    mov qword [rcx + channel_node.prev], 0                 ; set the prev pointer
 
 ; finally we report the success to the receiver, letting it consume the message
 ; while the sender still blocks and waits for the quick noop completion
@@ -367,6 +388,7 @@ channel_recv:
     lea rax, .insert.done                                  ; get the resume address
     mov [rsp + channel_node.ptr], rax                      ; set the message pointer
 
+    mov qword [rsp + channel_node.prev], 0                 ; set the prev pointer
     mov qword [rsp + channel_node.next], 0                 ; set the next pointer
 
 ; the previous recv node will be extracted
@@ -379,9 +401,10 @@ channel_recv:
     jz .insert.create                                      ; if null, skip relinking
     mov [rcx + channel_node.next], rsp                     ; set the next pointer
     mov [rdi + channel_info.recv_tail], rsp                ; set the tail pointer
+    mov [rsp + channel_node.prev], rcx                     ; set the prev pointer
     jmp .insert.dump                                       ; skip creating a new node
 
-; the channel_info.recv_head will contain the curret node
+; the channel_info.recv_head will contain the current node
 
 .insert.create:
     mov [rdi + channel_info.recv_head], rsp                ; set the recv pointer
