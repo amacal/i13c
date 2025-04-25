@@ -34,7 +34,7 @@
 channel_init:
 
 ; the channel structure is 8x bytes long, so we need to allocate zeroed memory
-; which has to be aligned to 8 bytes boundary
+; which must be aligned to an 8-byte boundary
 
     mov rcx, CHANNEL_INFO_SIZE / 8                         ; x iterations, each 8 bytes
     xor rax, rax                                           ; source value is 0
@@ -42,7 +42,7 @@ channel_init:
     sub rdi, CHANNEL_INFO_SIZE                             ; rewind the pointer
 
 ; the coop info and size are known at this point, so we can set them
-; the other pointers are set to 0 and will be popullated later when needed
+; the other pointers are set to 0 and will be populated later when needed
 
     mov [rdi + channel_info.coop], rsi                     ; set the coop info pointer
     mov [rdi + channel_info.size], rdx                     ; set the number of participants
@@ -81,7 +81,7 @@ channel_free:
     and rax, ~0x0fff                                       ; find the dump area
 
 ; finally we need to prepare the coop info, resumption address (used in .done)
-; we don't need to pass r11 and r8, because they will be overriden by the noop
+; we don't need to pass r11 and r8, because they will be overridden by the noop
 
     mov rcx, [rdi + channel_info.coop]                     ; get the coop info pointer
     call coop_push                                         ; dump task registers, never fails
@@ -89,7 +89,7 @@ channel_free:
     xor rdx, rdx                                           ; the main thread dump area is not known
     jmp coop_switch                                        ; switch to the main thread
 
-; the zero code has to successfully return to the caller, but also trigger
+; the .zero case has to successfully return to the caller, but also trigger
 ; the channel_info.free function pointer, so the caller will be resumed
 
 .zero:
@@ -158,7 +158,7 @@ channel_send:
     push rdi                                               ; save the channel pointer
 
 ; the coop_noop_ex will be called with the current stack
-; without running th event loop, the callback will be picked
+; without running the event loop, the callback will be picked
 ; in the near future, when the actual receiver alredy consumed
 ; passed message from the sender stack
 
@@ -225,7 +225,7 @@ channel_send:
 
 ; the .resume function is called when the noop_ex is completed, already
 ; when the receiver consumed the message, so we can just clean the stack
-; and return to the caller, the sendr will be resumed in the correct context
+; and return to the caller, the sender will be resumed in the correct context
 
 .direct.resume:
     xor rax, rax                                           ; set the return value to 0
@@ -311,7 +311,7 @@ channel_recv:
 
 ; the coop_noop_ex will be called with the sender stack
 ; without running th event loop, the callback will be picked
-; in the near future, when the actual receiver alredy consumed
+; in the near future, when the actual receiver already consumed
 ; passed message from the sender stack
 
     mov rsi, 1                                             ; just schedule and no loop
