@@ -29,3 +29,9 @@ extern long channel_send(channel_info* channel, const void* data);
 /// @param data ptr to a space where the message will be stored
 /// @return 0 if no error, or negative value indicating an error
 extern long channel_recv(channel_info* channel, void** data);
+
+/// @brief selects a message from multiple channels
+/// @param channels ptr to a null-terminated array of channel pointers
+/// @param data ptr to a slot where the message will be stored
+/// @return index of a selected channel if no error, or negative value indicating an error
+extern long channel_select(channel_info** channels, void** data);

@@ -22,7 +22,7 @@
     endstruc
 
     section .text
-    global channel_init, channel_free, channel_send, channel_recv
+    global channel_init, channel_free, channel_send, channel_recv, channel_select
     extern coop_noop_ex, coop_pull, coop_push, coop_switch, stdout_printf
 
 ; initializes a hand-off channel
@@ -32,7 +32,7 @@
 ; rax - returns 0 if no error, or negative value indicating an error
 channel_init:
 
-; the channel structure is 40 bytes long, so we need to allocate zeroed memory
+; the channel structure is 8x bytes long, so we need to allocate zeroed memory
 ; which has to be aligned to 8 bytes boundary
 
     mov rcx, CHANNEL_INFO_SIZE / 8                         ; x iterations, each 8 bytes
@@ -280,7 +280,7 @@ channel_send:
 ; receives a message from the channel
 ; rdi - ptr to channel structure
 ; rsi - ptr to a slot where the message will be stored
-; rax - returns a message if no error, or negative value indicating an error
+; rax - 0 if no error, or negative value indicating an error
 channel_recv:
 
 ; initially distinguishes between the direct and insert model
@@ -415,6 +415,42 @@ channel_recv:
 .insert.done:
     xor rax, rax                                           ; set the return value to 0
     jmp r11                                                ; simply resume after channel_recv
+
+; selects a message from multiple channels
+; rdi - ptr to a null-terminated array of channel pointers
+; rsi - ptr to a slot where the message will be stored
+; rax - index of a selected channel if no error, or negative value indicating an error
+channel_select:
+
+    xor rcx, rcx
+
+; iterate over the channels and check if any of them is ready
+; it will help us to decide which path to take, the direct or insert
+
+.check:
+    mov rax, [rdi + rcx * 8]                               ; get the channel pointer
+    test rax, rax                                          ; check if it is null
+    jz .insert                                             ; if null, follow the insert path
+
+    mov rax, [rax + channel_info.send_head]                ; get the current send pointer
+    test rax, rax                                          ; check if it is null
+    jnz .direct                                            ; if not null, follow the direct path
+
+    inc rcx                                                ; increment the channel index
+    jmp .check                                             ; check the next channel
+
+.direct:
+    push rcx                                               ; save the channel index
+    mov rdi, [rdi + rcx * 8]                               ; get the channel pointer
+    call channel_recv.direct                               ; the function won't block
+
+    pop rax                                                ; return the channel index
+    ret
+
+.insert:
+; todo
+    ud2
+    ret
 
 ; panics when non-recoverable error occurs, never returns
 ; rax - error code
