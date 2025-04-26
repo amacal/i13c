@@ -496,4 +496,237 @@ mod tests {
 
         assert_eq!(val, 55);
     }
+
+    #[test]
+    fn can_multiselect_waiting_channel_first() {
+        let mut val: i64 = 0;
+        let mut coop = CoopInfo::default();
+
+        let ctx = CoopContext::new(&mut val, &coop);
+        let ptr = &ctx as *const CoopContext;
+
+        extern "C" fn coordinate(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                let ctx = *ctx;
+
+                let mut ch1 = ChannelInfo::default();
+                let ctx1 = ctx.with_channel(&ch1);
+                let ptr1 = &ctx1 as *const CoopContext;
+
+                let mut ch2 = ChannelInfo::default();
+                let ctx2 = ctx.with_channel(&ch2);
+                let ptr2 = &ctx2 as *const CoopContext;
+
+                let mut ptr: *const i64 = core::ptr::null_mut();
+                let channels: [*const ChannelInfo; 3] = [&ch1, &ch2, core::ptr::null()];
+
+                ctx.add(1);
+                ctx.add(channel_init(&mut ch1, ctx.coop(), 2));
+                ctx.add(channel_init(&mut ch2, ctx.coop(), 2));
+
+                ctx.add(coop_spawn(ctx.coop(), task_one, ptr1, 0));
+                ctx.add(coop_spawn(ctx.coop(), task_two, ptr2, 0));
+
+                ctx.add(channel_select(channels.as_ptr(), &mut ptr));
+                ctx.add(*ptr);
+
+                ctx.add(channel_select(channels.as_ptr(), &mut ptr));
+                ctx.add(channel_free(&ch1, 1));
+            }
+
+            return 0;
+        }
+
+        extern "C" fn task_one(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                let data: [i64; 3] = [17; 3];
+                let ptr = data.as_ptr();
+
+                (*ctx).add(*ptr);
+                (*ctx).add(channel_send((*ctx).channel(), ptr));
+                (*ctx).add(channel_free((*ctx).channel(), 0));
+                return 0;
+            }
+        }
+
+        extern "C" fn task_two(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                let data: [i64; 3] = [19; 3];
+                let ptr = data.as_ptr();
+
+                (*ctx).add(*ptr);
+                (*ctx).add(channel_send((*ctx).channel(), ptr));
+                (*ctx).add(channel_free((*ctx).channel(), 0));
+                return 0;
+            }
+        }
+
+        unsafe {
+            assert_eq!(0, coop_init(&mut coop, 32));
+            assert_eq!(0, coop_spawn(&coop, coordinate, ptr, 0));
+            assert_eq!(0, coop_loop(&coop));
+            assert_eq!(0, coop_free(&coop));
+        }
+
+        assert_eq!(val, 55);
+    }
+
+    #[test]
+    fn can_multiselect_waiting_channel_second() {
+        let mut val: i64 = 0;
+        let mut coop = CoopInfo::default();
+
+        let ctx = CoopContext::new(&mut val, &coop);
+        let ptr = &ctx as *const CoopContext;
+
+        extern "C" fn coordinate(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                let ctx = *ctx;
+
+                let mut ch1 = ChannelInfo::default();
+                let ctx1 = ctx.with_channel(&ch1);
+                let ptr1 = &ctx1 as *const CoopContext;
+
+                let mut ch2 = ChannelInfo::default();
+                let ctx2 = ctx.with_channel(&ch2);
+                let ptr2 = &ctx2 as *const CoopContext;
+
+                let mut ptr: *const i64 = core::ptr::null_mut();
+                let channels: [*const ChannelInfo; 3] = [&ch1, &ch2, core::ptr::null()];
+
+                ctx.add(1);
+                ctx.add(channel_init(&mut ch1, ctx.coop(), 2));
+                ctx.add(channel_init(&mut ch2, ctx.coop(), 2));
+
+                ctx.add(coop_spawn(ctx.coop(), task_two, ptr2, 0));
+                ctx.add(coop_spawn(ctx.coop(), task_one, ptr1, 0));
+
+                ctx.add(channel_select(channels.as_ptr(), &mut ptr));
+                ctx.add(*ptr);
+
+                ctx.add(channel_select(channels.as_ptr(), &mut ptr));
+                ctx.add(channel_free(&ch1, 1));
+            }
+
+            return 0;
+        }
+
+        extern "C" fn task_one(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                let data: [i64; 3] = [17; 3];
+                let ptr = data.as_ptr();
+
+                (*ctx).add(*ptr);
+                (*ctx).add(channel_send((*ctx).channel(), ptr));
+                (*ctx).add(channel_free((*ctx).channel(), 0));
+                return 0;
+            }
+        }
+
+        extern "C" fn task_two(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                let data: [i64; 3] = [19; 3];
+                let ptr = data.as_ptr();
+
+                (*ctx).add(*ptr);
+                (*ctx).add(channel_send((*ctx).channel(), ptr));
+                (*ctx).add(channel_free((*ctx).channel(), 0));
+                return 0;
+            }
+        }
+
+        unsafe {
+            assert_eq!(0, coop_init(&mut coop, 32));
+            assert_eq!(0, coop_spawn(&coop, coordinate, ptr, 0));
+            assert_eq!(0, coop_loop(&coop));
+            assert_eq!(0, coop_free(&coop));
+        }
+
+        assert_eq!(val, 57);
+    }
+
+    #[test]
+    fn can_multiselect_waiting_channel_unlink() {
+        let mut val: i64 = 0;
+        let mut coop = CoopInfo::default();
+
+        let ctx = CoopContext::new(&mut val, &coop);
+        let ptr = &ctx as *const CoopContext;
+
+        extern "C" fn coordinate(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                let ctx = *ctx;
+
+                let mut ch1 = ChannelInfo::default();
+                let ctx1 = ctx.with_channel(&ch1);
+                let ptr1 = &ctx1 as *const CoopContext;
+
+                let mut ch2 = ChannelInfo::default();
+                let ctx2 = ctx.with_channel(&ch2);
+                let ptr2 = &ctx2 as *const CoopContext;
+
+                let mut ptr: *const i64 = core::ptr::null_mut();
+                let channels: [*const ChannelInfo; 3] = [&ch1, &ch2, core::ptr::null()];
+
+                ctx.add(channel_init(&mut ch1, ctx.coop(), 4));
+                ctx.add(channel_init(&mut ch2, ctx.coop(), 2));
+
+                // it will cause an instant channel-recv 1
+                ctx.add(coop_spawn(ctx.coop(), task_one, ptr1, 0));
+                ctx.add(coop_noop(ctx.coop()));
+
+                // it will cause a delayed channel-recv 1
+                ctx.add(coop_spawn(ctx.coop(), task_one, ptr1, 0));
+
+                // it will cause a delayed channel-send 2
+                ctx.add(coop_spawn(ctx.coop(), task_two, ptr2, 0));
+
+                // it will cause a delayed consumption from the channel 2
+                // and forced unlinking in the middle of the internal linked list
+                ctx.add(channel_select(channels.as_ptr(), &mut ptr));
+                ctx.add(*ptr);
+
+                ctx.add(channel_send(&ch1, core::ptr::null()));
+                ctx.add(channel_send(&ch1, core::ptr::null()));
+
+                ctx.add(channel_free(&ch1, 1));
+            }
+
+            return 0;
+        }
+
+        extern "C" fn task_one(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                let mut ptr: *const i64 = core::ptr::null();
+
+                (*ctx).add(channel_recv((*ctx).channel(), &mut ptr));
+                (*ctx).add(channel_free((*ctx).channel(), 0));
+                (*ctx).add(1);
+
+                return 0;
+            }
+        }
+
+        extern "C" fn task_two(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                let data: [i64; 3] = [11; 3];
+                let ptr = data.as_ptr();
+
+                (*ctx).add(channel_send((*ctx).channel(), ptr));
+                (*ctx).add(channel_free((*ctx).channel(), 0));
+                (*ctx).add(1);
+
+                return 0;
+            }
+        }
+
+        unsafe {
+            assert_eq!(0, coop_init(&mut coop, 32));
+            assert_eq!(0, coop_spawn(&coop, coordinate, ptr, 0));
+            assert_eq!(0, coop_loop(&coop));
+            assert_eq!(0, coop_free(&coop));
+        }
+
+        assert_eq!(val, 15);
+    }
 }

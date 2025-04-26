@@ -218,8 +218,11 @@ channel_send:
 ; finally we need to pull the receiver registers, but we are the sender
 ; so we need to find the dump area and jump there, the coop_pull will
 ; restore the context and resume the receiver already placed in RCX
+; we don't need to clean the stack, anyway it will be restored properly
+; R10 will contain the channel pointer, so we can use it later
 
 .direct.exit:
+    mov r10, rdi                                           ; preserve the channel pointer
     and rax, ~0x0fff                                       ; find the dump area
     jmp coop_pull                                          ; restore the context and resume
 
@@ -445,12 +448,12 @@ channel_recv:
 ; rax - index of a selected channel if no error, or negative value indicating an error
 channel_select:
 
-    xor rcx, rcx
+    xor rcx, rcx                                           ; zero the channel index
 
 ; iterate over the channels and check if any of them is ready
 ; it will help us to decide which path to take, the direct or insert
 
-.check:
+.direct.loop:
     mov rax, [rdi + rcx * 8]                               ; get the channel pointer
     test rax, rax                                          ; check if it is null
     jz .insert                                             ; if null, follow the insert path
@@ -460,20 +463,171 @@ channel_select:
     jnz .direct                                            ; if not null, follow the direct path
 
     inc rcx                                                ; increment the channel index
-    jmp .check                                             ; check the next channel
+    jmp .direct.loop                                       ; check the next channel
 
 .direct:
     push rcx                                               ; save the channel index
+
     mov rdi, [rdi + rcx * 8]                               ; get the channel pointer
     call channel_recv.direct                               ; the function won't block
 
     pop rax                                                ; return the channel index
     ret
 
+; the direct path is used when no sender is ready and we need to
+; enqueue the message slot in all channels to be one day resumed
+; currently RCX contains number of channels, it will be used to
+; find number of needed bytes to reserve on the stack
+
 .insert:
-; todo
-    ud2
-    ret
+    push rdi                                               ; save the array pointer
+    push rcx                                               ; save the node counter
+
+    imul rcx, CHANNEL_NODE_SIZE                            ; size of all nodes
+    sub rsp, rcx                                           ; reserve space for all nodes
+    mov r8, rsp                                            ; remember the array of nodes
+
+    xor rcx, rcx                                           ; zero the channel index
+    lea rdx, .insert.done                                  ; set the resume address
+
+.insert.loop:
+    mov rax, [rdi + rcx * 8]                               ; get the channel pointer
+    test rax, rax                                          ; check if it is null
+    jz .insert.completed                                   ; if null, complete all inserts
+
+; prepare the channel node for the current channel
+
+    mov [r8 + channel_node.val], rsi                       ; set the message holder
+    mov [r8 + channel_node.ptr], rdx                       ; set the .done pointer
+
+    mov qword [r8 + channel_node.prev], 0                  ; set the prev pointer
+    mov qword [r8 + channel_node.next], 0                  ; set the next pointer
+
+; the previous recv node will be extracted
+
+    mov r9, [rax + channel_info.recv_tail]                 ; get the current head pointer
+    test r9, r9                                            ; check if it is null
+
+; optionally the next node will point at the previous recv
+
+    jz .insert.create                                      ; if null, skip relinking
+    mov [r9 + channel_node.next], r8                       ; set the next pointer
+    mov [rax + channel_info.recv_tail], r8                 ; set the tail pointer
+    mov [r8 + channel_node.prev], r9                       ; set the prev pointer
+    jmp .insert.next                                       ; skip creating a new node
+
+; the channel_info.recv_head will contain the current node
+
+.insert.create:
+    mov [rax + channel_info.recv_head], r8                 ; set the recv pointer
+    mov [rax + channel_info.recv_tail], r8                 ; set the tail pointer
+
+.insert.next:
+    add r8, CHANNEL_NODE_SIZE                              ; move to the next node
+    inc rcx                                                ; increment the channel index
+
+    jmp .insert.loop                                       ; check the next channel
+
+; now we can safely switch to the main thread, when one sender will
+; wake up and .insert.done will be called
+
+.insert.completed:
+
+; critical values are stored in R11 and R8, pointing at the resume address
+; and the old stack pointer, so we need to set them before calling the push
+
+    mov rax, [rdi]                                         ; get the channel pointer
+    mov rcx, [rax + channel_info.coop]                     ; get the coop info pointer
+    mov r11, [r8 + 16]                                     ; set the code resumption address
+    add r8, 24                                             ; set the old stack ptr
+
+    mov rax, rsp                                           ; get the current stack
+    and rax, ~0x0fff                                       ; find the dump area
+    call coop_push                                         ; dump task registers, never fails
+
+    xor rdx, rdx                                           ; the main thread dump area is not known
+    jmp coop_switch                                        ; switch to the main thread
+
+; here is the most complicated part, the .done function is called and
+; we need to detect the woken up channel, followed by cleaning up all
+; the other channels, including their stacks; luckily the R10 will contain
+; the channel pointer, so we can use it to find the channel index
+
+.insert.done:
+    xor rdx, rdx                                           ; zero the channel index
+    mov rdi, [rsp - 16]                                    ; get the array pointer
+    lea r9, [rsp - 24]                                     ; go at the end of the array
+    mov rcx, [r9]                                          ; get the number of nodes
+    imul rcx, CHANNEL_NODE_SIZE                            ; size of all nodes
+    sub r9, rcx                                            ; find the nodes beginning
+
+; when resume address is on the stack, we can later just call RET
+
+    push r11                                               ; save the resume address
+
+.insert.done.loop:
+    mov rcx, [rdi + rdx * 8]                               ; get the channel pointer
+
+    test rcx, rcx                                          ; check if it is null
+    jz .insert.exit                                        ; if null, exit
+
+    cmp r10, rcx                                           ; check if are equal
+    jne .insert.done.unlink                                ; if not equal, unlink node
+
+    mov rax, rdx                                           ; prepare the return value
+    jmp .insert.done.continue                              ; continue looping
+
+; the channel node is not resumed, and it has to be unlinked
+; from the linked list to nor create any resurection, but situation
+; is more complicated, because the node may be now in the middle
+
+.insert.done.unlink:
+
+; fetch prev and next pointers from the current node
+
+    mov rsi, [r9 + channel_node.prev]                      ; get the previous node
+    mov r8, [r9 + channel_node.next]                       ; get the next node
+
+; if prev node exists, prev node has to skip the current node
+
+    test rsi, rsi                                          ; check prev node exists
+    jz .insert.done.unlink.prev                            ; if not, skip the cleanup
+    mov [rsi + channel_node.next], r8                      ; set the next pointer
+
+; if next node exists, next node has to skip the current node
+
+.insert.done.unlink.prev:
+    test r8, r8                                            ; check next node exists
+    jz .insert.done.unlink.head                            ; if not, skip the cleanup
+    mov [r8 + channel_node.prev], rsi                      ; set the prev pointer
+
+; if recv_head is the current node, we need to point it to the next node
+
+.insert.done.unlink.head:
+    mov r11, [rcx + channel_info.recv_head]                ; get the current head pointer
+    cmp r11, r9                                            ; check if it is the current node
+    jne .insert.done.unlink.tail                           ; if not, skip the cleanup
+    mov [rcx + channel_info.recv_head], r8                 ; set the recv pointer to the next node
+
+; if recv_tail is the current node, we need to point it to the prev node
+
+.insert.done.unlink.tail:
+    mov r11, [rcx + channel_info.recv_tail]                ; get the current tail pointer
+    cmp r11, r9                                            ; check if it is the current node
+    jne .insert.done.continue                              ; if not, skip the cleanup
+    mov [rcx + channel_info.recv_tail], rsi                ; set the recv pointer to the prev node
+
+; just increase both counters and continue the loop
+
+.insert.done.continue:
+    inc rdx                                                ; increment the channel index
+    add r9, CHANNEL_NODE_SIZE                              ; move to the next node
+    jmp .insert.done.loop                                  ; check the next channel
+
+; we did everything, hurrah!
+
+.insert.exit:
+    ret                                                    ; simply resume after channel_select
 
 ; panics when non-recoverable error occurs, never returns
 ; rax - error code

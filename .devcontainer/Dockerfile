@@ -10,16 +10,16 @@ RUN sudo apt-get update \
         libqt5svg5-dev qttools5-dev \
     && sudo rm -rf /var/lib/apt/lists/*
 
-# RUN cd /tmp \
-#     && wget https://github.com/netwide-assembler/nasm/archive/refs/tags/nasm-2.16.03.tar.gz \
-#     && tar -xvzf nasm-2.16.03.tar.gz \
-#     && cd nasm-nasm-2.16.03 \
-#     && sh autogen.sh \
-#     && ./configure \
-#     && make \
-#     && sudo make install \
-#     && nasm --version \
-#     && sudo rm -rf /tmp/nasm-nasm-2.16.03
+RUN cd /tmp \
+    && wget wget https://www.nasm.us/pub/nasm/releasebuilds/2.16.03/nasm-2.16.03.tar.gz \
+    && tar -xvzf nasm-2.16.03.tar.gz \
+    && cd nasm-nasm-2.16.03 \
+    && sh autogen.sh \
+    && ./configure \
+    && make \
+    && sudo make install \
+    && nasm --version \
+    && sudo rm -rf /tmp/nasm-nasm-2.16.03
 
 RUN cd /tmp \
     && wget https://github.com/eteran/edb-debugger/releases/download/1.5.0/edb-debugger-1.5.0.tgz \
