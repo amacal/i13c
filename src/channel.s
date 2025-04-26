@@ -3,7 +3,7 @@
 ; backed up by multiple stacks of each enqueued sender and receiver
 
     CHANNEL_NODE_SIZE equ 32
-    CHANNEL_INFO_SIZE equ 56
+    CHANNEL_INFO_SIZE equ 72
 
     struc channel_node
     .val resq 1                                            ; value of the message
@@ -18,8 +18,10 @@
     .free resq 1                                           ; pointer to the free node
     .send_head resq 1                                      ; pointer to the send head
     .send_tail resq 1                                      ; pointer to the send tail
+    .send_size resq 1                                      ; size of the send queue
     .recv_head resq 1                                      ; pointer to the recv head
     .recv_tail resq 1                                      ; pointer to the recv tail
+    .recv_size resq 1                                      ; size of the recv queue
     endstruc
 
     section .text
@@ -63,8 +65,14 @@ channel_free:
     dec qword [rdi + channel_info.size]                    ; decrement the number of participants
     mov rax, [rdi + channel_info.size]                     ; get the number of participants
 
+; if the number of participants is 0, we can free the channel
+; without waiting for the other participants because they are already gone
+
     test rax, rax                                          ; check if it is 0
     jz .zero                                               ; if 0, free the channel
+
+; if the number of participants is not 0, we need to check if we need to wait
+; the channel_info.free will contain a pointer executed by the last participant
 
     test rsi, rsi                                          ; check if we need to wait
     jz .exit                                               ; if not, free the channel
@@ -199,6 +207,7 @@ channel_send:
 
     mov rcx, [rax + channel_node.next]                     ; get the next node
     mov [rdi + channel_info.recv_head], rcx                ; set the recv pointer
+    dec qword [rdi + channel_info.recv_size]               ; decrement the recv size
 
 ; the node can be the last one, in such case we need to clear the tail
 
@@ -253,8 +262,9 @@ channel_send:
     mov qword [rsp + channel_node.prev], 0                 ; set the prev pointer
     mov qword [rsp + channel_node.next], 0                 ; set the next pointer
 
-; the previous send node will be extracted
+; the previous send tail will be replaced
 
+    inc qword [rdi + channel_info.send_size]               ; increment the send size
     mov rcx, [rdi + channel_info.send_tail]                ; get the current tail pointer
     test rcx, rcx                                          ; check if it is null
 
@@ -346,6 +356,7 @@ channel_recv:
 
     mov rcx, [rax + channel_node.next]                     ; get the next node
     mov [rdi + channel_info.send_head], rcx                ; set the send pointer
+    dec qword [rdi + channel_info.send_size]               ; decrement the send size
 
 ; the node can be the last one, in such case we need to clear the tail
 
@@ -394,8 +405,9 @@ channel_recv:
     mov qword [rsp + channel_node.prev], 0                 ; set the prev pointer
     mov qword [rsp + channel_node.next], 0                 ; set the next pointer
 
-; the previous recv node will be extracted
+; the previous recv tail will be replaced
 
+    inc qword [rdi + channel_info.recv_size]               ; increment the recv size
     mov rcx, [rdi + channel_info.recv_tail]                ; get the current head pointer
     test rcx, rcx                                          ; check if it is null
 
@@ -505,6 +517,7 @@ channel_select:
 
 ; the previous recv node will be extracted
 
+    inc qword [rax + channel_info.recv_size]               ; increment the recv size
     mov r9, [rax + channel_info.recv_tail]                 ; get the current head pointer
     test r9, r9                                            ; check if it is null
 
@@ -587,6 +600,7 @@ channel_select:
 
     mov rsi, [r9 + channel_node.prev]                      ; get the previous node
     mov r8, [r9 + channel_node.next]                       ; get the next node
+    dec qword [rcx + channel_info.recv_size]               ; decrement the recv size
 
 ; if prev node exists, prev node has to skip the current node
 
