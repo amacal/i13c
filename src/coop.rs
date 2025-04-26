@@ -53,6 +53,18 @@ impl CoopContext {
             );
         }
     }
+
+    pub fn next(&self, val: i64, left: i64, right: i64) {
+        if self.get() == val {
+            if left == right {
+                self.add(1);
+            } else {
+                println!("{}: {} <> {}", self.get(), left, right);
+            }
+        } else {
+            println!("{} <> {}", self.get(), val);
+        }
+    }
 }
 
 pub type CoopFn = extern "C" fn(*const CoopContext) -> i64;
