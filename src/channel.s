@@ -1,6 +1,9 @@
 ; contains the hand-off channel implementation working with the coop in a non-blocking
 ; single-threaded environment; the channel is a FIFO queue, solely based on the linked list
-; backed up by multiple stacks of each enqueued sender and receiver
+; backed up by multiple stacks of each enqueued sender and receiver; the coop is a single-threaded
+; cooperative scheduler, and it's not going to be used in a multi-threaded environment at all!
+
+    EDEADLK EQU -35
 
     CHANNEL_NODE_SIZE equ 32
     CHANNEL_INFO_SIZE equ 72
@@ -249,6 +252,13 @@ channel_send:
 
 .insert:
 
+; is it possible to send a message to the channel, let's compare counters
+
+    mov rax, [rdi + channel_info.send_size]                ; get the count of senders
+    inc rax                                                ; increment the count to account us
+    cmp rax, [rdi + channel_info.size]                     ; compare with the size
+    je .insert.deadlock                                    ; report deadlock
+
 ; reserve space for the message node, which is 8x bytes long
 ; and set the message value to the passed message, the ptr
 ; will point to the resume address, just above the node
@@ -301,6 +311,10 @@ channel_send:
 
     xor rdx, rdx                                           ; the main thread dump area is not known
     jmp coop_switch                                        ; switch to the main thread
+
+.insert.deadlock:
+    mov rax, EDEADLK                                       ; set the deadlock error
+    ret                                                    ; return to the caller
 
 ; receives a message from the channel
 ; rdi - ptr to channel structure
@@ -392,6 +406,13 @@ channel_recv:
 
 .insert:
 
+; is it possible to receive a message from the channel, let's compare counters
+
+    mov rax, [rdi + channel_info.recv_size]                ; get the count of receivers
+    inc rax                                                ; increment the count to account us
+    cmp rax, [rdi + channel_info.size]                     ; compare with the size
+    je .insert.deadlock                                    ; report deadlock
+
 ; reserve space for the message node, which is 8x bytes long
 ; and set the message value to the passed slot, the ptr
 ; will point to the resume address, just above the node
@@ -453,6 +474,10 @@ channel_recv:
 .insert.done:
     xor rax, rax                                           ; set the return value to 0
     jmp r11                                                ; simply resume after channel_recv
+
+.insert.deadlock:
+    mov rax, EDEADLK                                       ; set the deadlock error
+    ret                                                    ; return to the caller
 
 ; selects a message from multiple channels
 ; rdi - ptr to a null-terminated array of channel pointers

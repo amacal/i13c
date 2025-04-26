@@ -58,6 +58,7 @@ impl CoopContext {
         if self.get() == val {
             if left == right {
                 self.add(1);
+                println!("{}: {} == {}", self.get(), left, right);
             } else {
                 println!("{}: {} <> {}", self.get(), left, right);
             }
