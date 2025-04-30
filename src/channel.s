@@ -4,6 +4,7 @@
 ; cooperative scheduler, and it's not going to be used in a multi-threaded environment at all!
 
     EDEADLK EQU -35
+    COOP_ALIGNMENT_MASK equ ~0x0fff
 
     CHANNEL_NODE_SIZE equ 32
     CHANNEL_INFO_SIZE equ 72
@@ -89,7 +90,7 @@ channel_free:
 ; the dump area is aligned to 0x1000, so we can use the stack pointer
 
     mov rax, rsp                                           ; get the current stack
-    and rax, ~0x0fff                                       ; find the dump area
+    and rax, COOP_ALIGNMENT_MASK                           ; find the dump area
 
 ; finally we need to prepare the coop info, resumption address (used in .done)
 ; we don't need to pass r11 and r8, because they will be overridden by the noop
@@ -235,7 +236,7 @@ channel_send:
 
 .direct.exit:
     mov r10, rdi                                           ; preserve the channel pointer
-    and rax, ~0x0fff                                       ; find the dump area
+    and rax, COOP_ALIGNMENT_MASK                           ; find the dump area
     jmp coop_pull                                          ; restore the context and resume
 
 ; the .resume function is called when the noop_ex is completed, already
@@ -297,7 +298,7 @@ channel_send:
 
 .insert.dump:
     mov rax, rsp                                           ; get the current stack
-    and rax, ~0x0fff                                       ; find the dump area
+    and rax, COOP_ALIGNMENT_MASK                           ; find the dump area
 
 ; critical values are stored in R11 and R8, pointing at the resume address
 ; and the old stack pointer, so we need to set them before calling the push
@@ -451,7 +452,7 @@ channel_recv:
 
 .insert.dump:
     mov rax, rsp                                           ; get the current stack
-    and rax, ~0x0fff                                       ; find the dump area
+    and rax, COOP_ALIGNMENT_MASK                           ; find the dump area
 
 ; critical values are stored in R11 and R8, pointing at the resume address
 ; and the old stack pointer, so we need to set them before calling the push
@@ -506,7 +507,7 @@ channel_select:
     push rcx                                               ; save the channel index
 
     mov rdi, [rdi + rcx * 8]                               ; get the channel pointer
-    call channel_recv.direct                               ; the function won't block
+    call channel_recv.direct                               ; the function won't block nor fail
 
     pop rax                                                ; return the channel index
     ret
@@ -524,6 +525,7 @@ channel_select:
     sub rsp, rcx                                           ; reserve space for all nodes
     mov r8, rsp                                            ; remember the array of nodes
 
+    xor r11, r11                                           ; zero the deadlock counter
     xor rcx, rcx                                           ; zero the channel index
     lea rdx, .insert.done                                  ; set the resume address
 
@@ -531,6 +533,13 @@ channel_select:
     mov rax, [rdi + rcx * 8]                               ; get the channel pointer
     test rax, rax                                          ; check if it is null
     jz .insert.completed                                   ; if null, complete all inserts
+
+; check if the channel won't be deadlocked
+
+    mov r9, [rax + channel_info.recv_size]                 ; get the count of receivers
+    inc r9                                                 ; increment the count to account us
+    cmp r9, [rax + channel_info.size]                      ; compare with the size
+    je .insert.deadlock                                    ; report deadlock
 
 ; prepare the channel node for the current channel
 
@@ -566,10 +575,34 @@ channel_select:
 
     jmp .insert.loop                                       ; check the next channel
 
+.insert.deadlock:
+    mov qword [r8 + channel_node.val], 0                   ; set the message holder
+    mov qword [r8 + channel_node.ptr], 0                   ; set the .done pointer
+
+    inc r11                                                ; increment the deadlock counter
+    jmp .insert.next                                       ; continue the loop
+
+; it may happen that all channels are deadlocked, so we need to
+; release the allocated memory and return the error code; luckily
+; R8 contains the RSP pointer just before the array of nodes
+
+.insert.completed:
+
+; first compare the deadlock counter with the number of channels
+
+    cmp r11, rcx                                           ; check if we have all deadlocked channels
+    jnz .insert.push                                       ; if not, push the nodes
+
+; all channels are deadlocked, so we need to clean the stack
+
+    lea rsp, [r8 + 16]                                     ; rewind the stack pointer
+    mov rax, EDEADLK                                       ; set the deadlock error
+    ret                                                    ; return to the caller
+
 ; now we can safely switch to the main thread, when one sender will
 ; wake up and .insert.done will be called
 
-.insert.completed:
+.insert.push:
 
 ; critical values are stored in R11 and R8, pointing at the resume address
 ; and the old stack pointer, so we need to set them before calling the push
@@ -580,7 +613,7 @@ channel_select:
     add r8, 24                                             ; set the old stack ptr
 
     mov rax, rsp                                           ; get the current stack
-    and rax, ~0x0fff                                       ; find the dump area
+    and rax, COOP_ALIGNMENT_MASK                           ; find the dump area
     call coop_push                                         ; dump task registers, never fails
 
     xor rdx, rdx                                           ; the main thread dump area is not known
@@ -620,6 +653,12 @@ channel_select:
 ; is more complicated, because the node may be now in the middle
 
 .insert.done.unlink:
+
+; verify if the channel entry was not registered
+
+    mov rsi, [r9 + channel_node.ptr]                       ; get the resume address
+    test rsi, rsi                                          ; check if it is null
+    jz .insert.done.continue                               ; if null, channel was not added
 
 ; fetch prev and next pointers from the current node
 

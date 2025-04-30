@@ -783,7 +783,7 @@ mod tests {
     }
 
     #[test]
-    fn can_receiver_sender_deadlock() {
+    fn can_detect_receiver_deadlock() {
         let mut val: i64 = 0;
         let mut coop = CoopInfo::default();
 
@@ -815,6 +815,126 @@ mod tests {
                 let mut ptr: *const i64 = core::ptr::null();
 
                 (*ctx).add(channel_recv((*ctx).channel(), &mut ptr));
+                (*ctx).add(channel_free((*ctx).channel(), 0));
+
+                return 0;
+            }
+        }
+
+        unsafe {
+            assert_eq!(0, coop_init(&mut coop, 32));
+            assert_eq!(0, coop_spawn(&coop, coordinator, ptr, 0));
+            assert_eq!(0, coop_loop(&coop));
+            assert_eq!(0, coop_free(&coop));
+        }
+
+        assert_eq!(val, 5);
+    }
+
+    #[test]
+    fn can_detect_select_deadlock_all() {
+        let mut val: i64 = 0;
+        let mut coop = CoopInfo::default();
+
+        let ctx = CoopContext::new(&mut val, &coop);
+        let ptr = &ctx as *const CoopContext;
+
+        extern "C" fn coordinator(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                let ctx = *ctx;
+                let mut ch = ChannelInfo::default();
+                let ctx = ctx.with_channel(&ch);
+                let mut ptr: *const i64 = core::ptr::null();
+                let channels: [*const ChannelInfo; 2] = [&ch, core::ptr::null()];
+
+                ctx.next(0, 0, channel_init(&mut ch, ctx.coop(), 3));
+                ctx.next(1, 0, coop_spawn(ctx.coop(), reciver, &ctx, 0));
+                ctx.next(2, 0, coop_spawn(ctx.coop(), reciver, &ctx, 0));
+                ctx.next(3, 0, coop_noop(ctx.coop()));
+
+                ctx.next(4, -35, channel_select(channels.as_ptr(), &mut ptr));
+                ctx.next(5, 0, channel_free(&ch, 1));
+            }
+
+            return 0;
+        }
+
+
+        extern "C" fn reciver(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                let mut ptr: *const i64 = core::ptr::null();
+
+                (*ctx).add(channel_recv((*ctx).channel(), &mut ptr));
+                (*ctx).add(channel_free((*ctx).channel(), 0));
+
+                return 0;
+            }
+        }
+
+        unsafe {
+            assert_eq!(0, coop_init(&mut coop, 32));
+            assert_eq!(0, coop_spawn(&coop, coordinator, ptr, 0));
+            assert_eq!(0, coop_loop(&coop));
+            assert_eq!(0, coop_free(&coop));
+        }
+
+        assert_eq!(val, 5);
+    }
+
+    #[test]
+    fn can_detect_select_deadlock_one() {
+        let mut val: i64 = 0;
+        let mut coop = CoopInfo::default();
+
+        let ctx = CoopContext::new(&mut val, &coop);
+        let ptr = &ctx as *const CoopContext;
+
+        extern "C" fn coordinator(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                let ctx = *ctx;
+                let mut ch1 = ChannelInfo::default();
+                let ctx1 = ctx.with_channel(&ch1);
+                let mut ch2 = ChannelInfo::default();
+                let ctx2 = ctx.with_channel(&ch2);
+                let mut ptr: *const i64 = core::ptr::null();
+                let channels: [*const ChannelInfo; 3] = [&ch1, &ch2, core::ptr::null()];
+
+                ctx.next(0, 0, channel_init(&mut ch1, ctx.coop(), 2));
+                ctx.next(0, 0, channel_init(&mut ch2, ctx.coop(), 3));
+
+                ctx.next(1, 0, coop_spawn(ctx.coop(), reciver, &ctx1, 0));
+                ctx.next(2, 0, coop_spawn(ctx.coop(), reciver, &ctx2, 0));
+                ctx.next(3, 0, coop_spawn(ctx.coop(), sender, &ctx2, 0));
+                ctx.next(4, 0, coop_noop(ctx.coop()));
+
+                ctx.next(5, 1, channel_select(channels.as_ptr(), &mut ptr));
+                ctx.next(6, 11, *ptr);
+
+                ctx.next(7, 0, channel_free(&ch1, 1));
+                ctx.next(8, 0, channel_free(&ch2, 1));
+            }
+
+            return 0;
+        }
+
+
+        extern "C" fn reciver(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                let mut ptr: *const i64 = core::ptr::null();
+
+                (*ctx).add(channel_recv((*ctx).channel(), &mut ptr));
+                (*ctx).add(channel_free((*ctx).channel(), 0));
+
+                return 0;
+            }
+        }
+
+        extern "C" fn sender(ctx: *const CoopContext) -> i64 {
+            unsafe {
+                let data: [i64; 3] = [11; 3];
+                let ptr = data.as_ptr();
+
+                (*ctx).add(channel_send((*ctx).channel(), ptr));
                 (*ctx).add(channel_free((*ctx).channel(), 0));
 
                 return 0;
