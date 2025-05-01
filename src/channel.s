@@ -75,6 +75,48 @@ channel_free:
     test rax, rax                                          ; check if it is 0
     jz .zero                                               ; if 0, free the channel
 
+; let's check if the any sender will be in the deadlock
+
+    mov rcx, [rdi + channel_info.send_size]                ; get the count of senders
+    cmp rax, rcx                                           ; check if we have all senders
+    jne .check.waiting                                     ; if not 0, go further
+
+    push rdi                                               ; remember channel_info
+    push rsi                                               ; remember channel_free flag
+    mov rax, [rdi + channel_info.send_head]                ; get the current send pointer
+
+.check.sender.loop:
+
+    test rax, rax                                          ; check if it is null
+    jz .check.sender.loop.exit                             ; if null, go further
+    push rax                                               ; remember current node
+
+; the coop_noop_ex will be called with the sender stack
+; without running the event loop, the callback will be picked
+; in the near future
+
+    mov rsi, 1                                             ; just schedule and no loop
+    mov rcx, [rax + channel_node.ptr]                      ; set the sender stack context
+    mov rdi, [rdi + channel_info.coop]                     ; get the coop info pointer
+    lea rdx, .check.sender.done                            ; set the .done function address
+    call coop_noop_ex                                      ; pretend to noop
+
+    pop rax
+    mov rdi, [rsp + 8]                                     ; restore channel_info
+    mov rax, [rax + channel_node.next]                     ; get the current send pointer
+    jmp .check.sender.loop                                 ; continue looping
+
+.check.sender.done:
+    mov rax, EDEADLK                                       ; set the deadlock error
+    ret
+
+.check.sender.loop.exit:
+    add rsp, 16                                            ; clean up the stack
+    mov qword [rdi + channel_info.send_size], 0            ; zero the count of senders
+    mov qword [rdi + channel_info.send_head], 0            ; zero the send head pointer
+    mov qword [rdi + channel_info.send_tail], 0            ; zero the send tail pointer
+
+.check.waiting:
 ; if the number of participants is not 0, we need to check if we need to wait
 ; the channel_info.free will contain a pointer executed by the last participant
 
@@ -171,7 +213,7 @@ channel_send:
 
 ; the coop_noop_ex will be called with the current stack
 ; without running the event loop, the callback will be picked
-; in the near future, when the actual receiver alredy consumed
+; in the near future, when the actual receiver already consumed
 ; passed message from the sender stack
 
     mov rsi, 1                                             ; just schedule and no loop
@@ -267,8 +309,11 @@ channel_send:
     sub rsp, CHANNEL_NODE_SIZE                             ; reserve slot for a node
     mov [rsp + channel_node.val], rsi                      ; set the message payload
 
-    mov rax, [rsp + CHANNEL_NODE_SIZE]                     ; get the resume address
-    mov [rsp + channel_node.ptr], rax                      ; set the message pointer
+; the channel_node.ptr will contain the resume address, it means
+; the address of the next instruction after channel_send
+
+    lea rax, [rsp + CHANNEL_NODE_SIZE]                     ; get the resume address
+    mov [rsp + channel_node.ptr], rax                      ; set the resume address
 
     mov qword [rsp + channel_node.prev], 0                 ; set the prev pointer
     mov qword [rsp + channel_node.next], 0                 ; set the next pointer
@@ -344,7 +389,7 @@ channel_recv:
 
     mov rsi, 1                                             ; just schedule and no loop
     mov rdi, [rdi + channel_info.coop]                     ; get the coop info pointer
-    mov rcx, rax                                           ; set the current stack context
+    mov rcx, rax                                           ; set the sender stack context
     lea rdx, .direct.done                                  ; set the .done function address
     call coop_noop_ex                                      ; pretend to noop
 
