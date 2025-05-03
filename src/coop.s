@@ -582,6 +582,7 @@ coop_loop:
 ; rsi - flags - 0 to continue looping, 1 to exit
 ; rdx - ptr to the return address or 0 to use the default
 ; rcx - ptr to the stack context or 0 to use the default
+; r10 - is preserved after resumption
 ; rax - returns 0 if no error, or negative value indicating an error
 coop_noop:
     xor rcx, rcx                                           ; set default value to 0
@@ -589,6 +590,7 @@ coop_noop:
     mov rdx, [rsp]                                         ; set default return address
 
 coop_noop_ex:
+    push r10                                               ; remember r10
     push rdx                                               ; remember return address
     push rsi                                               ; remember flags
     push rdi                                               ; remember ptr to a coop struct
@@ -621,15 +623,15 @@ coop_noop_ex:
 
 ; prepare stack
 
-    pop rax                                                ; load addr of th current stack
-    mov r8, rax                                            ; save addr of the current stack
+    pop rax                                                ; load addr of th current stack, passed in RCX
+    mov r8, rax                                            ; save addr of the current stack, needed in push
     lea r9, coop_push_light                                ; assume we use light push
 
     test rax, rax                                          ; check if we need to use the default
     jnz .skip_stack                                        ; if not 0, skip stack setup
 
     mov rax, rsp                                           ; load addr of the stack
-    lea r8, [rsp + 32]                                     ; remember old stack ptr
+    lea r8, [rsp + 40]                                     ; remember old stack ptr
     lea r9, coop_push                                      ; use full push
 
 .skip_stack:
@@ -642,11 +644,14 @@ coop_noop_ex:
     mov r11, [rsp + 16]                                    ; load function callback
     lea rsi, .done                                         ; load function pointer
 
-    call r9                                                ; dump task registers, won't fail
     inc dword [rdx]                                        ; increment TX tail
+    mov rdx, r10                                           ; copy uring file descriptor
+
+    mov r10, [rsp + 24]                                    ; load preserved R10
+    call r9                                                ; dump task registers, won't fail
 
 ; call uring submission with noop (0x00) operation
-    mov rdi, r10                                           ; uring file descriptor
+    mov rdi, rdx                                           ; uring file descriptor
     mov rsi, 1                                             ; 1 SQE
     xor rdx, rdx                                           ; 0 CQE
     xor r10, r10                                           ; no flags
@@ -669,14 +674,14 @@ coop_noop_ex:
     jnz .exit                                              ; if not zero, then exit
 
     xor rdx, rdx                                           ; clean the main dump location
-    add rsp, 32                                            ; clean the local stack usage
+    add rsp, 40                                            ; clean the local stack usage
     jmp coop_switch                                        ; switch to the main thread
 
 .fail_one:
     mov rax, -33
 
 .exit:
-    add rsp, 24                                            ; clean stack usage
+    add rsp, 32                                            ; clean stack usage
     ret
 
 .done:
@@ -1163,13 +1168,16 @@ coop_push:
 ; r11 - ptr to the resumption code
 ; r8 - ptr to the RSP after resumption
 coop_push_light:
-    mov [rax + 0*8], rax                                   ; rax = registers
-    mov [rax + 2*8], rcx                                   ; rcx = coop info
-    mov [rax + 3*8], rdx                                   ; rdx
+    mov r10, [rax + 9*8]                                   ; r10 = previous resumption
+    mov r9, [rax + 15*8]                                   ; r9 = previous stack
+
+; mov [rax + 0*8], rax                                   ; rax = registers
+; mov [rax + 2*8], rcx                                   ; rcx = coop info
+; mov [rax + 3*8], rdx                                   ; rdx
     mov [rax + 4*8], rsi                                   ; rsi = .done address
     mov [rax + 5*8], rdi                                   ; rdi = .done context
-    mov [rax + 6*8], r8                                    ; r8
-    mov [rax + 7*8], r9                                    ; r9
+; mov [rax + 6*8], r8                                    ; r8
+    mov [rax + 7*8], r9                                    ; r9 = prev stack
     mov [rax + 8*8], r10                                   ; r10
     mov [rax + 9*8], r11                                   ; r11 = resumption
     mov [rax + 15*8], r8                                   ; rsp = stack
@@ -1179,25 +1187,23 @@ coop_push_light:
 ; rax - ptr to the dump area
 ; rsp - contains the return address at the top
 ; rsi - optional ptr preserved in rdx
-; r10 - optional ptr preserved in r10
 coop_pull:
-    pop r8                                                 ; remember return address
 
-    mov rax, [rax + 0*8]                                   ; rax = registers
     mov rbx, [rax + 1*8]                                   ; rbx
     mov rcx, [rax + 2*8]                                   ; rcx = coop info
     mov rdx, rsi                                           ; rdx = preserved rsi
     mov rsi, [rax + 4*8]                                   ; rsi = .done function
     mov rdi, [rax + 5*8]                                   ; rdi = .done context
-    mov r8, r8                                             ; r8
+
     mov r9, [rax + 7*8]                                    ; r9
-    mov r10, r10                                           ; r10 = preserved r10
+    mov r10, [rax + 8*8]                                   ; r10
     mov r11, [rax + 9*8]                                   ; r11 = resumption
     mov r12, [rax + 10*8]                                  ; r12
     mov r13, [rax + 11*8]                                  ; r13
     mov r14, [rax + 12*8]                                  ; r14
     mov r15, [rax + 13*8]                                  ; r15
     mov rbp, [rax + 14*8]                                  ; rbp
-    mov rsp, [rax + 15*8]                                  ; rsp = stack
 
+    pop r8                                                 ; remember return address
+    mov rsp, [rax + 15*8]                                  ; rsp = stack
     jmp r8                                                 ; jump back

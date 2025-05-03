@@ -6,12 +6,14 @@
     EDEADLK EQU -35
     COOP_ALIGNMENT_MASK equ ~0x0fff
 
-    CHANNEL_NODE_SIZE equ 32
+    CHANNEL_NODE_SIZE equ 48
     CHANNEL_INFO_SIZE equ 72
 
     struc channel_node
-    .val resq 1                                            ; value of the message
+    .up resq 1                                             ; pointer to the channel
+    .val resq 1                                            ; message value or a slot
     .ptr resq 1                                            ; pointer to the resume
+    .res resq 1                                            ; node result
     .prev resq 1                                           ; pointer to the prev node
     .next resq 1                                           ; pointer to the next node
     endstruc
@@ -75,11 +77,13 @@ channel_free:
     test rax, rax                                          ; check if it is 0
     jz .zero                                               ; if 0, free the channel
 
+.check.sender:
+
 ; let's check if the any sender will be in the deadlock
 
     mov rcx, [rdi + channel_info.send_size]                ; get the count of senders
     cmp rax, rcx                                           ; check if we have all senders
-    jne .check.waiting                                     ; if not 0, go further
+    jne .check.receiver                                    ; if not 0, go further
 
     push rdi                                               ; remember channel_info
     push rsi                                               ; remember channel_free flag
@@ -111,10 +115,60 @@ channel_free:
     ret
 
 .check.sender.loop.exit:
-    add rsp, 16                                            ; clean up the stack
+    pop rsi                                                ; restore channel_free flag
+    pop rdi                                                ; restore channel_info
     mov qword [rdi + channel_info.send_size], 0            ; zero the count of senders
     mov qword [rdi + channel_info.send_head], 0            ; zero the send head pointer
     mov qword [rdi + channel_info.send_tail], 0            ; zero the send tail pointer
+
+.check.receiver:
+
+; let's check if the any receiver will be in the deadlock
+
+    mov rcx, [rdi + channel_info.recv_size]                ; get the count of receivers
+    cmp rax, rcx                                           ; check if we have all receivers
+    jne .check.waiting                                     ; if not 0, go further
+
+    push rdi                                               ; remember channel_info
+    push rsi                                               ; remember channel_free flag
+    mov rax, [rdi + channel_info.recv_head]                ; get the current recv pointer
+
+.check.receiver.loop:
+
+    test rax, rax                                          ; check if it is null
+    jz .check.receiver.loop.exit                           ; if null, go further
+    push rax                                               ; remember current node
+
+; the coop_noop_ex will be called with the receiver stack
+; without running the event loop, the callback will be picked
+; in the near future
+
+    mov rsi, 1                                             ; just schedule and no loop
+    mov rcx, rax                                           ; set the sender stack context
+    mov rdi, [rdi + channel_info.coop]                     ; get the coop info pointer
+    lea rdx, .check.receiver.done                          ; set the .done function address
+    call coop_noop_ex                                      ; pretend to noop
+
+    pop rax
+    mov rdi, [rsp + 8]                                     ; restore channel_info
+    mov rax, [rax + channel_node.next]                     ; get the current recv pointer
+    jmp .check.receiver.loop                               ; continue looping
+
+.check.receiver.done:
+    mov r11, r10                                           ; prepare next resumption
+    mov r8, [rsp + channel_node.ptr]                       ; get the channel_node.ptr
+    mov qword [rsp + channel_node.ptr], 0                  ; zero the channel_node.ptr
+    mov qword [rsp + channel_node.res], EDEADLK            ; set the result value
+    mov rdx, [rsp + channel_node.up]                       ; get the channel_info ptr
+    mov rsp, r9                                            ; restore the stack pointer
+    jmp r8                                                 ; go into channel_node.ptr
+
+.check.receiver.loop.exit:
+    pop rsi                                                ; restore channel_free flag
+    pop rdi                                                ; restore channel_info
+    mov qword [rdi + channel_info.recv_size], 0            ; zero the count of receivers
+    mov qword [rdi + channel_info.recv_head], 0            ; zero the recv head pointer
+    mov qword [rdi + channel_info.recv_tail], 0            ; zero the recv tail pointer
 
 .check.waiting:
 ; if the number of participants is not 0, we need to check if we need to wait
@@ -267,17 +321,16 @@ channel_send:
 ; won't have any prev pointer, so we need to set it to null
 
 .direct.prev:
-
     mov qword [rcx + channel_node.prev], 0                 ; set the prev pointer
 
 ; finally we need to pull the receiver registers, but we are the sender
 ; so we need to find the dump area and jump there, the coop_pull will
 ; restore the context and resume the receiver already placed in RCX
 ; we don't need to clean the stack, anyway it will be restored properly
-; R10 will contain the channel pointer, so we can use it later
+; RDX will contain the channel pointer, so we can use it later
 
 .direct.exit:
-    mov r10, rdi                                           ; preserve the channel pointer
+    mov rsi, rdi                                           ; preserve the channel pointer
     and rax, COOP_ALIGNMENT_MASK                           ; find the dump area
     jmp coop_pull                                          ; restore the context and resume
 
@@ -300,7 +353,7 @@ channel_send:
     mov rax, [rdi + channel_info.send_size]                ; get the count of senders
     inc rax                                                ; increment the count to account us
     cmp rax, [rdi + channel_info.size]                     ; compare with the size
-    je .insert.deadlock                                    ; report deadlock
+    jge .insert.deadlock                                   ; report deadlock
 
 ; reserve space for the message node, which is 8x bytes long
 ; and set the message value to the passed message, the ptr
@@ -314,7 +367,9 @@ channel_send:
 
     lea rax, [rsp + CHANNEL_NODE_SIZE]                     ; get the resume address
     mov [rsp + channel_node.ptr], rax                      ; set the resume address
+    mov [rsp + channel_node.up], rdi                       ; set the channel pointer
 
+    mov qword [rsp + channel_node.res], 0                  ; set the result value
     mov qword [rsp + channel_node.prev], 0                 ; set the prev pointer
     mov qword [rsp + channel_node.next], 0                 ; set the next pointer
 
@@ -457,7 +512,7 @@ channel_recv:
     mov rax, [rdi + channel_info.recv_size]                ; get the count of receivers
     inc rax                                                ; increment the count to account us
     cmp rax, [rdi + channel_info.size]                     ; compare with the size
-    je .insert.deadlock                                    ; report deadlock
+    jge .insert.deadlock                                   ; report deadlock
 
 ; reserve space for the message node, which is 8x bytes long
 ; and set the message value to the passed slot, the ptr
@@ -468,7 +523,9 @@ channel_recv:
 
     lea rax, .insert.done                                  ; get the resume address
     mov [rsp + channel_node.ptr], rax                      ; set the message pointer
+    mov [rsp + channel_node.up], rdi                       ; set the channel pointer
 
+    mov qword [rsp + channel_node.res], 0                  ; set the result value
     mov qword [rsp + channel_node.prev], 0                 ; set the prev pointer
     mov qword [rsp + channel_node.next], 0                 ; set the next pointer
 
@@ -503,8 +560,7 @@ channel_recv:
 ; and the old stack pointer, so we need to set them before calling the push
 
     mov rcx, [rdi + channel_info.coop]                     ; get the coop info pointer
-    mov r11, [rsp + CHANNEL_NODE_SIZE]                     ; set the code resumption address
-    lea r8, [rsp + CHANNEL_NODE_SIZE + 8]                  ; set the old stack ptr
+    mov r8, rsp                                            ; set the old stack ptr
     call coop_push                                         ; dump task registers, never fails
 
 ; finally we need to jump into the main thread for event loop
@@ -515,11 +571,12 @@ channel_recv:
 ; the .done function is called when the sender completes the coop_pull
 ; from the receiver stack, so R11 holds the receiver resume address
 ; the receiver will be resumed first, and the sender still blocks in the noop
-; the receiver stack is already cleaned by the coop_push with R8 + R11
+; the receiver stack is not cleaned, but left with node + ret address
 
 .insert.done:
-    xor rax, rax                                           ; set the return value to 0
-    jmp r11                                                ; simply resume after channel_recv
+    mov rax, [rsp + channel_node.res]                      ; get the result value
+    add rsp, CHANNEL_NODE_SIZE                             ; clean the receiver stack
+    ret                                                    ; simply resume after channel_recv
 
 .insert.deadlock:
     mov rax, EDEADLK                                       ; set the deadlock error
@@ -584,13 +641,15 @@ channel_select:
     mov r9, [rax + channel_info.recv_size]                 ; get the count of receivers
     inc r9                                                 ; increment the count to account us
     cmp r9, [rax + channel_info.size]                      ; compare with the size
-    je .insert.deadlock                                    ; report deadlock
+    jge .insert.deadlock                                   ; report deadlock
 
 ; prepare the channel node for the current channel
 
     mov [r8 + channel_node.val], rsi                       ; set the message holder
     mov [r8 + channel_node.ptr], rdx                       ; set the .done pointer
+    mov [r8 + channel_node.up], rax                        ; set the channel pointer
 
+    mov qword [r8 + channel_node.res], 0                   ; set the result value
     mov qword [r8 + channel_node.prev], 0                  ; set the prev pointer
     mov qword [r8 + channel_node.next], 0                  ; set the next pointer
 
@@ -666,11 +725,11 @@ channel_select:
 
 ; here is the most complicated part, the .done function is called and
 ; we need to detect the woken up channel, followed by cleaning up all
-; the other channels, including their stacks; luckily the R10 will contain
+; the other channels, including their stacks; luckily the RDX will contain
 ; the channel pointer, so we can use it to find the channel index
 
 .insert.done:
-    xor rdx, rdx                                           ; zero the channel index
+    xor r10, r10                                           ; zero the channel index
     mov rdi, [rsp - 16]                                    ; get the array pointer
     lea r9, [rsp - 24]                                     ; go at the end of the array
     mov rcx, [r9]                                          ; get the number of nodes
@@ -682,15 +741,17 @@ channel_select:
     push r11                                               ; save the resume address
 
 .insert.done.loop:
-    mov rcx, [rdi + rdx * 8]                               ; get the channel pointer
+    mov rcx, [rdi + r10 * 8]                               ; get the channel pointer
 
     test rcx, rcx                                          ; check if it is null
     jz .insert.exit                                        ; if null, exit
 
-    cmp r10, rcx                                           ; check if are equal
+    cmp rdx, rcx                                           ; check if are equal
     jne .insert.done.unlink                                ; if not equal, unlink node
 
-    mov rax, rdx                                           ; prepare the return value
+    mov rax, [r9 + channel_node.res]                       ; prepare the return value
+    test rax, rax                                          ; check if the value is negative
+    cmovns rax, r10                                        ; if not negative, copy index
     jmp .insert.done.continue                              ; continue looping
 
 ; the channel node is not resumed, and it has to be unlinked
@@ -743,7 +804,7 @@ channel_select:
 ; just increase both counters and continue the loop
 
 .insert.done.continue:
-    inc rdx                                                ; increment the channel index
+    inc r10                                                ; increment the channel index
     add r9, CHANNEL_NODE_SIZE                              ; move to the next node
     jmp .insert.done.loop                                  ; check the next channel
 
