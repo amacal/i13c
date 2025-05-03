@@ -495,7 +495,7 @@ channel_recv:
     xor rax, rax                                           ; set the return value to 0
     ret
 
-; when the noop_ex is completed, the sender will be resumed (not the sender)
+; when the noop_ex is completed, the sender will be resumed (not the receiver)
 ; and it means that we need to clean the stack and return the succeed value
 
 .direct.done:
@@ -755,7 +755,7 @@ channel_select:
     jmp .insert.done.continue                              ; continue looping
 
 ; the channel node is not resumed, and it has to be unlinked
-; from the linked list to nor create any resurection, but situation
+; from the linked list to nor create any resurrection, but situation
 ; is more complicated, because the node may be now in the middle
 
 .insert.done.unlink:
