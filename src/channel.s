@@ -345,6 +345,13 @@ channel_send:
 
 ; the insert mode handles the case when the receiver is not ready
 ; the message is inserted into the channel queue
+;
+;  ├── sees recv_head == 0
+;  │   ├── alloc channel_node on sender's stack
+;  │   ├── set val (message), ptr (resume addr)
+;  │   ├── link node (head/tail/next)
+;  │   ├── call coop_push -> dumps task regs
+;  │   └── jmp coop_switch -> resumes event loop
 
 .insert:
 
@@ -378,10 +385,10 @@ channel_send:
     inc qword [rdi + channel_info.send_size]               ; increment the send size
     mov rcx, [rdi + channel_info.send_tail]                ; get the current tail pointer
     test rcx, rcx                                          ; check if it is null
+    jz .insert.create                                      ; if null, skip linking
 
 ; optionally the next node has to be linked within FIFO linked list
 
-    jz .insert.create                                      ; if null, skip linking
     mov [rcx + channel_node.next], rsp                     ; set the next pointer
     mov [rdi + channel_info.send_tail], rsp                ; set the tail pointer
     mov [rsp + channel_node.prev], rcx                     ; set the prev pointer

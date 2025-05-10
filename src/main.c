@@ -2,135 +2,160 @@
 #include "channel.h"
 #include "stdout.h"
 
-typedef struct {
-    coop_info* coop;
-    channel_info* channel;
-    char* file_name;
+typedef struct
+{
+    coop_info *coop;
+    channel_info *in0;
+    channel_info *in1;
+    channel_info *in2;
 
 } coop_task;
 
-long task_one(const coop_task* task) {
-    char buffer[64];
-    char *msg;
+long worker(const coop_task *task)
+{
+    unsigned long res, val1, val2;
+    channel_info request, *response;
 
-    stdout_printf("Hello from the task one before noop!\n");
-    coop_noop(task->coop);
+    // stdout_printf("Worker started.\n");
+    channel_init(&request, task->coop, 2);
 
-    stdout_printf("Hello from the task one after noop! %s\n", task->file_name);
-    coop_timeout(task->coop, 3);
+    while (channel_recv(task->in0, &response) == 0)
+    {
+        res = 1;
+        // stdout_printf("Worker received.\n");
 
-    stdout_printf("Hello from the task one after timeout!\n");
-    coop_read(task->coop, 0, buffer, sizeof(buffer), 0);
+        if (task->in1 && task->in2)
+        {
+            // stdout_printf("Worker asking.\n");
+            channel_send(task->in1, &request);
+            channel_recv(&request, &val1);
 
-    buffer[3] = '\0';
-    stdout_printf("Hello from the task one after read! %s\n", buffer);
+            // stdout_printf("Worker asking.\n");
+            channel_send(task->in2, &request);
+            channel_recv(&request, &val2);
 
-    for (int j = 0; j < 1000; j++) {
-        for (int i = 0; i < 10000000; i++) {
-            channel_recv(task->channel, &msg);
+            res = val1 + val2;
+        };
+
+        // stdout_printf("Worker sending.\n");
+        channel_send(response, res);
+        // stdout_printf("Worker sent.\n");
+    }
+
+    // stdout_printf("Worker completed.\n");
+
+    channel_free(&request, 0);
+    channel_free(task->in0, 0);
+
+    if (task->in1 && task->in2)
+    {
+        channel_free(task->in1, 0);
+        channel_free(task->in2, 0);
+    }
+
+    // stdout_printf("Worker freed.\n");
+    return 0;
+}
+
+long coordinator(const coop_task *task)
+{
+    channel_info input[32];
+    coop_task fib_task;
+    unsigned long size, res;
+    channel_info target;
+
+    // stdout_printf("Coordinator started.\n");
+
+    for (int i = 1; i < 32; i++)
+    {
+        switch (i)
+        {
+        case 1:
+            size = 3;
+            break;
+        case 30:
+            size = 3;
+            break;
+        case 31:
+            size = 2;
+            break;
+        default:
+            size = 4;
+            break;
         }
 
-        stdout_printf("Hello from the task one after recv! %s\n", msg);
-    }
+        channel_init(&input[i], task->coop, size);
 
-    channel_free(task->channel, 0);
-    return 0;
-}
-
-long task_two(const coop_task* task) {
-    char buffer[64];
-
-    stdout_printf("Hello from the task two before noop!\n");
-    coop_noop(task->coop);
-
-    stdout_printf("Hello from the task two after noop! %s\n", task->file_name);
-    coop_timeout(task->coop, 2);
-
-    stdout_printf("Hello from the task two after timeout!\n");
-    unsigned int fd = coop_openat(task->coop, task->file_name, 0, 0);
-
-    stdout_printf("Hello from the task two after open!\n");
-    coop_read(task->coop, fd, buffer, sizeof(buffer), 0);
-
-    buffer[3] = '\0';
-    stdout_printf("Hello from the task two after read! %s\n", buffer);
-
-    coop_close(task->coop, fd);
-    stdout_printf("Hello from the task two after close!\n");
-
-    for (int j = 0; j < 1000; j++) {
-        for (int i = 0; i < 10000000; i++) {
-            channel_send(task->channel, buffer);
+        if (i >= 3)
+        {
+            fib_task.in1 = &input[i - 1];
+            fib_task.in2 = &input[i - 2];
+        }
+        else
+        {
+            fib_task.in1 = 0;
+            fib_task.in2 = 0;
         }
 
-        stdout_printf("Hello from the task two after send!\n");
+        fib_task.coop = task->coop;
+        fib_task.in0 = &input[i];
+
+        // stdout_printf("Worker spawned.\n");
+        coop_spawn(task->coop, worker, &fib_task, sizeof(coop_task));
     }
 
-    channel_free(task->channel, 1);
+    channel_init(&target, task->coop, 2);
+    // stdout_printf("Coordinator sending.\n");
+
+    channel_send(&input[31], &target);
+    // stdout_printf("Coordinator sent.\n");
+
+    channel_recv(&target, &res);
+    // stdout_printf("Target received.\n");
+
+    channel_free(&target, 0);
+    channel_free(&target, 1);
+    // stdout_printf("Target freed.\n");
+
+    for (int i = 31; i > 0; i--)
+    {
+        channel_free(&input[i], 1);
+    }
+
+    // stdout_printf("Coordinator completed.\n", res);
     return 0;
 }
 
-long coordinator(const coop_task* task) {
-    channel_info channel;
-    coop_task task_one_ctx, task_two_ctx;
-
-    task_one_ctx.coop = task->coop;
-    task_one_ctx.channel = &channel;
-    task_one_ctx.file_name = "build.rs";
-
-    task_two_ctx.coop = task->coop;
-    task_two_ctx.channel = &channel;
-    task_two_ctx.file_name = "Makefile";
-
-    if (channel_init(&channel, task->coop, 3) < 0) {
-        stdout_printf("channel_init failed\n");
-        return -1;
-    }
-
-    if (coop_spawn(task->coop, task_one, &task_one_ctx, sizeof(coop_task)) < 0) {
-        stdout_printf("coop_spawn failed\n");
-        return -1;
-    }
-
-    if (coop_spawn(task->coop, task_two, &task_two_ctx, sizeof(coop_task)) < 0) {
-        stdout_printf("coop_spawn failed\n");
-        return -1;
-    }
-
-    if (channel_free(&channel, 1) < 0) {
-        stdout_printf("channel_free failed\n");
-        return -1;
-    }
-
-    stdout_printf("Coordinator completed.\n");
-    return 0;
-}
-
-int main() {
+int main()
+{
     coop_info coop;
     coop_task task;
 
     task.coop = &coop;
 
-    if (coop_init(&coop, 4) < 0) {
-        stdout_printf("coop_init failed\n");
+    if (coop_init(&coop, 4) < 0)
+    {
+        // stdout_printf("coop_init failed\n");
         return -1;
     }
 
-    if (coop_spawn(&coop, coordinator, &task, sizeof(coop_task)) < 0) {
-        stdout_printf("coop_spawn failed\n");
+    if (coop_spawn(&coop, coordinator, &task, sizeof(coop_task)) < 0)
+    {
+        // stdout_printf("coop_spawn failed\n");
         return -1;
     }
 
-    if (coop_loop(&coop) < 0) {
-        stdout_printf("coop_loop failed\n");
+    if (coop_loop(&coop) < 0)
+    {
+        // stdout_printf("coop_loop failed\n");
         return -1;
     }
 
-    if (coop_free(&coop) < 0) {
-        stdout_printf("coop_free failed\n");
+    if (coop_free(&coop) < 0)
+    {
+        // stdout_printf("coop_free failed\n");
         return -1;
     }
 
-    stdout_printf("All tasks completed.\n");
+    // stdout_printf("All tasks completed.\n");
 }
