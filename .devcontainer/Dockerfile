@@ -37,7 +37,7 @@ RUN cd /tmp \
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
     && . "$HOME/.cargo/env" \
-    && rustup update 1.86.0 \
-    && rustup default 1.86.0 \
+    && rustup update 1.87.0 \
+    && rustup default 1.87.0 \
     && rustup component add rustfmt \
     && rustc --version

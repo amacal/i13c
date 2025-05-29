@@ -45,6 +45,7 @@ long worker(const coop_task *task)
     // stdout_printf("Worker completed.\n");
 
     channel_free(&request, 0);
+    channel_free(&request, 1);
     channel_free(task->in0, 0);
 
     if (task->in1 && task->in2)
@@ -59,24 +60,24 @@ long worker(const coop_task *task)
 
 long coordinator(const coop_task *task)
 {
-    channel_info input[32];
+    channel_info input[40];
     coop_task fib_task;
     unsigned long size, res;
     channel_info target;
 
     // stdout_printf("Coordinator started.\n");
 
-    for (int i = 1; i < 32; i++)
+    for (int i = 1; i < 40; i++)
     {
         switch (i)
         {
         case 1:
             size = 3;
             break;
-        case 30:
+        case 38:
             size = 3;
             break;
-        case 31:
+        case 39:
             size = 2;
             break;
         default:
@@ -107,7 +108,7 @@ long coordinator(const coop_task *task)
     channel_init(&target, task->coop, 2);
     // stdout_printf("Coordinator sending.\n");
 
-    channel_send(&input[31], &target);
+    channel_send(&input[36], &target);
     // stdout_printf("Coordinator sent.\n");
 
     channel_recv(&target, &res);
@@ -117,12 +118,12 @@ long coordinator(const coop_task *task)
     channel_free(&target, 1);
     // stdout_printf("Target freed.\n");
 
-    for (int i = 31; i > 0; i--)
+    for (int i = 39; i > 0; i--)
     {
         channel_free(&input[i], 1);
     }
 
-    // stdout_printf("Coordinator completed.\n", res);
+    stdout_printf("Coordinator completed.\n", res);
     return 0;
 }
 
@@ -157,5 +158,5 @@ int main()
         return -1;
     }
 
-    // stdout_printf("All tasks completed.\n");
+    stdout_printf("All tasks completed.\n");
 }
