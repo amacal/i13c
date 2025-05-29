@@ -32,7 +32,7 @@
 
     section .text
     global channel_init, channel_free, channel_send, channel_recv, channel_select
-    extern coop_noop_ex, coop_pull, coop_push, coop_switch, stdout_printf
+    extern coop_queue, coop_pull, coop_push, coop_switch, stdout_printf
 
 ; initializes a hand-off channel
 ; rdi - ptr to uninitialized structure
@@ -95,7 +95,7 @@ channel_free:
     jz .check.sender.loop.exit                             ; if null, go further
     push rax                                               ; remember current node
 
-; the coop_noop_ex will be called with the sender stack
+; the coop_queue will be called with the sender stack
 ; without running the event loop, the callback will be picked
 ; in the near future
 
@@ -103,7 +103,7 @@ channel_free:
     mov rcx, [rax + channel_node.ptr]                      ; set the sender stack context
     mov rdi, [rdi + channel_info.coop]                     ; get the coop info pointer
     lea rdx, .check.sender.done                            ; set the .done function address
-    call coop_noop_ex                                      ; pretend to noop
+    call coop_queue                                        ; queue it
 
     pop rax
     mov rdi, [rsp + 8]                                     ; restore channel_info
@@ -139,7 +139,7 @@ channel_free:
     jz .check.receiver.loop.exit                           ; if null, go further
     push rax                                               ; remember current node
 
-; the coop_noop_ex will be called with the receiver stack
+; the coop_queue will be called with the receiver stack
 ; without running the event loop, the callback will be picked
 ; in the near future
 
@@ -147,7 +147,7 @@ channel_free:
     mov rcx, rax                                           ; set the sender stack context
     mov rdi, [rdi + channel_info.coop]                     ; get the coop info pointer
     lea rdx, .check.receiver.done                          ; set the .done function address
-    call coop_noop_ex                                      ; pretend to noop
+    call coop_queue                                        ; queue it
 
     pop rax
     mov rdi, [rsp + 8]                                     ; restore channel_info
@@ -189,7 +189,7 @@ channel_free:
     and rax, COOP_ALIGNMENT_MASK                           ; find the dump area
 
 ; finally we need to prepare the coop info, resumption address (used in .done)
-; we don't need to pass r11 and r8, because they will be overridden by the noop
+; we don't need to pass r11 and r8, because they will be overridden by the coop_queue
 
     mov rcx, [rdi + channel_info.coop]                     ; get the coop info pointer
     call coop_push                                         ; dump task registers, never fails
@@ -213,12 +213,12 @@ channel_free:
     mov rdi, [rdi + channel_info.coop]                     ; get the coop info pointer
     mov rcx, rax                                           ; set the expected stack context
     lea rdx, .done                                         ; set the .done function address
-    call coop_noop_ex                                      ; pretend to noop
+    call coop_queue                                        ; queue it
 
-; the noop_ex in theory may fail, the panic will be used only
+; the coop_queue in theory may fail, the panic will be used only
 ; to log the reason for further troubleshooting
 
-    test rax, rax                                          ; check if the noop was successful
+    test rax, rax                                          ; check if the queue was successful
     js channel_panic                                       ; if not, panic
 
 ; to prevent any accidental references to the channel at all, the channel
@@ -230,16 +230,16 @@ channel_free:
     rep stosq                                              ; fill all bytes with 0
 
 ; now we can naturally complete the current task and return to the caller
-; the noop should trigger the .done function in the correct context
+; the coop_queue should trigger the .done function in the correct context
 
 .exit:
     xor rax, rax                                           ; set the return value to 0
     ret
 
-; the .done function is called when the noop is completed
+; the .done function is called when the coop_queue is completed
 ; it executes in the corrent context, so the code just returns
 ; we don't assume any registers are preserved, just the callee saved ones
-; but it is guaranteed by the coop_noop_ex behaviour
+; but it is guaranteed by the coop_queue behaviour
 
 .done:
     xor rax, rax                                           ; set the return value to 0
@@ -260,12 +260,12 @@ channel_send:
 .direct:
 
 ; in the direct mode we need to remember passed parameters
-; so that after calling the coop_noop_ex we can restore them
+; so that after calling the coop_queue we can restore them
 
     push rsi                                               ; save the message pointer
     push rdi                                               ; save the channel pointer
 
-; the coop_noop_ex will be called with the current stack
+; the coop_queue will be called with the current stack
 ; without running the event loop, the callback will be picked
 ; in the near future, when the actual receiver already consumed
 ; passed message from the sender stack
@@ -275,12 +275,12 @@ channel_send:
 
     xor rcx, rcx                                           ; set the current stack context
     lea rdx, .direct.resume                                ; set the .resume function address
-    call coop_noop_ex                                      ; pretend to noop
+    call coop_queue                                        ; queue it
 
-; the noop_ex in theory may fail, the panic will be used only
+; the coop_queue in theory may fail, the panic will be used only
 ; to log the reason for further troubleshooting
 
-    test rax, rax                                          ; check if the noop was successful
+    test rax, rax                                          ; check if the queue was successful
     js channel_panic                                       ; if not, panic
 
 ; now we can restore the parameters and set the message
@@ -334,7 +334,7 @@ channel_send:
     and rax, COOP_ALIGNMENT_MASK                           ; find the dump area
     jmp coop_pull                                          ; restore the context and resume
 
-; the .resume function is called when the noop_ex is completed, already
+; the .resume function is called when the coop_queue is completed, already
 ; when the receiver consumed the message, so we can just clean the stack
 ; and return to the caller, the sender will be resumed in the correct context
 
@@ -345,13 +345,13 @@ channel_send:
 
 ; the insert mode handles the case when the receiver is not ready
 ; the message is inserted into the channel queue
-;
-;  ├── sees recv_head == 0
-;  │   ├── alloc channel_node on sender's stack
-;  │   ├── set val (message), ptr (resume addr)
-;  │   ├── link node (head/tail/next)
-;  │   ├── call coop_push -> dumps task regs
-;  │   └── jmp coop_switch -> resumes event loop
+
+; ├── sees recv_head == 0
+; │   ├── alloc channel_node on sender's stack
+; │   ├── set val (message), ptr (resume addr)
+; │   ├── link node (head/tail/next)
+; │   ├── call coop_push -> dumps task regs
+; │   └── jmp coop_switch -> resumes event loop
 
 .insert:
 
@@ -439,12 +439,12 @@ channel_recv:
 .direct:
 
 ; in the direct mode we need to remember passed parameters
-; so that after calling the coop_noop_ex we can restore them
+; so that after calling the coop_queue we can restore them
 
     push rsi                                               ; save the message slot
     push rdi                                               ; save the channel pointer
 
-; the coop_noop_ex will be called with the sender stack
+; the coop_queue will be called with the sender stack
 ; without running th event loop, the callback will be picked
 ; in the near future, when the actual receiver already consumed
 ; passed message from the sender stack
@@ -453,12 +453,12 @@ channel_recv:
     mov rdi, [rdi + channel_info.coop]                     ; get the coop info pointer
     mov rcx, rax                                           ; set the sender stack context
     lea rdx, .direct.done                                  ; set the .done function address
-    call coop_noop_ex                                      ; pretend to noop
+    call coop_queue                                        ; queue it
 
-; the noop_ex in theory may fail, the panic will be used only
+; the coop_queue in theory may fail, the panic will be used only
 ; to log the reason for further troubleshooting
 
-    test rax, rax                                          ; check if the noop was successful
+    test rax, rax                                          ; check if the queue was successful
     js channel_panic                                       ; if not, panic
 
 ; now we can restore the parameters and set the message
@@ -496,13 +496,13 @@ channel_recv:
     mov qword [rcx + channel_node.prev], 0                 ; set the prev pointer
 
 ; finally we report the success to the receiver, letting it consume the message
-; while the sender still blocks and waits for the quick noop completion
+; while the sender still blocks and waits for the quick coop_queue completion
 
 .direct.exit:
     xor rax, rax                                           ; set the return value to 0
     ret
 
-; when the noop_ex is completed, the sender will be resumed (not the receiver)
+; when the coop_queue is completed, the sender will be resumed (not the receiver)
 ; and it means that we need to clean the stack and return the succeed value
 
 .direct.done:
@@ -577,7 +577,7 @@ channel_recv:
 
 ; the .done function is called when the sender completes the coop_pull
 ; from the receiver stack, so R11 holds the receiver resume address
-; the receiver will be resumed first, and the sender still blocks in the noop
+; the receiver will be resumed first, and the sender still blocks in the coop_queue
 ; the receiver stack is not cleaned, but left with node + ret address
 
 .insert.done:
