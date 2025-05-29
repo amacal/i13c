@@ -99,7 +99,6 @@ channel_free:
 ; without running the event loop, the callback will be picked
 ; in the near future
 
-    mov rsi, 1                                             ; just schedule and no loop
     mov rcx, [rax + channel_node.ptr]                      ; set the sender stack context
     mov rdi, [rdi + channel_info.coop]                     ; get the coop info pointer
     lea rdx, .check.sender.done                            ; set the .done function address
@@ -143,7 +142,6 @@ channel_free:
 ; without running the event loop, the callback will be picked
 ; in the near future
 
-    mov rsi, 1                                             ; just schedule and no loop
     mov rcx, rax                                           ; set the sender stack context
     mov rdi, [rdi + channel_info.coop]                     ; get the coop info pointer
     lea rdx, .check.receiver.done                          ; set the .done function address
@@ -208,7 +206,6 @@ channel_free:
 ; the channel_info.free identifies the stack of the task we need to switch to
 ; behind the channel_info.free there is a pointer to the resume address after
 
-    mov rsi, 1                                             ; just schedule and no loop
     push rdi                                               ; save the channel pointer
     mov rdi, [rdi + channel_info.coop]                     ; get the coop info pointer
     mov rcx, rax                                           ; set the expected stack context
@@ -270,9 +267,7 @@ channel_send:
 ; in the near future, when the actual receiver already consumed
 ; passed message from the sender stack
 
-    mov rsi, 1                                             ; just schedule and no loop
     mov rdi, [rdi + channel_info.coop]                     ; get the coop info pointer
-
     xor rcx, rcx                                           ; set the current stack context
     lea rdx, .direct.resume                                ; set the .resume function address
     call coop_queue                                        ; queue it
@@ -449,7 +444,6 @@ channel_recv:
 ; in the near future, when the actual receiver already consumed
 ; passed message from the sender stack
 
-    mov rsi, 1                                             ; just schedule and no loop
     mov rdi, [rdi + channel_info.coop]                     ; get the coop info pointer
     mov rcx, rax                                           ; set the sender stack context
     lea rdx, .direct.done                                  ; set the .done function address

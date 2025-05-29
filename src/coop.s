@@ -579,7 +579,6 @@ coop_loop:
 
 ; performs a noop operation
 ; rdi - ptr to the initialized coop structure
-; rsi - flags - 0 to continue looping, 1 to exit
 ; rdx - ptr to the return address or 0 to use the default
 ; rcx - ptr to the stack context or 0 to use the default
 ; r10 - is preserved after resumption
@@ -587,7 +586,6 @@ coop_loop:
 coop_queue:
     push r10                                               ; remember r10
     push rdx                                               ; remember return address
-    push rsi                                               ; remember flags
     push rdi                                               ; remember ptr to a coop struct
     push rcx                                               ; remember ptr to the stack context
 
@@ -626,7 +624,7 @@ coop_queue:
     jnz .skip_stack                                        ; if not 0, skip stack setup
 
     mov rax, rsp                                           ; load addr of the stack
-    lea r8, [rsp + 40]                                     ; remember old stack ptr
+    lea r8, [rsp + 32]                                     ; remember old stack ptr
     lea r9, coop_push                                      ; use full push
 
 .skip_stack:
@@ -636,13 +634,13 @@ coop_queue:
     mov qword [rdi + io_uring_sqe.user_data], rax          ; set user data
     mov [rsi + r11 * 4], r11d                              ; set TX index
 
-    mov r11, [rsp + 16]                                    ; load function callback
+    mov r11, [rsp + 8]                                     ; load function callback
     lea rsi, .done                                         ; load function pointer
 
     inc dword [rdx]                                        ; increment TX tail
     mov rdx, r10                                           ; copy uring file descriptor
 
-    mov r10, [rsp + 24]                                    ; load preserved R10
+    mov r10, [rsp + 16]                                    ; load preserved R10
     call r9                                                ; dump task registers, won't fail
 
 ; call uring submission with noop (0x00) operation
@@ -663,20 +661,13 @@ coop_queue:
 
     mov rdi, [rsp]                                         ; load ptr to a coop struct
     inc qword [rdi + coop_info.tx_loop]                    ; increment number of entries in flight
-
-    mov rdx, [rsp + 8]                                     ; load flags
-    test rdx, rdx                                          ; check if we need to exit
-    jnz .exit                                              ; if not zero, then exit
-
-    xor rdx, rdx                                           ; clean the main dump location
-    add rsp, 40                                            ; clean the local stack usage
-    jmp coop_switch                                        ; switch to the main thread
+    jmp .exit                                              ; exit
 
 .fail_one:
     mov rax, -33
 
 .exit:
-    add rsp, 32                                            ; clean stack usage
+    add rsp, 24                                            ; clean stack usage
     ret
 
 .done:
