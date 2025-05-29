@@ -2,12 +2,12 @@ use crate::channel::*;
 
 #[repr(C)]
 pub struct CoopInfo {
-    data: [u64; 33],
+    data: [u64; 64],
 }
 
 impl Default for CoopInfo {
     fn default() -> Self {
-        CoopInfo { data: [0; 33] }
+        CoopInfo { data: [0; 64] }
     }
 }
 

@@ -77,12 +77,15 @@
 
 ; coop_info structure - Cooperative Preemption Management
 ; Manages I/O ring and task scheduling data
-; Size - 264 bytes
+; Size - 512 bytes
 
     struc coop_info
-; File Descriptor and Registers - 136 bytes
+; File Descriptor, Registers - 384 bytes
     .fd resq 1                                             ; I/O ring file descriptor
     .regs resq 16                                          ; Saved registers for context switching
+    .queue_head resq 1                                     ; Offset to the head of the internal queue
+    .queue_tail resq 1                                     ; Offset to the tail of the internal queue
+    .queue_ptr resq 16                                     ; Internal queue to avoid kernel preemption 28?
 
 ; Transmit Queue (TX) - 56 bytes
     .tx_ptr resq 1                                         ; Mapped address of the TX ring
@@ -93,7 +96,7 @@
     .tx_indx resq 1                                        ; Pointer to the TX index array
     .tx_loop resq 1                                        ; Number of entries in flight
 
-; Receive Queue (RX) - 56 bytes
+; Receive Queue (RX) - 64 bytes
     .rx_ptr resq 1                                         ; Mapped address of the RX ring
     .rx_len resq 1                                         ; Length of the RX ring mapping
     .rx_head resq 1                                        ; Pointer to the RX head
@@ -101,6 +104,7 @@
     .rx_mask resq 1                                        ; Pointer to the RX ring mask
     .rx_indx resq 1                                        ; Pointer to the RX index array
     .rx_cqes resq 1                                        ; Pointer to the RX CQE entries
+    .rx_loop resq 1                                        ; Number of entries in flight
 
 ; Transmit Queue Entries (SQEs) - 16 bytes
     .sq_ptr resq 1                                         ; Mapped address of the SQE array
@@ -240,6 +244,12 @@ coop_init:
 
     mov rdx, [rsp + 120]                                   ; copy from stack ptr to uring
     mov [rdx + coop_info.sq_ptr], rax                      ; store pointer to mapped TX entries
+
+; initialize queue
+
+    mov qword [rdx + coop_info.rx_loop], 0                 ; zero the number of entries in flight
+    mov qword [rdx + coop_info.queue_head], 0              ; zero the queue head
+    mov qword [rdx + coop_info.queue_tail], 0              ; zero the queue tail
 
 ; successful exit
 
@@ -493,13 +503,24 @@ coop_loop:
     cmp rax, 0                                             ; check if there are any entries in flight
     jng .exit                                              ; if not, exit
 
+    mov rax, [rdi + coop_info.queue_head]                  ; load queue head
+    mov rcx, [rdi + coop_info.queue_tail]                  ; load queue tail
+    cmp rax, rcx                                           ; check if queue is empty
+    je .loop                                               ; if empty, loop
+
+    inc rcx                                                ; decrement queue tail
+    mov [rdi + coop_info.queue_tail], rcx                  ; store updated queue tail
+    and rcx, 15                                            ; mask queue tail to fit in 16 slots
+    mov rax, [rdi + coop_info.queue_ptr + rcx]             ; load queued task stack pointer
+    jmp .dump                                              ; dump registers and switch to the task stack
+
 .loop:
     mov rdi, [rsp]                                         ; load ptr to a coop struct
 
 ; call uring submission
 
+    mov rsi, [rdi + coop_info.rx_loop]                     ; x SQE
     mov rdi, [rdi + coop_info.fd]                          ; load uring fd
-    xor rsi, rsi                                           ; 0 SQE
     mov rdx, 0x01                                          ; 1 CQE
     mov r10, 0x01                                          ; IORING_ENTER_GETEVENTS
     xor r8, r8                                             ; no sigset
@@ -510,9 +531,11 @@ coop_loop:
     test rax, rax                                          ; check for error
     js .exit                                               ; if error, exit
 
+    mov rdi, [rsp]                                         ; load ptr to a coop struct
+    sub [rdi + coop_info.rx_loop], rax                     ; remove number of submitted entries
+
 ; compare RX head and tail
 
-    mov rdi, [rsp]                                         ; load ptr to a coop struct
     mov rdx, [rdi + coop_info.rx_head]                     ; load RX head pointer
     mov r11, [rdi + coop_info.rx_tail]                     ; load RX tail pointer
     mov rcx, [rdi + coop_info.rx_mask]                     ; load RX mask pointer
@@ -536,8 +559,13 @@ coop_loop:
     mov rdx, [rdi + coop_info.rx_head]                     ; load RX head pointer
     inc dword [rdx]                                        ; increment RX head
 
+; extract stack pointer from the CQE entry
+
+    mov rax, [rsi + io_uring_cqe.user_data]                ; load stack pointer of the task
+
 ; dump all main registers to the stack
 
+.dump:
     pop rdi
     mov r11, [rsp]                                         ; return address
     lea rdx, [rdi + coop_info.regs]                        ; load addr of the regs
@@ -558,11 +586,6 @@ coop_loop:
     mov [rdx + 13*8], r15                                  ; r15
     mov [rdx + 14*8], rbp                                  ; rbp
     mov [rdx + 15*8], rsp                                  ; rsp
-
-; extract stack pointer from the CQE entry
-
-    mov rax, rsi                                           ; copy CQE entry pointer
-    mov rax, [rsi + io_uring_cqe.user_data]                ; load stack pointer of the task
 
 ; now we can switch to the task stack
 
@@ -643,9 +666,23 @@ coop_queue:
     mov r10, [rsp + 16]                                    ; load preserved R10
     call r9                                                ; dump task registers, won't fail
 
+    mov rdi, [rsp]                                         ; load ptr to a coop struct
+    mov rsi, [rdi + coop_info.rx_loop]                     ; load x SQE
+    mov rcx, [rdi + coop_info.tx_mask]                     ; load TX mask pointer
+    mov ecx, [rcx]                                         ; load TX mask value
+    inc rsi                                                ; increment SQE count
+    cmp rsi, rcx                                           ; check if we have enough SQE slots
+    je .syscall                                            ; if yes, call uring submission
+
+    mov [rdi + coop_info.rx_loop], rsi                     ; store updated SQE count
+    jmp .complete                                          ; complete the operation
+
 ; call uring submission with noop (0x00) operation
+.syscall:
+    mov qword [rdi + coop_info.rx_loop], 0                 ; reset SQE count
+    push rsi                                               ; remember SQE count
+
     mov rdi, rdx                                           ; uring file descriptor
-    mov rsi, 1                                             ; 1 SQE
     xor rdx, rdx                                           ; 0 CQE
     xor r10, r10                                           ; no flags
     xor r8, r8                                             ; no sigset
@@ -653,12 +690,14 @@ coop_queue:
     mov rax, 426                                           ; io_uring_enter syscall
     syscall
 
+    pop rsi                                                ; restore SQE count
     test rax, rax                                          ; check for error
     js .exit                                               ; if error, clean and exit
 
-    cmp rax, 0                                             ; check for error
-    je .fail_one                                           ; if 0, clean and exit
+    cmp rax, rsi                                           ; check for error
+    jne .fail_one                                          ; if not submitted SQE count, clean and exit
 
+.complete:
     mov rdi, [rsp]                                         ; load ptr to a coop struct
     inc qword [rdi + coop_info.tx_loop]                    ; increment number of entries in flight
     jmp .exit                                              ; exit

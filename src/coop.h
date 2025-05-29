@@ -1,7 +1,7 @@
 #pragma once
 
 typedef struct {
-    long data[33];
+    long data[64];
 } coop_info;
 
 /// @brief initializes cooperative preemption

@@ -134,7 +134,7 @@ int main()
 
     task.coop = &coop;
 
-    if (coop_init(&coop, 4) < 0)
+    if (coop_init(&coop, 16) < 0)
     {
         // stdout_printf("coop_init failed\n");
         return -1;
