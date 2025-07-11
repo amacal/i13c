@@ -63,7 +63,7 @@ impl CoopContext {
                 println!("{}: {} <> {}", val, left, right);
             }
         } else {
-            println!("{}: <> {}", self.get(), val);
+            println!("{}: <> {} and {} vs {}", self.get(), val, left, right);
         }
     }
 }

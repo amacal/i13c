@@ -16,33 +16,37 @@ long worker(const coop_task *task)
     unsigned long res, val1, val2;
     channel_info request, *response;
 
-    // stdout_printf("Worker started.\n");
     channel_init(&request, task->coop, 2);
+    stdout_printf("Worker started %x.\n", &request);
 
     while (channel_recv(task->in0, &response) == 0)
     {
         res = 1;
-        // stdout_printf("Worker received.\n");
+        stdout_printf("Worker received %x.\n", task->in0);
 
         if (task->in1 && task->in2)
         {
-            // stdout_printf("Worker asking.\n");
+            stdout_printf("Worker asking %x.\n", task->in1);
             channel_send(task->in1, &request);
+
+            stdout_printf("Worker asked %x.\n", &request);
             channel_recv(&request, &val1);
 
-            // stdout_printf("Worker asking.\n");
+            stdout_printf("Worker asking 2.\n");
             channel_send(task->in2, &request);
+
+            stdout_printf("Worker asked 2.\n");
             channel_recv(&request, &val2);
 
             res = val1 + val2;
         };
 
-        // stdout_printf("Worker sending.\n");
+        stdout_printf("Worker sending %x.\n", response);
         channel_send(response, res);
-        // stdout_printf("Worker sent.\n");
+        stdout_printf("Worker sent %x.\n", response);
     }
 
-    // stdout_printf("Worker completed.\n");
+    stdout_printf("Worker completed.\n");
 
     channel_free(&request, 0);
     channel_free(&request, 1);
@@ -54,7 +58,7 @@ long worker(const coop_task *task)
         channel_free(task->in2, 0);
     }
 
-    // stdout_printf("Worker freed.\n");
+    stdout_printf("Worker freed.\n");
     return 0;
 }
 
@@ -65,7 +69,7 @@ long coordinator(const coop_task *task)
     unsigned long size, res;
     channel_info target;
 
-    // stdout_printf("Coordinator started.\n");
+    stdout_printf("Coordinator started.\n");
 
     for (int i = 1; i < 40; i++)
     {
@@ -101,22 +105,22 @@ long coordinator(const coop_task *task)
         fib_task.coop = task->coop;
         fib_task.in0 = &input[i];
 
-        // stdout_printf("Worker spawned.\n");
+        stdout_printf("Worker spawned.\n");
         coop_spawn(task->coop, worker, &fib_task, sizeof(coop_task));
     }
 
     channel_init(&target, task->coop, 2);
-    // stdout_printf("Coordinator sending.\n");
+    stdout_printf("Coordinator sending %x.\n", &input[5]);
 
-    channel_send(&input[36], &target);
-    // stdout_printf("Coordinator sent.\n");
+    channel_send(&input[5], &target);
+    stdout_printf("Coordinator sent %x.\n", &input[5]);
 
     channel_recv(&target, &res);
-    // stdout_printf("Target received.\n");
+    stdout_printf("Target received.\n");
 
     channel_free(&target, 0);
     channel_free(&target, 1);
-    // stdout_printf("Target freed.\n");
+    stdout_printf("Target freed.\n");
 
     for (int i = 39; i > 0; i--)
     {

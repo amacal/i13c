@@ -1,7 +1,8 @@
 FROM mcr.microsoft.com/vscode/devcontainers/base:ubuntu-24.04
 USER vscode
 
-RUN sudo apt-get update \
+RUN sudo sed -i 's|http://de.archive.ubuntu.com|http://mirror.ubuntu.com|g' /etc/apt/sources.list \
+    && sudo apt-get update \
     && sudo apt-get upgrade -y \
     && sudo apt-get install -y \
         xxd wget tar make cmake libwayland-client0 \

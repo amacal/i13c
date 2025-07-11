@@ -152,13 +152,25 @@ channel_free:
     mov rax, [rax + channel_node.next]                     ; get the current recv pointer
     jmp .check.receiver.loop                               ; continue looping
 
+; R10 contains previous resumption
+; R9 contains previous stack pointer
+
 .check.receiver.done:
-    mov r11, r10                                           ; prepare next resumption
     mov r8, [rsp + channel_node.ptr]                       ; get the channel_node.ptr
+    mov rdx, [rsp + channel_node.up]                       ; get the channel_info ptr
     mov qword [rsp + channel_node.ptr], 0                  ; zero the channel_node.ptr
     mov qword [rsp + channel_node.res], EDEADLK            ; set the result value
-    mov rdx, [rsp + channel_node.up]                       ; get the channel_info ptr
+
+    mov rax, rsp                                           ; get the current stack
+    and rax, COOP_ALIGNMENT_MASK                           ; find the dump area
+
+    mov r11, r10                                           ; prepare next resumption
+    mov [rax + 9*8], r11                                   ; restore previous resumption
+
     mov rsp, r9                                            ; restore the stack pointer
+    mov [rax + 15*8], r9                                   ; restore previous resumption and stack
+
+    or rdx, 0x01                                           ; set the EDADLK flag
     jmp r8                                                 ; go into channel_node.ptr
 
 .check.receiver.loop.exit:
@@ -623,6 +635,7 @@ channel_select:
 .insert:
     push rdi                                               ; save the array pointer
     push rcx                                               ; save the node counter
+    push rcx                                               ; save the active node counter
 
     imul rcx, CHANNEL_NODE_SIZE                            ; size of all nodes
     sub rsp, rcx                                           ; reserve space for all nodes
@@ -695,12 +708,13 @@ channel_select:
 
 ; first compare the deadlock counter with the number of channels
 
+    sub [r8], r11                                          ; decrement the active node counter
     cmp r11, rcx                                           ; check if we have all deadlocked channels
     jnz .insert.push                                       ; if not, push the nodes
 
 ; all channels are deadlocked, so we need to clean the stack
 
-    lea rsp, [r8 + 16]                                     ; rewind the stack pointer
+    lea rsp, [r8 + 24]                                     ; rewind the stack pointer
     mov rax, EDEADLK                                       ; set the deadlock error
     ret                                                    ; return to the caller
 
@@ -714,8 +728,8 @@ channel_select:
 
     mov rax, [rdi]                                         ; get the channel pointer
     mov rcx, [rax + channel_info.coop]                     ; get the coop info pointer
-    mov r11, [r8 + 16]                                     ; set the code resumption address
-    add r8, 24                                             ; set the old stack ptr
+    mov r11, [r8 + 24]                                     ; set the code resumption address
+    add r8, 32                                             ; set the old stack ptr
 
     mov rax, rsp                                           ; get the current stack
     and rax, COOP_ALIGNMENT_MASK                           ; find the dump area
@@ -730,10 +744,31 @@ channel_select:
 ; the channel pointer, so we can use it to find the channel index
 
 .insert.done:
+    lea r9, [rsp - 32]                                     ; go at the end of the array
+    mov rcx, [r9 + 8]                                      ; get the number of nodes
+    mov rax, [r9]                                          ; get the number of active nodes
+
+; RDX contains the channel pointer, so we can find the index
+; but in case it comes from the free function indicating EDEADLK
+; it will be +1, so we need to subtract 1 to get actual pointer
+; and properly handle deadlock
+
+    test rdx, 1                                            ; check if it is deadlock
+    jz .insert.done.start                                  ; if not, start the loop
+
+    and rdx, ~1                                            ; clear the deadlock flag
+    dec qword [r9]                                         ; decrement the active node counter
+    cmp rax, 1                                             ; check if it is the last node
+    jz .insert.done.start                                  ; if is, start the loop
+
+; switching to the main thread will pick up another channel or final deadlock
+
+    xor rdx, rdx                                           ; the main thread dump area is not known
+    jmp coop_switch                                        ; switch to the main thread
+
+.insert.done.start:
     xor r10, r10                                           ; zero the channel index
     mov rdi, [rsp - 16]                                    ; get the array pointer
-    lea r9, [rsp - 24]                                     ; go at the end of the array
-    mov rcx, [r9]                                          ; get the number of nodes
     imul rcx, CHANNEL_NODE_SIZE                            ; size of all nodes
     sub r9, rcx                                            ; find the nodes beginning
 
@@ -749,6 +784,10 @@ channel_select:
 
     cmp rdx, rcx                                           ; check if are equal
     jne .insert.done.unlink                                ; if not equal, unlink node
+
+; this part will be executed only once when channel info is matched
+; so RAX won't be overwritten, and we can safely use it; also the node
+; is not released because the sender did it
 
     mov rax, [r9 + channel_node.res]                       ; prepare the return value
     test rax, rax                                          ; check if the value is negative

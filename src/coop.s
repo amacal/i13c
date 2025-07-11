@@ -510,8 +510,8 @@ coop_loop:
 
     inc rcx                                                ; decrement queue tail
     mov [rdi + coop_info.queue_tail], rcx                  ; store updated queue tail
-    and rcx, 15                                            ; mask queue tail to fit in 16 slots
-    mov rax, [rdi + coop_info.queue_ptr + rcx]             ; load queued task stack pointer
+    and rcx, 3                                            ; mask queue tail to fit in 16 slots
+    mov rax, [rdi + coop_info.queue_ptr + 8 * rcx]         ; load queued task stack pointer
     jmp .dump                                              ; dump registers and switch to the task stack
 
 .loop:
@@ -639,7 +639,7 @@ coop_queue:
 
 ; prepare stack
 
-    pop rax                                                ; load addr of th current stack, passed in RCX
+    pop rax                                                ; load addr of the current stack, passed in RCX
     mov r8, rax                                            ; save addr of the current stack, needed in push
     lea r9, coop_push_light                                ; assume we use light push
 
@@ -654,7 +654,7 @@ coop_queue:
     and rax, ~0x0fff                                       ; compute addr of the regs
     mov rcx, [rsp]                                         ; load addr of the coop struct
 
-    mov qword [rdi + io_uring_sqe.user_data], rax          ; set user data
+    mov qword [rdi + io_uring_sqe.user_data], rax          ; set user data in SQE
     mov [rsi + r11 * 4], r11d                              ; set TX index
 
     mov r11, [rsp + 8]                                     ; load function callback
@@ -666,7 +666,25 @@ coop_queue:
     mov r10, [rsp + 16]                                    ; load preserved R10
     call r9                                                ; dump task registers, won't fail
 
+.quick:
     mov rdi, [rsp]                                         ; load ptr to a coop struct
+    mov rsi, [rdi + coop_info.queue_head]                  ; load queue head
+    mov rcx, [rdi + coop_info.queue_tail]                  ; load queue tail
+
+    mov r10, rsi                                           ; copy queue head to r10
+    sub r10, rcx                                           ; compute queue size
+    cmp r10, 3                                            ; check if queue is already 15
+    jae .slow                                              ; if full, go to slow mode
+
+    inc rsi                                                ; increment queue head
+    mov [rdi + coop_info.queue_head], rsi                  ; store updated queue head
+    and rsi, 3                                            ; mask queue head to fit in 16 slots
+    mov [rdi + coop_info.queue_ptr + 8 * rsi], rax         ; store queued task stack pointer
+
+    xor rax, rax                                           ; clear result
+    jmp .complete                                          ; complete the operation
+
+.slow:
     mov rsi, [rdi + coop_info.rx_loop]                     ; load x SQE
     mov rcx, [rdi + coop_info.tx_mask]                     ; load TX mask pointer
     mov ecx, [rcx]                                         ; load TX mask value
@@ -1308,14 +1326,10 @@ coop_push_light:
     mov r10, [rax + 9*8]                                   ; r10 = previous resumption
     mov r9, [rax + 15*8]                                   ; r9 = previous stack
 
-; mov [rax + 0*8], rax                                   ; rax = registers
-; mov [rax + 2*8], rcx                                   ; rcx = coop info
-; mov [rax + 3*8], rdx                                   ; rdx
     mov [rax + 4*8], rsi                                   ; rsi = .done address
     mov [rax + 5*8], rdi                                   ; rdi = .done context
-; mov [rax + 6*8], r8                                    ; r8
     mov [rax + 7*8], r9                                    ; r9 = prev stack
-    mov [rax + 8*8], r10                                   ; r10
+    mov [rax + 8*8], r10                                   ; r10 = prev resumption
     mov [rax + 9*8], r11                                   ; r11 = resumption
     mov [rax + 15*8], r8                                   ; rsp = stack
     ret

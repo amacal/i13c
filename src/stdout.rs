@@ -1,12 +1,13 @@
+#[link(name = "i13c", kind = "static")]
+extern "C" {
+    pub fn stdout_print(len: usize, txt: *const u8) -> i64;
+    pub fn stdout_printf(fmt: *const u8, arg1: *const u8) -> i64;
+}
+
 #[cfg(test)]
 mod tests {
     use ::core::ptr;
-
-    #[link(name = "i13c", kind = "static")]
-    extern "C" {
-        fn stdout_print(len: usize, txt: *const u8) -> i64;
-        fn stdout_printf(fmt: *const u8, arg1: *const u8) -> i64;
-    }
+    use super::*;
 
     #[test]
     fn can_print_text() {
