@@ -1,10 +1,14 @@
-/// @brief prints a text in the stdout
-/// @param len length of the text
-/// @param data ptr to the text
-/// @return negative error or 0 on success
-extern long stdout_print(const long len, const char* data);
+#pragma once
 
-/// @brief print a formatted text in the stdout
-/// @param fmt ptr to the format
-/// @return a negative error or 0 on succcess
-extern long stdout_printf(const char* fmt, ...);
+#include "typing.h"
+
+/// @brief Prints a text to stdout.
+/// @param len Length of the text.
+/// @param data Pointer to the text.
+/// @return 0 on success, or a negative error code on failure.
+extern i64 stdout_print(u64 len, const char* data);
+
+/// @brief Prints a formatted string to stdout (like printf).
+/// @param fmt Format string.
+/// @return 0 on success, or a negative error code on failure.
+extern i64 stdout_printf(const char* fmt, ...);

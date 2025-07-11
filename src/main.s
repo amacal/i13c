@@ -4,6 +4,6 @@
 
 _start:
     call main
-    mov rdi, rax
+    mov edi, eax
     mov rax, 60
     syscall

@@ -8,7 +8,7 @@
     PRINTF_BUFFER_SIZE equ 248                             ; size of the printf output buffer
 
     section .text
-    global stdout_print, stdout_printf
+    global stdout_print
 
 ; prints a specified number of characters from a string to the stdout
 ; rdi - a length of the next argument string

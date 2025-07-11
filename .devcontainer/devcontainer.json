@@ -25,9 +25,10 @@
                 "files.insertFinalNewline": true,
                 "nasm.checkOnType": true,
                 "nasm.outputFormat": "elf64",
+                "editor.tabSize": 2,
                 "files.associations": {
                     "*.s": "nasm"
-                }
+                },
             }
         }
     }
