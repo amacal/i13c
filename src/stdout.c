@@ -1,6 +1,7 @@
 #include "stdout.h"
 #include "typing.h"
 #include "vargs.h"
+#include "sys.h"
 
 #define SUBSTITUTION_BUFFER_SIZE 256
 #define SUBSTITUTION_MARKER '%'
@@ -11,14 +12,14 @@
 #define SUBSTITUTION_HEX_ALPHABET_LEN 16
 #define SUBSTITUTION_HEX_ALPHABET "0123456789abcdef"
 
-void substitute_string(u64 *offset, char *buffer, const char *src) {
+static void substitute_string(u64 *offset, char *buffer, const char *src) {
   // copy the string until EOS or buffer is full
   while (*src != EOS && *offset < SUBSTITUTION_BUFFER_SIZE) {
     buffer[(*offset)++] = *src++;
   }
 }
 
-void substitute_hex(u64 *offset, char *buffer, u64 value) {
+static void substitute_hex(u64 *offset, char *buffer, u64 value) {
   const char *chars = SUBSTITUTION_HEX_ALPHABET;
 
   // copy the hex representation only if there's enough space
@@ -32,7 +33,25 @@ void substitute_hex(u64 *offset, char *buffer, u64 value) {
   }
 }
 
-i64 stdout_printf(const char *fmt, ...) {
+static i64 flush_buffer(const char *buffer, u64 length) {
+  i64 written;
+
+  while (length > 0) {
+    // write the buffer to stdout
+    if ((written = sys_write(1, buffer, length)) < 0) {
+      return written; // return error if write failed
+    }
+
+    // adjust the length and buffer pointer
+    length -= written;
+    buffer += written;
+  }
+
+  // success
+  return 0;
+}
+
+void printf(const char *fmt, ...) {
   u8 vargs_offset = 0;
   void *vargs[VARGS_MAX];
 
@@ -64,5 +83,7 @@ i64 stdout_printf(const char *fmt, ...) {
   }
 
   // print the final buffer
-  return stdout_print(buffer_offset, buffer);
+  if (flush_buffer(buffer, buffer_offset) < 0) {
+    sys_exit(1);
+  }
 }

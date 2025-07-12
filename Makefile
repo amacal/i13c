@@ -6,7 +6,7 @@ NASM=nasm
 CFLAGS=-Wall -Wextra -Wno-incompatible-pointer-types -Wno-int-conversion \
 	   -static -g -O1 -fno-pic -fno-pie -mno-shstk -fcf-protection=none \
 	   -mno-red-zone -fno-merge-constants -fno-stack-protector \
-	   -Wno-maybe-uninitialized -MMD -MP
+	   -Wno-maybe-uninitialized -Wno-builtin-declaration-mismatch -MMD -MP
 
 LDFLAGS=-static -no-pie -z noexecstack -nostdlib
 NASMFLAGS=-f elf64
