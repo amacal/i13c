@@ -1,5 +1,5 @@
 #include "runner.h"
-#include "hello.h"
+#include "malloc.h"
 #include "stdout.h"
 #include "sys.h"
 #include "typing.h"
@@ -22,7 +22,7 @@ i32 runner_execute() {
 
   // register test cases
   ctx.offset = 0;
-  hello_test_cases(&ctx);
+  malloc_test_cases(&ctx);
 
   // execute all registered test cases
   for (u64 i = 0; i < ctx.offset; i++) {

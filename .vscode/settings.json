@@ -6,6 +6,7 @@
     "typing.h": "c",
     "sys.h": "c",
     "stdout.h": "c",
-    "hello.h": "c"
+    "hello.h": "c",
+    "malloc.h": "c"
   }
 }
