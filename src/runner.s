@@ -1,9 +1,9 @@
     section .text
     global _runner
-    extern runner
+    extern runner_execute
 
 _runner:
-    call runner
+    call runner_execute
     mov edi, eax
     mov rax, 60
     syscall

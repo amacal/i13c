@@ -1,9 +1,8 @@
     section .text
     global _main
-    extern main
+    extern main, sys_exit
 
 _main:
     call main
     mov edi, eax
-    mov rax, 60
-    syscall
+    call sys_exit

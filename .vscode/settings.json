@@ -1,0 +1,11 @@
+{
+  "files.associations": {
+    "*.asm": "asm-collection",
+    "*.s": "nasm",
+    "runner.h": "c",
+    "typing.h": "c",
+    "sys.h": "c",
+    "stdout.h": "c",
+    "hello.h": "c"
+  }
+}

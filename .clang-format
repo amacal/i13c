@@ -1,1 +1,5 @@
+AllowShortFunctionsOnASingleLine: false
+ColumnLimit: 120
+ContinuationIndentWidth: 2
 IndentCaseLabels: true
+IndentWidth: 2

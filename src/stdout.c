@@ -26,7 +26,7 @@ void substitute_hex(u64 *offset, char *buffer, u64 value) {
     buffer[(*offset)++] = '0';
     buffer[(*offset)++] = 'x';
 
-    for (int i = SUBSTITUTION_HEX_ALPHABET_LEN - 1; i >= 0; i--) {
+    for (i32 i = SUBSTITUTION_HEX_ALPHABET_LEN - 1; i >= 0; i--) {
       buffer[(*offset)++] = chars[(value >> (i * 4)) & 0x0f];
     }
   }
