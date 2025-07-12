@@ -1,6 +1,6 @@
 SECTIONS
 {
-    ENTRY(_main)
+    ENTRY(_runner)
     . = 0x400000;
 
     .text 0x400000 : { *(.text) }

@@ -28,7 +28,7 @@
                 "editor.tabSize": 2,
                 "files.associations": {
                     "*.s": "nasm"
-                },
+                }
             }
         }
     }

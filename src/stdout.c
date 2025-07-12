@@ -5,8 +5,11 @@
 #define SUBSTITUTION_BUFFER_SIZE 256
 #define SUBSTITUTION_MARKER '%'
 #define SUBSTITUTION_STRING 's'
+
 #define SUBSTITUTION_HEX 'x'
-#define SUBSTITUTION_HEX_LENGTH 18
+#define SUBSTITUTION_HEX_LEN 18
+#define SUBSTITUTION_HEX_ALPHABET_LEN 16
+#define SUBSTITUTION_HEX_ALPHABET "0123456789abcdef"
 
 void substitute_string(u64 *offset, char *buffer, const char *src) {
   // copy the string until EOS or buffer is full
@@ -16,15 +19,15 @@ void substitute_string(u64 *offset, char *buffer, const char *src) {
 }
 
 void substitute_hex(u64 *offset, char *buffer, u64 value) {
-  const char *chars = "0123456789abcdef";
+  const char *chars = SUBSTITUTION_HEX_ALPHABET;
 
   // copy the hex representation only if there's enough space
-  if (*offset + SUBSTITUTION_HEX_LENGTH < SUBSTITUTION_BUFFER_SIZE) {
+  if (*offset + SUBSTITUTION_HEX_LEN < SUBSTITUTION_BUFFER_SIZE) {
     buffer[(*offset)++] = '0';
     buffer[(*offset)++] = 'x';
 
-    for (int i = 15; i >= 0; i--) {
-      buffer[(*offset)++] = chars[(value >> (i * 4)) & 0xf];
+    for (int i = SUBSTITUTION_HEX_ALPHABET_LEN - 1; i >= 0; i--) {
+      buffer[(*offset)++] = chars[(value >> (i * 4)) & 0x0f];
     }
   }
 }
@@ -41,7 +44,7 @@ i64 stdout_printf(const char *fmt, ...) {
 
   // handle the format string
   while (*fmt != EOS && buffer_offset < SUBSTITUTION_BUFFER_SIZE) {
-    if (*fmt == SUBSTITUTION_MARKER) {
+    if (*fmt == SUBSTITUTION_MARKER && vargs_offset < VARGS_MAX) {
       switch (*++fmt) {
         case SUBSTITUTION_STRING:
           substitute_string(&buffer_offset, buffer, vargs[vargs_offset++]);

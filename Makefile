@@ -27,10 +27,13 @@ OBJS=$(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.c.o, $(SRCS_C)) \
 
 -include $(OBJS:.o=.d)
 
-build: $(BINOUTPUT)
+build: $(BINOUTPUT) $(TESTOUTPUT)
 
 run: $(BINOUTPUT)
 	@$(BINOUTPUT)
+
+test: $(TESTOUTPUT)
+	@$(TESTOUTPUT)
 
 debug: $(BINOUTPUT)
 	@edb --run $(BINOUTPUT) 2> /dev/null
@@ -38,6 +41,10 @@ debug: $(BINOUTPUT)
 $(BINOUTPUT): $(OBJDIR)/main.s.o $(OBJS)
 	@mkdir -p bin
 	@$(LD) -T src/main.ld $(LDFLAGS) -o $@ $^
+
+$(TESTOUTPUT): $(OBJDIR)/runner.s.o $(OBJS)
+	@mkdir -p bin
+	@$(LD) -T src/runner.ld $(LDFLAGS) -o $@ $^
 
 $(OBJDIR)/%.c.o: $(SRCDIR)/%.c
 	@mkdir -p $(OBJDIR)
