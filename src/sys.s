@@ -1,5 +1,5 @@
     section .text
-    global sys_read, sys_write, sys_open, sys_mmap, sys_munmap, sys_exit
+    global sys_read, sys_write, sys_open, sys_close, sys_fstat, sys_mmap, sys_munmap, sys_pread, sys_exit
 
 ; reads data from the file descriptor
 ; rdi - file descriptor (0 for stdin)
@@ -30,6 +30,23 @@ sys_open:
     syscall
     ret
 
+; closes a file descriptor
+; rdi - file descriptor to close
+; returns 0 on success, or negative on error
+sys_close:
+    mov rax, 3
+    syscall
+    ret
+
+; retrieves file status information
+; rdi - file descriptor (0 for stdin, 1 for stdout, etc.)
+; rsi - pointer to a struct stat where the file status will be stored
+; returns 0 on success, or negative on error
+sys_fstat:
+    mov rax, 5
+    syscall
+    ret
+
 ; allocates memory using mmap
 ; rdi - address hint (0 for any address)
 ; rsi - length of the memory to allocate
@@ -50,6 +67,18 @@ sys_mmap:
 ; returns 0 on success, or negative on error
 sys_munmap:
     mov rax, 11
+    syscall
+    ret
+
+; reads data from a file descriptor into a buffer at a specific offset
+; rdi - file descriptor (0 for stdin)
+; rsi - buffer to store the read data
+; rdx - number of bytes to read
+; rcx - offset in the file (0 for beginning)
+; returns the number of bytes read in rax, or negative on error
+sys_pread:
+    mov r10, rcx
+    mov rax, 17
     syscall
     ret
 

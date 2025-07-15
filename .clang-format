@@ -1,3 +1,6 @@
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortIfElseStatementsOnASingleLine: Always
+
 AllowShortFunctionsOnASingleLine: false
 ColumnLimit: 120
 ContinuationIndentWidth: 2

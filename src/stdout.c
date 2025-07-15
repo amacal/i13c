@@ -69,7 +69,7 @@ void printf(const char *fmt, ...) {
           substitute_string(&buffer_offset, buffer, vargs[vargs_offset++]);
           break;
         case SUBSTITUTION_HEX:
-          substitute_hex(&buffer_offset, buffer, vargs[vargs_offset++]);
+          substitute_hex(&buffer_offset, buffer, (u64)vargs[vargs_offset++]);
           break;
       }
 

@@ -3,14 +3,14 @@
 #include "sys.h"
 #include "typing.h"
 
-void malloc_init(malloc_pool *pool) {
+void malloc_init(struct malloc_pool *pool) {
   for (u32 i = 0; i < MALLOC_SLOTS; i++) {
     pool->slots[i] = NULL;
   }
 }
 
-void malloc_destroy(malloc_pool *pool) {
-  malloc_slot *slot, *next;
+void malloc_destroy(struct malloc_pool *pool) {
+  struct malloc_slot *slot, *next;
 
   // visit each bucket in the pool
   for (u32 i = 0; i < MALLOC_SLOTS; i++) {
@@ -26,34 +26,27 @@ void malloc_destroy(malloc_pool *pool) {
   }
 }
 
-void *malloc(malloc_pool *pool, u64 size) {
+i64 malloc(struct malloc_pool *pool, u64 size) {
   u32 index;
-  i64 result;
-  malloc_slot *slot;
+  struct malloc_slot *slot;
 
   // check if the size if too large
   if ((index = __builtin_ctzl(size >> 12)) >= MALLOC_SLOTS) {
-    return NULL;
+    return (i64)NULL;
   }
 
   // check if there's a free slot in the pool
   if ((slot = pool->slots[index]) != NULL) {
     pool->slots[index] = slot->next;
-    return slot->ptr;
+    return (i64)slot->ptr;
   }
 
-  // check if kernel reserved memory is available
-  if ((result = sys_mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0)) < 0) {
-    return NULL;
-  }
-
-  // success
-  return result;
+  return sys_mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 }
 
-void free(malloc_pool *pool, void *ptr, u64 size) {
+void free(struct malloc_pool *pool, void *ptr, u64 size) {
   u32 index;
-  malloc_slot *slot;
+  struct malloc_slot *slot;
 
   // if the size is too large, just release it
   if ((index = __builtin_ctzl(size >> 12)) >= MALLOC_SLOTS) {
@@ -72,7 +65,7 @@ void free(malloc_pool *pool, void *ptr, u64 size) {
 }
 
 static void can_init_and_destroy_pool() {
-  malloc_pool pool;
+  struct malloc_pool pool;
 
   // initialize the pool
   malloc_init(&pool);
@@ -91,13 +84,13 @@ static void can_init_and_destroy_pool() {
 
 static void can_allocate_and_free_memory() {
   void *ptr;
-  malloc_pool pool;
+  struct malloc_pool pool;
 
   // initialize the pool
   malloc_init(&pool);
 
   // allocate memory
-  ptr = malloc(&pool, 4096);
+  ptr = (void *)malloc(&pool, 4096);
   assert(ptr != NULL, "should allocate memory");
 
   // free the memory
@@ -113,20 +106,20 @@ static void can_allocate_and_free_memory() {
 
 static void can_reuse_deallocated_slot() {
   void *ptr1, *ptr2;
-  malloc_pool pool;
+  struct malloc_pool pool;
 
   // initialize the pool
   malloc_init(&pool);
 
   // allocate memory
-  ptr1 = malloc(&pool, 4096);
+  ptr1 = (void *)malloc(&pool, 4096);
   assert(ptr1 != NULL, "should allocate memory");
 
   // free the memory
   free(&pool, ptr1, 4096);
 
   // allocate again
-  ptr2 = malloc(&pool, 4096);
+  ptr2 = (void *)malloc(&pool, 4096);
   assert(ptr2 != NULL, "should allocate memory");
   assert(ptr1 == ptr2, "should reuse deallocated memory");
 
@@ -138,7 +131,7 @@ static void can_reuse_deallocated_slot() {
   }
 }
 
-void malloc_test_cases(runner_context *ctx) {
+void malloc_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can init and destroy pool", can_init_and_destroy_pool);
   test_case(ctx, "can allocate and free memory", can_allocate_and_free_memory);
   test_case(ctx, "can reuse deallocated slot", can_reuse_deallocated_slot);
