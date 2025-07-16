@@ -113,7 +113,7 @@ static void can_open_and_close_parquet_file() {
   parquet_init(&file, &pool);
 
   // open a valid parquet file
-  i64 result = parquet_open(&file, "/workspaces/i13c/data/test01.parquet");
+  i64 result = parquet_open(&file, "data/test01.parquet");
   assert(result == 0, "should open parquet file");
 
   // close the parquet file
@@ -134,7 +134,7 @@ static void can_detect_non_existing_parquet_file() {
   parquet_init(&file, &pool);
 
   // try to open a non-existing parquet file
-  i64 result = parquet_open(&file, "/workspaces/i13c/data/none.parquet");
+  i64 result = parquet_open(&file, "data/none.parquet");
   assert(result < 0, "should not open non-existing parquet file");
 
   // destroy the pool
