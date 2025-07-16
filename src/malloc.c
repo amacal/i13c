@@ -30,6 +30,16 @@ i64 malloc(struct malloc_pool *pool, u64 size) {
   u32 index;
   struct malloc_slot *slot;
 
+  // check if the size if too small
+  if (size < 4096) {
+    return (i64)NULL;
+  }
+
+  // check if the size is a power of two
+  if (__builtin_popcount(size) != 1) {
+    return (i64)NULL;
+  }
+
   // check if the size if too large
   if ((index = __builtin_ctzl(size >> 12)) >= MALLOC_SLOTS) {
     return (i64)NULL;

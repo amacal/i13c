@@ -3,8 +3,7 @@
 #include "runner.h"
 #include "typing.h"
 
-#define MALLOC_SLOTS 10
-
+#define MALLOC_SLOTS 5 // from 4096 to 65536 bytes, 5 slots
 struct malloc_slot;
 
 struct malloc_slot {

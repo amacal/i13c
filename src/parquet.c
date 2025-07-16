@@ -5,99 +5,105 @@
 #include "sys.h"
 #include "typing.h"
 
-void parquet_init(parquet_file *file, struct malloc_pool *pool) {
+void parquet_init(struct parquet_file *file, struct malloc_pool *pool) {
   file->fd = 0;
   file->pool = pool;
   file->buffer = NULL;
-  file->buffer_footer = NULL;
+  file->buffer_start = NULL;
+  file->buffer_end = NULL;
   file->buffer_size = 0;
-  file->buffer_used = 0;
 }
 
-i64 parquet_open(parquet_file *file, const char *path) {
-  char *buffer;
-  i64 fd, result;
-  u64 read;
-  u64 buffer_size;
-  u64 buffer_used;
-  u64 buffer_offset;
-  u64 buffer_start;
-  u32 footer_offset;
+i64 parquet_open(struct parquet_file *file, const char *path) {
+  i64 result;
   file_stat stat;
+  u64 offset, completed, remaining;
 
   // check if the path can be opened
   result = sys_open(path, O_RDONLY, 0);
   if (result < 0) goto cleanup;
-  else fd = result;
+  else file->fd = result;
 
   // check the size of the file behind the file descriptor
-  result = sys_fstat(fd, &stat);
+  result = sys_fstat(file->fd, &stat);
   if (result < 0) goto error_stat;
 
-  // adjust buffer counters
-  if (stat.st_size < 4096) {
-    buffer_offset = 0;
-    buffer_size = 4096;
-    buffer_used = stat.st_size;
-    buffer_start = 4096 - stat.st_size;
-  } else {
-    buffer_start = 0;
-    buffer_size = 4096;
-    buffer_used = 4096;
-    buffer_offset = stat.st_size - 4096;
+  // check if the file is too small to be a parquet file
+  if (stat.st_size < 8) {
+    result = -1;
+    goto error_stat;
   }
 
   // allocate a buffer for the file content
-  result = malloc(file->pool, buffer_size);
+  file->buffer_size = 4096;
+  result = malloc(file->pool, file->buffer_size);
   if (result == 0) goto error_malloc;
-  else buffer = (char *)result;
+  else file->buffer = (char *)result;
+
+  // adjust buffer pointers
+  if (stat.st_size < 4096) {
+    file->buffer_start = file->buffer + 4096 - stat.st_size;
+    file->buffer_end = file->buffer + 4096;
+  } else {
+    file->buffer_start = file->buffer;
+    file->buffer_end = file->buffer + 4096;
+  }
+
+  completed = 0;
+  remaining = file->buffer_end - file->buffer_start;
+  offset = stat.st_size - remaining;
 
   // fill the buffer
-  read = 0;
-  while (read < buffer_used) {
-    result = sys_pread(fd, buffer + buffer_start + read, buffer_used - read, buffer_offset + read);
+  while (remaining > 0) {
+    result = sys_pread(file->fd, file->buffer_start + completed, remaining, offset);
     if (result < 0) goto error_read;
 
-    read += result;
+    offset += result;
+    completed += result;
+    remaining -= result;
   }
 
-  if ((footer_offset = *(u32 *)(buffer + buffer_used - 8)) + 8 > buffer_used) {
-    // TODO: reallocate and reread the footer
+  // recompute buffer boundaries
+  file->footer_size = *(u32 *)(file->buffer_end - 8);
+  file->buffer_end = file->buffer_end - 8;
+  file->buffer_start = file->buffer_end - file->footer_size - 8;
+
+  // check if the buffer is too small to handle the footer
+  if (file->buffer_start < file->buffer) {
+    result = -1;
+    goto error_read;
   }
-
-  // printf("%x", footer_offset);
-
-  // prepare the struct
-  file->fd = fd;
-  file->buffer = buffer;
-  file->buffer_footer = buffer + buffer_size - 8 - footer_offset;
-  file->buffer_size = buffer_size;
-  file->buffer_used = buffer_used;
 
   // success
   return 0;
 
 error_read:
-  free(file->pool, buffer, buffer_size);
+  free(file->pool, file->buffer, file->buffer_size);
+  file->buffer = NULL;
+  file->buffer_size = 0;
 
 error_malloc:
 error_stat:
-  sys_close(fd);
+  sys_close(file->fd);
+  file->fd = 0;
 
 cleanup:
   return result;
 }
 
-void parquet_close(parquet_file *file) {
+void parquet_close(struct parquet_file *file) {
   // free the buffer using the pool
   free(file->pool, file->buffer, file->buffer_size);
+  file->buffer = NULL;
+  file->buffer_size = 0;
 
   // close the file descriptor
   sys_close(file->fd);
+  file->fd = 0;
 }
 
 static void can_open_and_close_parquet_file() {
-  parquet_file file;
+  struct parquet_file file;
   struct malloc_pool pool;
 
   // initialize the pool
@@ -118,7 +124,7 @@ static void can_open_and_close_parquet_file() {
 }
 
 static void can_detect_non_existing_parquet_file() {
-  parquet_file file;
+  struct parquet_file file;
   struct malloc_pool pool;
 
   // initialize the pool
