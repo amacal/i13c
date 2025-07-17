@@ -3,6 +3,7 @@
 #include "parquet.h"
 #include "stdout.h"
 #include "sys.h"
+#include "thrift.h"
 #include "typing.h"
 
 void test_case(struct runner_context *ctx, const char *name, void (*execute)(struct runner_context *ctx)) {
@@ -25,6 +26,7 @@ i32 runner_execute() {
   ctx.offset = 0;
   malloc_test_cases(&ctx);
   parquet_test_cases(&ctx);
+  thrift_test_cases(&ctx);
 
   // execute all registered test cases
   for (u64 i = 0; i < ctx.offset; i++) {
