@@ -115,22 +115,23 @@ void parquet_close(struct parquet_file *file) {
   }
 }
 
-static i64 parquet_read_version(void *target, enum field_type field_type, const char *buffer, u64 buffer_size) {
+static i64 parquet_read_version(void *target, enum thrift_struct_type field_type, const char *buffer, u64 buffer_size) {
   struct parquet_metadata *metadata = (struct parquet_metadata *)target;
 
   // check if the field type is correct
-  if (field_type != FIELD_TYPE_I32) {
+  if (field_type != STRUCT_FIELD_I32) {
     return -1;
   }
 
   return thrift_read_i32(&metadata->version, buffer, buffer_size);
 }
 
-static i64 parquet_read_num_rows(void *target, enum field_type field_type, const char *buffer, u64 buffer_size) {
+static i64 parquet_read_num_rows(void *target, enum thrift_struct_type field_type, const char *buffer,
+                                 u64 buffer_size) {
   struct parquet_metadata *metadata = (struct parquet_metadata *)target;
 
   // check if the field type is correct
-  if (field_type != FIELD_TYPE_I64) {
+  if (field_type != STRUCT_FIELD_I64) {
     return -1;
   }
 
@@ -139,13 +140,14 @@ static i64 parquet_read_num_rows(void *target, enum field_type field_type, const
 
 i64 parquet_parse(struct parquet_file *file) {
   i64 result;
-  thrift_field fields[3];
+  thrift_field fields[4];
   struct parquet_metadata metadata;
 
-  fields[1] = (thrift_field)parquet_read_version;  // version
-  fields[2] = (thrift_field)parquet_read_num_rows; // num_rows
+  fields[1] = parquet_read_version;  // version
+  fields[2] = thrift_ignore_field;   // ignored
+  fields[3] = parquet_read_num_rows; // num_rows
 
-  result = thrift_read_struct(&metadata, fields, 3, file->buffer_start, file->footer_size);
+  result = thrift_read_struct(&metadata, fields, sizeof(fields), file->buffer_start, file->footer_size);
   printf("result: %x, Parquet file version: %x, number of rows: %x\n", result, metadata.version, metadata.num_rows);
 
   return 0;
