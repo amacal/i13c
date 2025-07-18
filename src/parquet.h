@@ -4,8 +4,9 @@
 #include "typing.h"
 
 struct parquet_metadata {
-  i32 version;  // parquet file version
-  i64 num_rows; // number of rows
+  i32 version;      // parquet file version
+  i64 num_rows;     // number of rows
+  char *created_by; // created by string, optional
 };
 
 struct parquet_file {

@@ -115,41 +115,106 @@ void parquet_close(struct parquet_file *file) {
   }
 }
 
-static i64 parquet_read_version(void *target, enum thrift_struct_type field_type, const char *buffer, u64 buffer_size) {
-  struct parquet_metadata *metadata = (struct parquet_metadata *)target;
-
+static i64 parquet_read_version(struct parquet_metadata *metadata, enum thrift_struct_type field_type,
+                                const char *buffer, u64 buffer_size) {
   // check if the field type is correct
   if (field_type != STRUCT_FIELD_I32) {
     return -1;
   }
 
+  printf("Reading parquet file version\n");
   return thrift_read_i32(&metadata->version, buffer, buffer_size);
 }
 
-static i64 parquet_read_num_rows(void *target, enum thrift_struct_type field_type, const char *buffer,
-                                 u64 buffer_size) {
-  struct parquet_metadata *metadata = (struct parquet_metadata *)target;
-
+static i64 parquet_read_num_rows(struct parquet_metadata *metadata, enum thrift_struct_type field_type,
+                                 const char *buffer, u64 buffer_size) {
   // check if the field type is correct
   if (field_type != STRUCT_FIELD_I64) {
     return -1;
   }
 
+  printf("Reading number of rows in parquet file\n");
   return thrift_read_i64(&metadata->num_rows, buffer, buffer_size);
+}
+
+static i64 parquet_read_created_by(struct parquet_metadata *, enum thrift_struct_type field_type, const char *buffer,
+                                   u64 buffer_size) {
+  const char *created_by;
+  i64 result, read;
+  u32 size;
+
+  // check if the field type is correct
+  if (field_type != STRUCT_FIELD_BINARY) {
+    return -1;
+  }
+
+  // read the size of the created_by string
+  result = thrift_read_binary_header(&size, buffer, buffer_size);
+  if (result < 0) return result;
+
+  read = result;
+  buffer += result;
+  buffer_size -= result;
+
+  result = thrift_read_binary_content(&created_by, size, buffer, buffer_size);
+  if (result < 0) return result;
+
+  return read + result;
 }
 
 i64 parquet_parse(struct parquet_file *file) {
   i64 result;
-  thrift_field fields[4];
+  thrift_read_fn fields[7];
+
+  char *buffer;
+  u64 buffer_size;
+
   struct parquet_metadata metadata;
+  struct thrift_struct_header header;
 
-  fields[1] = parquet_read_version;  // version
-  fields[2] = thrift_ignore_field;   // ignored
-  fields[3] = parquet_read_num_rows; // num_rows
+  fields[1] = (thrift_read_fn)parquet_read_version;    // version
+  fields[2] = (thrift_read_fn)thrift_ignore_field;     // ignored
+  fields[3] = (thrift_read_fn)parquet_read_num_rows;   // num_rows
+  fields[4] = (thrift_read_fn)thrift_ignore_field;     // ignored
+  fields[5] = (thrift_read_fn)thrift_ignore_field;     // ignored
+  fields[6] = (thrift_read_fn)parquet_read_created_by; // created_by
 
-  result = thrift_read_struct(&metadata, fields, sizeof(fields), file->buffer_start, file->footer_size);
+  // initialize
+  header.field = 0;
+  buffer = file->buffer_start;
+  buffer_size = file->footer_size;
+
+  while (TRUE) {
+    // read the next struct header of the footer
+    result = thrift_read_struct_header(&header, buffer, buffer_size);
+    if (result < 0) return result;
+
+    // move the buffer pointer and size
+    buffer += result;
+    buffer_size -= result;
+
+    // check if we reached the end of the struct
+    if (header.type == STRUCT_FIELD_STOP) {
+      break;
+    }
+
+    // call the field callback or ignore function
+    if (header.field >= 7) {
+      result = thrift_ignore_field(NULL, header.type, buffer, buffer_size);
+    } else {
+      result = fields[header.field](&metadata, header.type, buffer, buffer_size);
+    }
+
+    // perhaps callback failed
+    if (result < 0) return result;
+
+    // move the buffer pointer and size
+    buffer += result;
+    buffer_size -= result;
+  }
+
+  printf("Parquet file metadata left: %x\n", buffer_size);
   printf("result: %x, Parquet file version: %x, number of rows: %x\n", result, metadata.version, metadata.num_rows);
-
   return 0;
 }
 
