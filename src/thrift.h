@@ -3,49 +3,31 @@
 #include "runner.h"
 #include "typing.h"
 
-enum thrift_struct_type {
-  STRUCT_FIELD_STOP = 0,
-  STRUCT_FIELD_BOOL_TRUE = 1,
-  STRUCT_FIELD_BOOL_FALSE = 2,
-  STRUCT_FIELD_I8 = 3,
-  STRUCT_FIELD_I16 = 4,
-  STRUCT_FIELD_I32 = 5,
-  STRUCT_FIELD_I64 = 6,
-  STRUCT_FIELD_DOUBLE = 7,
-  STRUCT_FIELD_BINARY = 8,
-  STRUCT_FIELD_LIST = 9,
-  STRUCT_FIELD_SET = 10,
-  STRUCT_FIELD_MAP = 11,
-  STRUCT_FIELD_STRUCT = 12,
-  STRUCT_FIELD_UUID = 13,
-};
-
-enum thrift_list_type {
-  LIST_FIELD_STOP = 0,
-  LIST_FIELD_BOOL_TRUE = 1,
-  LIST_FIELD_BOOL_FALSE = 2,
-  LIST_FIELD_I8 = 3,
-  LIST_FIELD_I16 = 4,
-  LIST_FIELD_I32 = 5,
-  LIST_FIELD_I64 = 6,
-  LIST_FIELD_DOUBLE = 7,
-  LIST_FIELD_BINARY = 8,
-  LIST_FIELD_LIST = 9,
-  LIST_FIELD_SET = 10,
-  LIST_FIELD_MAP = 11,
-  LIST_FIELD_STRUCT = 12,
-  LIST_FIELD_UUID = 13,
-
+enum thrift_type {
+  THRIFT_FIELD_STOP = 0,
+  THRIFT_FIELD_BOOL_TRUE = 1,
+  THRIFT_FIELD_BOOL_FALSE = 2,
+  THRIFT_FIELD_I8 = 3,
+  THRIFT_FIELD_I16 = 4,
+  THRIFT_FIELD_I32 = 5,
+  THRIFT_FIELD_I64 = 6,
+  THRIFT_FIELD_DOUBLE = 7,
+  THRIFT_FIELD_BINARY = 8,
+  THRIFT_FIELD_LIST = 9,
+  THRIFT_FIELD_SET = 10,
+  THRIFT_FIELD_MAP = 11,
+  THRIFT_FIELD_STRUCT = 12,
+  THRIFT_FIELD_UUID = 13,
 };
 
 struct thrift_list_header {
   u32 size;                   // number of elements in the list
-  enum thrift_list_type type; // type of the elements in the list
+  enum thrift_type type; // type of the elements in the list
 };
 
 struct thrift_struct_header {
   u32 field;                    // index of the field in the struct
-  enum thrift_struct_type type; // type of the struct
+  enum thrift_type type; // type of the struct
 };
 
 /// @brief Thrift field type callback function type.
@@ -54,7 +36,7 @@ struct thrift_struct_header {
 /// @param buffer Pointer to the buffer containing the data.
 /// @param buffer_size Size of the buffer.
 /// @return The number of bytes read from the buffer, or a negative error code.
-typedef i64 (*thrift_read_fn)(void *target, enum thrift_struct_type field_type, const char *buffer, u64 buffer_size);
+typedef i64 (*thrift_read_fn)(void *target, enum thrift_type field_type, const char *buffer, u64 buffer_size);
 
 /// @brief Reads a struct header from the buffer.
 /// @param target Pointer to the target struct header.
@@ -69,7 +51,7 @@ extern i64 thrift_read_struct_header(struct thrift_struct_header *target, const 
 /// @param buffer Pointer to the buffer containing the data.
 /// @param buffer_size Size of the buffer.
 /// @return The number of bytes read from the buffer, or a negative error code.
-extern i64 thrift_ignore_field(void *target, enum thrift_struct_type field_type, const char *buffer, u64 buffer_size);
+extern i64 thrift_ignore_field(void *target, enum thrift_type field_type, const char *buffer, u64 buffer_size);
 
 /// @brief Reads a binary header from the buffer.
 /// @param target Pointer to the target u32 variable.

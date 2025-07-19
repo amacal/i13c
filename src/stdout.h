@@ -2,6 +2,6 @@
 
 #include "typing.h"
 
-/// @brief Prints a formatted string to stdout (like printf).
+/// @brief Prints a formatted string to stdout (like writef).
 /// @param fmt Format string.
-extern void printf(const char* fmt, ...);
+extern void writef(const char* fmt, ...);

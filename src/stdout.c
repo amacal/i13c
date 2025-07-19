@@ -6,6 +6,7 @@
 #define SUBSTITUTION_BUFFER_SIZE 256
 #define SUBSTITUTION_MARKER '%'
 #define SUBSTITUTION_STRING 's'
+#define SUBSTITUTION_INTEND 'i'
 
 #define SUBSTITUTION_HEX 'x'
 #define SUBSTITUTION_HEX_LEN 18
@@ -20,6 +21,7 @@ static void substitute_string(u64 *offset, char *buffer, const char *src) {
 }
 
 static void substitute_hex(u64 *offset, char *buffer, u64 value) {
+  i32 index;
   const char *chars = SUBSTITUTION_HEX_ALPHABET;
 
   // copy the hex representation only if there's enough space
@@ -27,9 +29,18 @@ static void substitute_hex(u64 *offset, char *buffer, u64 value) {
     buffer[(*offset)++] = '0';
     buffer[(*offset)++] = 'x';
 
-    for (i32 i = SUBSTITUTION_HEX_ALPHABET_LEN - 1; i >= 0; i--) {
-      buffer[(*offset)++] = chars[(value >> (i * 4)) & 0x0f];
+    for (index = SUBSTITUTION_HEX_ALPHABET_LEN - 1; index >= 0; index--) {
+      buffer[(*offset)++] = chars[(value >> (index * 4)) & 0x0f];
     }
+  }
+}
+
+static void substitute_intend(u64 *offset, char *buffer, u64 intend) {
+  u64 index;
+
+  // append intend spaces
+  for (index = 0; index < intend && *offset < SUBSTITUTION_BUFFER_SIZE; index++) {
+    buffer[(*offset)++] = ' ';
   }
 }
 
@@ -51,7 +62,7 @@ static i64 flush_buffer(const char *buffer, u64 length) {
   return 0;
 }
 
-void printf(const char *fmt, ...) {
+void writef(const char *fmt, ...) {
   u8 vargs_offset = 0;
   void *vargs[VARGS_MAX];
 
@@ -70,6 +81,9 @@ void printf(const char *fmt, ...) {
           break;
         case SUBSTITUTION_HEX:
           substitute_hex(&buffer_offset, buffer, (u64)vargs[vargs_offset++]);
+          break;
+        case SUBSTITUTION_INTEND:
+          substitute_intend(&buffer_offset, buffer, (u64)vargs[vargs_offset++]);
           break;
       }
 

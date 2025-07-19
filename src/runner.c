@@ -14,7 +14,7 @@ void test_case(struct runner_context *ctx, const char *name, void (*execute)(str
 
 void assert(bool condition, const char *msg) {
   if (!condition) {
-    printf(" FAILED: %s\n", msg);
+    writef(" FAILED: %s\n", msg);
     sys_exit(1);
   }
 }
@@ -30,9 +30,9 @@ i32 runner_execute() {
 
   // execute all registered test cases
   for (u64 i = 0; i < ctx.offset; i++) {
-    printf("Executing '%s' ...", ctx.entries[i].name);
+    writef("Executing '%s' ...", ctx.entries[i].name);
     ctx.entries[i].execute(&ctx);
-    printf(" OK\n");
+    writef(" OK\n");
   }
 
   return 0;

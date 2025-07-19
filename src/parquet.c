@@ -1,5 +1,4 @@
 #include "parquet.h"
-#include "buffer.h"
 #include "malloc.h"
 #include "runner.h"
 #include "stdout.h"
@@ -128,35 +127,35 @@ static i64 parquet_metadata_alloc(struct parquet_metadata *metadata, u64 size) {
   return (i64)(metadata->buffer + offset);
 }
 
-static i64 parquet_read_version(struct parquet_metadata *metadata, enum thrift_struct_type field_type,
+static i64 parquet_read_version(struct parquet_metadata *metadata, enum thrift_type field_type,
                                 const char *buffer, u64 buffer_size) {
   // check if the field type is correct
-  if (field_type != STRUCT_FIELD_I32) {
+  if (field_type != THRIFT_FIELD_I32) {
     return -1;
   }
 
-  printf("Reading parquet file version\n");
+  writef("Reading parquet file version\n");
   return thrift_read_i32(&metadata->version, buffer, buffer_size);
 }
 
-static i64 parquet_read_num_rows(struct parquet_metadata *metadata, enum thrift_struct_type field_type,
+static i64 parquet_read_num_rows(struct parquet_metadata *metadata, enum thrift_type field_type,
                                  const char *buffer, u64 buffer_size) {
   // check if the field type is correct
-  if (field_type != STRUCT_FIELD_I64) {
+  if (field_type != THRIFT_FIELD_I64) {
     return -1;
   }
 
-  printf("Reading number of rows in parquet file\n");
+  writef("Reading number of rows in parquet file\n");
   return thrift_read_i64(&metadata->num_rows, buffer, buffer_size);
 }
 
-static i64 parquet_read_created_by(struct parquet_metadata *metadata, enum thrift_struct_type field_type,
+static i64 parquet_read_created_by(struct parquet_metadata *metadata, enum thrift_type field_type,
                                    const char *buffer, u64 buffer_size) {
   i64 result, read;
   u32 size;
 
   // check if the field type is correct
-  if (field_type != STRUCT_FIELD_BINARY) {
+  if (field_type != THRIFT_FIELD_BINARY) {
     return -1;
   }
 
@@ -186,11 +185,12 @@ static i64 parquet_read_created_by(struct parquet_metadata *metadata, enum thrif
 
 i64 parquet_parse(struct parquet_file *file) {
   i64 result;
+  char *buffer;
+  u64 buffer_size;
 
   const u32 FIELDS_SLOTS = 7;
   thrift_read_fn fields[FIELDS_SLOTS];
 
-  struct buffer buffer;
   struct thrift_struct_header header;
 
   // allocate memory for the metadata
@@ -213,34 +213,41 @@ i64 parquet_parse(struct parquet_file *file) {
 
   // initialize
   header.field = 0;
-  buffer_init(&buffer, file->buffer_start, file->footer_size);
+  buffer = file->buffer_start;
+  buffer_size = file->footer_size;
 
   while (TRUE) {
     // read the next struct header of the footer
-    result = thrift_read_struct_header(&header, buffer.data, buffer.size);
+    result = thrift_read_struct_header(&header, buffer, buffer_size);
     if (result < 0) return result;
-    else buffer_advance(&buffer, result);
+
+    // move the buffer pointer and size
+    buffer += result;
+    buffer_size -= result;
 
     // check if we reached the end of the struct
-    if (header.type == STRUCT_FIELD_STOP) {
+    if (header.type == THRIFT_FIELD_STOP) {
       break;
     }
 
     // call the field callback or ignore function
     if (header.field >= FIELDS_SLOTS) {
-      result = thrift_ignore_field(NULL, header.type, buffer.data, buffer.size);
+      result = thrift_ignore_field(NULL, header.type, buffer, buffer_size);
     } else {
-      result = fields[header.field](file->metadata, header.type, buffer.data, buffer.size);
+      result = fields[header.field](file->metadata, header.type, buffer, buffer_size);
     }
 
     // perhaps callback failed
     if (result < 0) return result;
-    else buffer_advance(&buffer, result);
+
+    // move the buffer pointer and size
+    buffer += result;
+    buffer_size -= result;
   }
 
-  printf("Parquet file metadata left: %x\n", buffer.size);
-  printf("Parquet file version: %x, number of rows: %x\n", file->metadata->version, file->metadata->num_rows);
-  printf("Created by: %s\n", file->metadata->created_by);
+  writef("Parquet file metadata left: %x\n", buffer_size);
+  writef("Parquet file version: %x, number of rows: %x\n", file->metadata->version, file->metadata->num_rows);
+  writef("Created by: %s\n", file->metadata->created_by);
 
   return 0;
 }

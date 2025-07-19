@@ -13,10 +13,13 @@ i32 main() {
   parquet_init(&file, &pool);
 
   result = parquet_open(&file, "data/test01.parquet");
-  printf("opening parquet file ... %x, %x\n", result, file.fd);
+  writef("opening parquet file ... %x, %x\n", result, file.fd);
 
   result = parquet_parse(&file);
-  printf("parsing parquet file ... %x\n", result);
+  writef("parsing parquet file ... %x\n", result);
+
+  parquet_close(&file);
+  malloc_destroy(&pool);
 
   return 0;
 }
