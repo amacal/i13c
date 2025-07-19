@@ -13,6 +13,7 @@ NASMFLAGS=-f elf64
 
 BINOUTPUT=bin/i13c
 TESTOUTPUT=bin/test
+THRIFTOUTPUT=bin/thrift
 
 BINDIR=bin
 SRCDIR=src
@@ -27,14 +28,22 @@ OBJS=$(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.c.o, $(SRCS_C)) \
 
 -include $(OBJS:.o=.d)
 
-build: $(BINOUTPUT) $(TESTOUTPUT)
+.phony: build
+build: $(BINOUTPUT) $(TESTOUTPUT) $(THRIFTOUTPUT)
 
+.phony: run
 run: $(BINOUTPUT)
 	@$(BINOUTPUT)
 
+.phony: test
 test: $(TESTOUTPUT)
 	@$(TESTOUTPUT)
 
+.phony: thrift
+thrift: $(THRIFTOUTPUT)
+	@$(THRIFTOUTPUT)
+
+.phony: debug
 debug: $(BINOUTPUT)
 	@edb --run $(BINOUTPUT) 2> /dev/null
 
@@ -46,6 +55,10 @@ $(TESTOUTPUT): $(OBJDIR)/runner.s.o $(OBJS)
 	@mkdir -p bin
 	@$(LD) -T src/runner.ld $(LDFLAGS) -o $@ $^
 
+$(THRIFTOUTPUT): $(OBJDIR)/thrift.s.o $(OBJS)
+	@mkdir -p bin
+	@$(LD) -T src/thrift.ld $(LDFLAGS) -o $@ $^
+
 $(OBJDIR)/%.c.o: $(SRCDIR)/%.c
 	@mkdir -p $(OBJDIR)
 	@$(CC) $(CFLAGS) -c $< -o $@
@@ -54,7 +67,6 @@ $(OBJDIR)/%.s.o: $(SRCDIR)/%.s
 	@mkdir -p $(OBJDIR)
 	@$(NASM) $(NASMFLAGS) $< -o $@
 
+.phony: clean
 clean:
 	@rm -rf $(OBJDIR) $(TMPDIR) $(BINDIR)
-
-.PHONY: build run debug clean

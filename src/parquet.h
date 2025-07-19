@@ -4,6 +4,10 @@
 #include "typing.h"
 
 struct parquet_metadata {
+  char *buffer;     // the buffer behind metadata storage
+  u64 buffer_size;  // the size
+  u64 buffer_tail;  //
+
   i32 version;      // parquet file version
   i64 num_rows;     // number of rows
   char *created_by; // created by string, optional
@@ -17,7 +21,6 @@ struct parquet_file {
   u64 buffer_size;                   // size of the allocated buffer
   u64 footer_size;                   // size of the footer in bytes
   struct parquet_metadata *metadata; // metadata of the parquet file
-  u64 metadata_size;                 // size of the heap allocated for metadata
   struct malloc_pool *pool;          // memory pool for buffer allocation
 };
 

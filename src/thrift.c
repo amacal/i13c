@@ -223,12 +223,21 @@ i64 thrift_read_binary_header(u32 *target, const char *buffer, u64 buffer_size) 
   return result;
 }
 
-i64 thrift_read_binary_content(const char **target, u32 size, const char *buffer, u64 buffer_size) {
+i64 thrift_read_binary_content(char *target, u32 size, const char *buffer, u64 buffer_size) {
+  u32 index;
+
   // check if the buffer is large enough
   if (buffer_size < size) return -1;
 
-  // reference the buffer as the target
-  if (target) *target = buffer;
+  // copy byte by byte
+  if (target) {
+    for (index = 0; index < size; index++) {
+      target[index] = buffer[index];
+    }
+
+    // terminate the buffer
+    target[size] = 0;
+  }
 
   // success
   return size;
@@ -795,4 +804,10 @@ void thrift_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can handle max i64 value", can_handle_max_i64_value);
   test_case(ctx, "can detected i64 bits overflow", can_detect_i64_bits_overflow);
   test_case(ctx, "can detected i64 buffer overflow", can_detect_i64_buffer_overflow);
+}
+
+int thrift_main() {
+  i64 result, read;
+
+  return 0;
 }

@@ -79,12 +79,12 @@ extern i64 thrift_ignore_field(void *target, enum thrift_struct_type field_type,
 extern i64 thrift_read_binary_header(u32 *target, const char *buffer, u64 buffer_size);
 
 /// @brief Reads binary content from the buffer.
-/// @param target Pointer to the target char pointer where the buffer will be referenced.
+/// @param target Pointer to the target buffer where the binary content will be copied.
 /// @param size Size of the binary content to read.
 /// @param buffer Pointer to the buffer containing the data.
 /// @param buffer_size Size of the buffer.
 /// @return The number of bytes read from the buffer, or a negative error code.
-extern i64 thrift_read_binary_content(const char **target, u32 size, const char *buffer, u64 buffer_size);
+extern i64 thrift_read_binary_content(char *target, u32 size, const char *buffer, u64 buffer_size);
 
 /// @brief Reads a list header from the buffer.
 /// @param target Pointer to the target list header structure.
