@@ -1,12 +1,22 @@
 #include "stdout.h"
+#include "sys.h"
 #include "typing.h"
 #include "vargs.h"
-#include "sys.h"
 
 #define SUBSTITUTION_BUFFER_SIZE 256
 #define SUBSTITUTION_MARKER '%'
 #define SUBSTITUTION_STRING 's'
 #define SUBSTITUTION_INTEND 'i'
+
+#define SUBSTITUTION_ASCII 'a'
+#define SUBSTITUTION_ASCII_MIN 0x20
+#define SUBSTITUTION_ASCII_MAX 0x7e
+#define SUBSTITUTION_ASCII_FALLBACK 0x2e
+
+#define SUBSTITUTION_DECIMAL 'd'
+#define SUBSTITUTION_DECIMAL_LEN 20
+#define SUBSTITUTION_DECIMAL_ALPHABET "0123456789"
+#define SUBSTITUTION_DECIMAL_ALPHABET_LEN 10
 
 #define SUBSTITUTION_HEX 'x'
 #define SUBSTITUTION_HEX_LEN 18
@@ -41,6 +51,49 @@ static void substitute_intend(u64 *offset, char *buffer, u64 intend) {
   // append intend spaces
   for (index = 0; index < intend && *offset < SUBSTITUTION_BUFFER_SIZE; index++) {
     buffer[(*offset)++] = ' ';
+  }
+}
+
+static void substitute_decimal(u64 *offset, char *buffer, u64 value) {
+  i32 index;
+  char tmp[SUBSTITUTION_DECIMAL_LEN];
+  const char *chars = SUBSTITUTION_DECIMAL_ALPHABET;
+
+  // default
+  index = 0;
+
+  // extract digit by digit
+  while (value > 0 && *offset < SUBSTITUTION_BUFFER_SIZE) {
+    tmp[index++] = chars[value % SUBSTITUTION_DECIMAL_ALPHABET_LEN];
+    value /= SUBSTITUTION_DECIMAL_ALPHABET_LEN;
+  }
+
+  // if no digits were extracted, add a zero
+  if (index == 0) {
+    tmp[index++] = '0';
+  }
+
+  // copy the decimal representation only if there's enough space
+  while (index > 0 && *offset < SUBSTITUTION_BUFFER_SIZE) {
+    buffer[(*offset)++] = tmp[--index];
+  }
+}
+
+static void substitute_ascii(u64 *offset, char *buffer, const char *src, u64 size) {
+  char ch;
+
+  // copy the string until size or buffer is full
+  while (*offset < SUBSTITUTION_BUFFER_SIZE && size > 0) {
+    size--;
+    ch = *src++;
+
+    // if the character is not in the ASCII range, use fallback
+    if (ch < SUBSTITUTION_ASCII_MIN || ch > SUBSTITUTION_ASCII_MAX) {
+      ch = SUBSTITUTION_ASCII_FALLBACK;
+    }
+
+    // append the character to the buffer
+    buffer[(*offset)++] = ch;
   }
 }
 
@@ -84,6 +137,13 @@ void writef(const char *fmt, ...) {
           break;
         case SUBSTITUTION_INTEND:
           substitute_intend(&buffer_offset, buffer, (u64)vargs[vargs_offset++]);
+          break;
+        case SUBSTITUTION_DECIMAL:
+          substitute_decimal(&buffer_offset, buffer, (u64)vargs[vargs_offset++]);
+          break;
+        case SUBSTITUTION_ASCII:
+          substitute_ascii(&buffer_offset, buffer, (const char *)vargs[vargs_offset], (u64)vargs[vargs_offset + 1]);
+          vargs_offset += 2;
           break;
       }
 

@@ -4,20 +4,21 @@
 #include "typing.h"
 
 enum thrift_type {
-  THRIFT_FIELD_STOP = 0,
-  THRIFT_FIELD_BOOL_TRUE = 1,
-  THRIFT_FIELD_BOOL_FALSE = 2,
-  THRIFT_FIELD_I8 = 3,
-  THRIFT_FIELD_I16 = 4,
-  THRIFT_FIELD_I32 = 5,
-  THRIFT_FIELD_I64 = 6,
-  THRIFT_FIELD_DOUBLE = 7,
-  THRIFT_FIELD_BINARY = 8,
-  THRIFT_FIELD_LIST = 9,
-  THRIFT_FIELD_SET = 10,
-  THRIFT_FIELD_MAP = 11,
-  THRIFT_FIELD_STRUCT = 12,
-  THRIFT_FIELD_UUID = 13,
+  THRIFT_TYPE_STOP = 0,
+  THRIFT_TYPE_BOOL_TRUE = 1,
+  THRIFT_TYPE_BOOL_FALSE = 2,
+  THRIFT_TYPE_I8 = 3,
+  THRIFT_TYPE_I16 = 4,
+  THRIFT_TYPE_I32 = 5,
+  THRIFT_TYPE_I64 = 6,
+  THRIFT_TYPE_DOUBLE = 7,
+  THRIFT_TYPE_BINARY = 8,
+  THRIFT_TYPE_LIST = 9,
+  THRIFT_TYPE_SET = 10,
+  THRIFT_TYPE_MAP = 11,
+  THRIFT_TYPE_STRUCT = 12,
+  THRIFT_TYPE_UUID = 13,
+  THRIFT_TYPE_SIZE,
 };
 
 struct thrift_list_header {
@@ -74,6 +75,13 @@ extern i64 thrift_read_binary_content(char *target, u32 size, const char *buffer
 /// @param buffer_size Size of the buffer.
 /// @return The number of bytes read from the buffer, or a negative error code.
 extern i64 thrift_read_list_header(struct thrift_list_header *target, const char *buffer, u64 buffer_size);
+
+/// @brief Reads an bool value from the buffer.
+/// @param target Pointer to the target bool variable.
+/// @param buffer Pointer to the buffer containing the data.
+/// @param buffer_size Size of the buffer.
+/// @return The number of bytes read from the buffer, or a negative error code.
+extern i64 thrift_read_bool(bool *target, const char *buffer, u64 buffer_size);
 
 /// @brief Reads an i8 value from the buffer.
 /// @param target Pointer to the target i8 variable.

@@ -5,15 +5,24 @@
 #include "stdout.h"
 #include "typing.h"
 
-#define THRIFT_FIELD_TYPE_SIZE (THRIFT_FIELD_UUID + 1)
-#define THRIFT_FIELD_TYPE_SIZE (THRIFT_FIELD_UUID + 1)
-
 struct thrift_dump_context {
   u32 intend;
 };
 
 typedef i64 (*thrift_ignore_field_fn)(const char *buffer, u64 buffer_size);
 typedef i64 (*thrift_dump_field_fn)(struct thrift_dump_context *ctx, const char *buffer, u64 buffer_size);
+
+static i64 thrift_ignore_field_bool_true(const char *, u64) {
+  return 0;
+}
+
+static i64 thrift_ignore_field_bool_false(const char *, u64) {
+  return 0;
+}
+
+static i64 thrift_ignore_field_bool(const char *, u64) {
+  return 1;
+}
 
 static i64 thrift_ignore_field_i8(const char *buffer, u64 buffer_size) {
   return thrift_read_i8(NULL, buffer, buffer_size);
@@ -72,7 +81,7 @@ static i64 thrift_ignore_field_struct(const char *buffer, u64 buffer_size) {
     buffer_size -= result;
 
     // check if we reached the end of the struct
-    if (header.type == THRIFT_FIELD_STOP) {
+    if (header.type == THRIFT_TYPE_STOP) {
       break;
     }
 
@@ -94,27 +103,27 @@ static i64 thrift_ignore_field_list(const char *buffer, u64 buffer_size) {
   i64 result, read;
 
   struct thrift_list_header header;
-  thrift_ignore_field_fn ignore_fn[THRIFT_FIELD_TYPE_SIZE];
+  thrift_ignore_field_fn ignore_fn[THRIFT_TYPE_SIZE];
 
   // default
   read = 0;
   index = 0;
 
   // initialize the ignore functions
-  ignore_fn[THRIFT_FIELD_STOP] = NULL;
-  ignore_fn[THRIFT_FIELD_BOOL_TRUE] = NULL;
-  ignore_fn[THRIFT_FIELD_BOOL_FALSE] = NULL;
-  ignore_fn[THRIFT_FIELD_I8] = thrift_ignore_field_i8;
-  ignore_fn[THRIFT_FIELD_I16] = thrift_ignore_field_i16;
-  ignore_fn[THRIFT_FIELD_I32] = thrift_ignore_field_i32;
-  ignore_fn[THRIFT_FIELD_I64] = thrift_ignore_field_i64;
-  ignore_fn[THRIFT_FIELD_DOUBLE] = NULL;
-  ignore_fn[THRIFT_FIELD_BINARY] = thrift_ignore_field_binary;
-  ignore_fn[THRIFT_FIELD_LIST] = thrift_ignore_field_list;
-  ignore_fn[THRIFT_FIELD_SET] = NULL;
-  ignore_fn[THRIFT_FIELD_MAP] = NULL;
-  ignore_fn[THRIFT_FIELD_STRUCT] = thrift_ignore_field_struct;
-  ignore_fn[THRIFT_FIELD_UUID] = NULL;
+  ignore_fn[THRIFT_TYPE_STOP] = NULL;
+  ignore_fn[THRIFT_TYPE_BOOL_TRUE] = thrift_ignore_field_bool;
+  ignore_fn[THRIFT_TYPE_BOOL_FALSE] = thrift_ignore_field_bool;
+  ignore_fn[THRIFT_TYPE_I8] = thrift_ignore_field_i8;
+  ignore_fn[THRIFT_TYPE_I16] = thrift_ignore_field_i16;
+  ignore_fn[THRIFT_TYPE_I32] = thrift_ignore_field_i32;
+  ignore_fn[THRIFT_TYPE_I64] = thrift_ignore_field_i64;
+  ignore_fn[THRIFT_TYPE_DOUBLE] = NULL;
+  ignore_fn[THRIFT_TYPE_BINARY] = thrift_ignore_field_binary;
+  ignore_fn[THRIFT_TYPE_LIST] = thrift_ignore_field_list;
+  ignore_fn[THRIFT_TYPE_SET] = NULL;
+  ignore_fn[THRIFT_TYPE_MAP] = NULL;
+  ignore_fn[THRIFT_TYPE_STRUCT] = thrift_ignore_field_struct;
+  ignore_fn[THRIFT_TYPE_UUID] = NULL;
 
   // read the list header containing size and type
   result = thrift_read_list_header(&header, buffer, buffer_size);
@@ -126,7 +135,7 @@ static i64 thrift_ignore_field_list(const char *buffer, u64 buffer_size) {
   buffer_size -= result;
 
   // check if the ignore function is out of range
-  if (header.type >= THRIFT_FIELD_TYPE_SIZE) return -1;
+  if (header.type >= THRIFT_TYPE_SIZE) return -1;
 
   // check if the ignore function is available
   if (ignore_fn[header.type] == NULL) return -1;
@@ -146,24 +155,24 @@ static i64 thrift_ignore_field_list(const char *buffer, u64 buffer_size) {
 }
 
 i64 thrift_ignore_field(void *, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
-  thrift_ignore_field_fn ignore_fn[THRIFT_FIELD_TYPE_SIZE];
+  thrift_ignore_field_fn ignore_fn[THRIFT_TYPE_SIZE];
 
-  ignore_fn[THRIFT_FIELD_STOP] = NULL;
-  ignore_fn[THRIFT_FIELD_BOOL_TRUE] = NULL;
-  ignore_fn[THRIFT_FIELD_BOOL_FALSE] = NULL;
-  ignore_fn[THRIFT_FIELD_I8] = thrift_ignore_field_i8;
-  ignore_fn[THRIFT_FIELD_I16] = thrift_ignore_field_i16;
-  ignore_fn[THRIFT_FIELD_I32] = thrift_ignore_field_i32;
-  ignore_fn[THRIFT_FIELD_I64] = thrift_ignore_field_i64;
-  ignore_fn[THRIFT_FIELD_DOUBLE] = NULL;
-  ignore_fn[THRIFT_FIELD_BINARY] = thrift_ignore_field_binary;
-  ignore_fn[THRIFT_FIELD_LIST] = thrift_ignore_field_list;
-  ignore_fn[THRIFT_FIELD_SET] = NULL;
-  ignore_fn[THRIFT_FIELD_MAP] = NULL;
-  ignore_fn[THRIFT_FIELD_STRUCT] = thrift_ignore_field_struct;
+  ignore_fn[THRIFT_TYPE_STOP] = NULL;
+  ignore_fn[THRIFT_TYPE_BOOL_TRUE] = thrift_ignore_field_bool_true;
+  ignore_fn[THRIFT_TYPE_BOOL_FALSE] = thrift_ignore_field_bool_false;
+  ignore_fn[THRIFT_TYPE_I8] = thrift_ignore_field_i8;
+  ignore_fn[THRIFT_TYPE_I16] = thrift_ignore_field_i16;
+  ignore_fn[THRIFT_TYPE_I32] = thrift_ignore_field_i32;
+  ignore_fn[THRIFT_TYPE_I64] = thrift_ignore_field_i64;
+  ignore_fn[THRIFT_TYPE_DOUBLE] = NULL;
+  ignore_fn[THRIFT_TYPE_BINARY] = thrift_ignore_field_binary;
+  ignore_fn[THRIFT_TYPE_LIST] = thrift_ignore_field_list;
+  ignore_fn[THRIFT_TYPE_SET] = NULL;
+  ignore_fn[THRIFT_TYPE_MAP] = NULL;
+  ignore_fn[THRIFT_TYPE_STRUCT] = thrift_ignore_field_struct;
 
   // check if the field type is out of range
-  if (field_type >= THRIFT_FIELD_TYPE_SIZE) return -1;
+  if (field_type >= THRIFT_TYPE_SIZE) return -1;
 
   // check if the ignore function is available
   if (ignore_fn[field_type] == NULL) return -1;
@@ -188,7 +197,7 @@ i64 thrift_read_struct_header(struct thrift_struct_header *target, const char *b
   buffer_size -= 1;
 
   // check for the last field
-  if (type == THRIFT_FIELD_STOP) {
+  if (type == THRIFT_TYPE_STOP) {
     target->field = 0;
     target->type = type;
     return read;
@@ -283,6 +292,26 @@ i64 thrift_read_list_header(struct thrift_list_header *target, const char *buffe
 
   // success
   return read;
+}
+
+i64 thrift_read_bool(bool *target, const char *buffer, u64 buffer_size) {
+  // check if the buffer is large enough
+  if (buffer_size < 1) return -1;
+
+  // read the bool
+  if (target) switch (*buffer) {
+      case THRIFT_TYPE_BOOL_TRUE:
+        *target = TRUE;
+        break;
+      case THRIFT_TYPE_BOOL_FALSE:
+        *target = FALSE;
+        break;
+      default:
+        return -1; // invalid type
+    }
+
+  // success
+  return 1;
 }
 
 i64 thrift_read_i8(i8 *target, const char *buffer, u64 buffer_size) {
@@ -429,7 +458,7 @@ static void can_read_struct_header_in_short_version() {
   // assert the result
   assert(result == 1, "should read one byte");
   assert(header.field == 3, "should read field 3");
-  assert(header.type == THRIFT_FIELD_I32, "should read type THRIFT_FIELD_I32");
+  assert(header.type == THRIFT_TYPE_I32, "should read type THRIFT_TYPE_I32");
 
   // read the struct header from the buffer
   result = thrift_read_struct_header(&header, buffer + 1, sizeof(buffer) - 1);
@@ -437,7 +466,7 @@ static void can_read_struct_header_in_short_version() {
   // assert the result
   assert(result == 1, "should read one byte");
   assert(header.field == 7, "should read field 7");
-  assert(header.type == THRIFT_FIELD_I16, "should read type THRIFT_FIELD_I16");
+  assert(header.type == THRIFT_TYPE_I16, "should read type THRIFT_TYPE_I16");
 
   // read the struct header from the buffer
   result = thrift_read_struct_header(&header, buffer + 2, sizeof(buffer) - 2);
@@ -445,7 +474,7 @@ static void can_read_struct_header_in_short_version() {
   // assert the result
   assert(result == 1, "should read one byte");
   assert(header.field == 0, "should read stop field");
-  assert(header.type == THRIFT_FIELD_STOP, "should read type THRIFT_FIELD_STOP");
+  assert(header.type == THRIFT_TYPE_STOP, "should read type THRIFT_TYPE_STOP");
 }
 
 static void can_read_struct_header_in_long_version() {
@@ -462,7 +491,7 @@ static void can_read_struct_header_in_long_version() {
   // assert the result
   assert(result == 2, "should read two bytes");
   assert(header.field == 16, "should read field 16");
-  assert(header.type == THRIFT_FIELD_I32, "should read type THRIFT_FIELD_I32");
+  assert(header.type == THRIFT_TYPE_I32, "should read type THRIFT_TYPE_I32");
 
   // read the struct header from the buffer
   result = thrift_read_struct_header(&header, buffer + 2, sizeof(buffer) - 2);
@@ -470,7 +499,7 @@ static void can_read_struct_header_in_long_version() {
   // assert the result
   assert(result == 2, "should read two bytes");
   assert(header.field == 33, "should read field 33");
-  assert(header.type == THRIFT_FIELD_I16, "should read type THRIFT_FIELD_I16");
+  assert(header.type == THRIFT_TYPE_I16, "should read type THRIFT_TYPE_I16");
 
   // read the struct header from the buffer
   result = thrift_read_struct_header(&header, buffer + 4, sizeof(buffer) - 4);
@@ -478,7 +507,7 @@ static void can_read_struct_header_in_long_version() {
   // assert the result
   assert(result == 1, "should read one byte");
   assert(header.field == 0, "should read stop field");
-  assert(header.type == THRIFT_FIELD_STOP, "should read type THRIFT_FIELD_STOP");
+  assert(header.type == THRIFT_TYPE_STOP, "should read type THRIFT_TYPE_STOP");
 }
 
 static void can_ignore_struct_content() {
@@ -486,7 +515,7 @@ static void can_ignore_struct_content() {
   const char buffer[] = {0x35, 0x13, 0x44, 0x14, 0x00};
 
   // read the struct header from the buffer into nothing
-  result = thrift_ignore_field(NULL, THRIFT_FIELD_STRUCT, buffer, sizeof(buffer));
+  result = thrift_ignore_field(NULL, THRIFT_TYPE_STRUCT, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == 5, "should read five bytes");
@@ -502,7 +531,7 @@ static void can_read_list_header_in_short_version() {
   // assert the result
   assert(result == 1, "should read one byte");
   assert(header.size == 3, "should read size 3");
-  assert(header.type == THRIFT_FIELD_I32, "should read type THRIFT_FIELD_I32");
+  assert(header.type == THRIFT_TYPE_I32, "should read type THRIFT_TYPE_I32");
 }
 
 static void can_read_list_header_in_long_version() {
@@ -515,7 +544,7 @@ static void can_read_list_header_in_long_version() {
   // assert the result
   assert(result == 2, "should read two bytes");
   assert(header.size == 15, "should read size 15");
-  assert(header.type == THRIFT_FIELD_I32, "should read type THRIFT_FIELD_I32");
+  assert(header.type == THRIFT_TYPE_I32, "should read type THRIFT_TYPE_I32");
 }
 
 static void can_read_single_byte_i32_positive() {
@@ -594,7 +623,7 @@ static void can_ignore_i32_value() {
   const char buffer[] = {0xfe, 0xff, 0x0f};
 
   // read the i32 value from the buffer
-  i64 result = thrift_ignore_field(NULL, THRIFT_FIELD_I32, buffer, sizeof(buffer));
+  i64 result = thrift_ignore_field(NULL, THRIFT_TYPE_I32, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == 3, "should read three bytes");
@@ -815,6 +844,46 @@ void thrift_test_cases(struct runner_context *ctx) {
 
 static i64 thrift_dump_struct(struct thrift_dump_context *ctx, const char *buffer, u64 buffer_size);
 
+static i64 thrift_dump_bool_true(struct thrift_dump_context *, const char *, u64) {
+  writef(", value=true");
+  return 0;
+}
+
+static i64 thrift_dump_bool_false(struct thrift_dump_context *, const char *, u64) {
+  writef(", value=false");
+  return 0;
+}
+
+static i64 thrift_dump_bool(struct thrift_dump_context *, const char *buffer, u64 buffer_size) {
+  bool value;
+  i64 result;
+
+  // read the bool value from the buffer
+  result = thrift_read_bool(&value, buffer, buffer_size);
+  if (result < 0) return result;
+
+  // print the value
+  writef(", value=%s", value ? "true" : "false");
+
+  // success
+  return result;
+}
+
+static i64 thrift_dump_i8(struct thrift_dump_context *, const char *buffer, u64 buffer_size) {
+  i8 value;
+  i64 result;
+
+  // read the i8 value from the buffer
+  result = thrift_read_i8(&value, buffer, buffer_size);
+  if (result < 0) return result;
+
+  // print the value
+  writef(", value=%d", value);
+
+  // success
+  return result;
+}
+
 static i64 thrift_dump_i32(struct thrift_dump_context *, const char *buffer, u64 buffer_size) {
   i32 value;
   i64 result;
@@ -824,7 +893,7 @@ static i64 thrift_dump_i32(struct thrift_dump_context *, const char *buffer, u64
   if (result < 0) return result;
 
   // print the value
-  writef(", value=%x", value);
+  writef(", value=%d", value);
 
   // success
   return result;
@@ -839,7 +908,7 @@ static i64 thrift_dump_i64(struct thrift_dump_context *, const char *buffer, u64
   if (result < 0) return result;
 
   // print the value
-  writef(", value=%x", value);
+  writef(", value=%d", value);
 
   // success
   return result;
@@ -861,7 +930,7 @@ static i64 thrift_dump_binary(struct thrift_dump_context *, const char *buffer, 
   if (buffer_size < size) return -1;
 
   // print the binary content
-  writef(", size=%x", size);
+  writef(", size=%d, ascii=%a", size, buffer, size);
 
   // success
   return result + size;
@@ -869,21 +938,36 @@ static i64 thrift_dump_binary(struct thrift_dump_context *, const char *buffer, 
 
 static const char *thrift_type_to_string(enum thrift_type type) {
   switch (type) {
-    case THRIFT_FIELD_STOP: return "stop";
-    case THRIFT_FIELD_BOOL_TRUE: return "bool-true";
-    case THRIFT_FIELD_BOOL_FALSE: return "bool-false";
-    case THRIFT_FIELD_I8: return "i8";
-    case THRIFT_FIELD_I16: return "i16";
-    case THRIFT_FIELD_I32: return "i32";
-    case THRIFT_FIELD_I64: return "i64";
-    case THRIFT_FIELD_DOUBLE: return "double";
-    case THRIFT_FIELD_BINARY: return "binary";
-    case THRIFT_FIELD_LIST: return "list";
-    case THRIFT_FIELD_SET: return "set";
-    case THRIFT_FIELD_MAP: return "map";
-    case THRIFT_FIELD_STRUCT: return "struct";
-    case THRIFT_FIELD_UUID: return "uuid";
-    default: return "unknown";
+    case THRIFT_TYPE_STOP:
+      return "stop";
+    case THRIFT_TYPE_BOOL_TRUE:
+      return "bool-true";
+    case THRIFT_TYPE_BOOL_FALSE:
+      return "bool-false";
+    case THRIFT_TYPE_I8:
+      return "i8";
+    case THRIFT_TYPE_I16:
+      return "i16";
+    case THRIFT_TYPE_I32:
+      return "i32";
+    case THRIFT_TYPE_I64:
+      return "i64";
+    case THRIFT_TYPE_DOUBLE:
+      return "double";
+    case THRIFT_TYPE_BINARY:
+      return "binary";
+    case THRIFT_TYPE_LIST:
+      return "list";
+    case THRIFT_TYPE_SET:
+      return "set";
+    case THRIFT_TYPE_MAP:
+      return "map";
+    case THRIFT_TYPE_STRUCT:
+      return "struct";
+    case THRIFT_TYPE_UUID:
+      return "uuid";
+    default:
+      return "unknown";
   }
 }
 
@@ -892,27 +976,27 @@ static i64 thrift_dump_list(struct thrift_dump_context *ctx, const char *buffer,
   i64 result, read;
 
   struct thrift_list_header header;
-  thrift_dump_field_fn dump_fn[THRIFT_FIELD_TYPE_SIZE];
+  thrift_dump_field_fn dump_fn[THRIFT_TYPE_SIZE];
 
   // default
   read = 0;
   index = 0;
 
   // initialize the dump functions
-  dump_fn[THRIFT_FIELD_STOP] = NULL;
-  dump_fn[THRIFT_FIELD_BOOL_TRUE] = NULL;
-  dump_fn[THRIFT_FIELD_BOOL_FALSE] = NULL;
-  dump_fn[THRIFT_FIELD_I8] = NULL;  // not implemented
-  dump_fn[THRIFT_FIELD_I16] = NULL; // not implemented
-  dump_fn[THRIFT_FIELD_I32] = thrift_dump_i32;
-  dump_fn[THRIFT_FIELD_I64] = thrift_dump_i64;
-  dump_fn[THRIFT_FIELD_DOUBLE] = NULL; // not implemented
-  dump_fn[THRIFT_FIELD_BINARY] = thrift_dump_binary;
-  dump_fn[THRIFT_FIELD_LIST] = thrift_dump_list;
-  dump_fn[THRIFT_FIELD_SET] = NULL; // not implemented
-  dump_fn[THRIFT_FIELD_MAP] = NULL; // not implemented
-  dump_fn[THRIFT_FIELD_STRUCT] = thrift_dump_struct;
-  dump_fn[THRIFT_FIELD_UUID] = NULL; // not implemented
+  dump_fn[THRIFT_TYPE_STOP] = NULL;
+  dump_fn[THRIFT_TYPE_BOOL_TRUE] = thrift_dump_bool;
+  dump_fn[THRIFT_TYPE_BOOL_FALSE] = thrift_dump_bool;
+  dump_fn[THRIFT_TYPE_I8] = thrift_dump_i8;
+  dump_fn[THRIFT_TYPE_I16] = NULL; // not implemented
+  dump_fn[THRIFT_TYPE_I32] = thrift_dump_i32;
+  dump_fn[THRIFT_TYPE_I64] = thrift_dump_i64;
+  dump_fn[THRIFT_TYPE_DOUBLE] = NULL; // not implemented
+  dump_fn[THRIFT_TYPE_BINARY] = thrift_dump_binary;
+  dump_fn[THRIFT_TYPE_LIST] = thrift_dump_list;
+  dump_fn[THRIFT_TYPE_SET] = NULL; // not implemented
+  dump_fn[THRIFT_TYPE_MAP] = NULL; // not implemented
+  dump_fn[THRIFT_TYPE_STRUCT] = thrift_dump_struct;
+  dump_fn[THRIFT_TYPE_UUID] = NULL; // not implemented
 
   // read the list header containing size and type
   result = thrift_read_list_header(&header, buffer, buffer_size);
@@ -924,17 +1008,17 @@ static i64 thrift_dump_list(struct thrift_dump_context *ctx, const char *buffer,
   buffer_size -= result;
 
   // check if the dump function is out of range
-  if (header.type >= THRIFT_FIELD_TYPE_SIZE) return -1;
+  if (header.type >= THRIFT_TYPE_SIZE) return -1;
 
   // check if the dump function is available
   if (dump_fn[header.type] == NULL) return -1;
 
   ctx->intend++;
-  writef(", size=%x, item-type=%s\n%ilist-start", header.size, thrift_type_to_string(header.type), ctx->intend);
+  writef(", size=%d, item-type=%s\n%ilist-start", header.size, thrift_type_to_string(header.type), ctx->intend);
   ctx->intend++;
 
   for (index = 0; index < header.size; index++) {
-    writef("\n%iindex=%x, type=%s", ctx->intend, index, thrift_type_to_string(header.type));
+    writef("\n%iindex=%d, type=%s", ctx->intend, index, thrift_type_to_string(header.type));
 
     // read the list element content and print it
     result = dump_fn[header.type](ctx, buffer, buffer_size);
@@ -955,25 +1039,25 @@ static i64 thrift_dump_list(struct thrift_dump_context *ctx, const char *buffer,
 
 static i64 thrift_dump_field(struct thrift_dump_context *ctx, enum thrift_type field_type, const char *buffer,
                              u64 buffer_size) {
-  thrift_dump_field_fn dump_fn[THRIFT_FIELD_TYPE_SIZE];
+  thrift_dump_field_fn dump_fn[THRIFT_TYPE_SIZE];
 
-  dump_fn[THRIFT_FIELD_STOP] = NULL;
-  dump_fn[THRIFT_FIELD_BOOL_TRUE] = NULL;
-  dump_fn[THRIFT_FIELD_BOOL_FALSE] = NULL;
-  dump_fn[THRIFT_FIELD_I8] = NULL;  // not implemented
-  dump_fn[THRIFT_FIELD_I16] = NULL; // not implemented
-  dump_fn[THRIFT_FIELD_I32] = thrift_dump_i32;
-  dump_fn[THRIFT_FIELD_I64] = thrift_dump_i64;
-  dump_fn[THRIFT_FIELD_DOUBLE] = NULL; // not implemented
-  dump_fn[THRIFT_FIELD_BINARY] = thrift_dump_binary;
-  dump_fn[THRIFT_FIELD_LIST] = thrift_dump_list;
-  dump_fn[THRIFT_FIELD_SET] = NULL; // not implemented
-  dump_fn[THRIFT_FIELD_MAP] = NULL; // not implemented
-  dump_fn[THRIFT_FIELD_STRUCT] = thrift_dump_struct;
-  dump_fn[THRIFT_FIELD_UUID] = NULL; // not implemented
+  dump_fn[THRIFT_TYPE_STOP] = NULL;
+  dump_fn[THRIFT_TYPE_BOOL_TRUE] = thrift_dump_bool_true;
+  dump_fn[THRIFT_TYPE_BOOL_FALSE] = thrift_dump_bool_false;
+  dump_fn[THRIFT_TYPE_I8] = thrift_dump_i8;
+  dump_fn[THRIFT_TYPE_I16] = NULL; // not implemented
+  dump_fn[THRIFT_TYPE_I32] = thrift_dump_i32;
+  dump_fn[THRIFT_TYPE_I64] = thrift_dump_i64;
+  dump_fn[THRIFT_TYPE_DOUBLE] = NULL; // not implemented
+  dump_fn[THRIFT_TYPE_BINARY] = thrift_dump_binary;
+  dump_fn[THRIFT_TYPE_LIST] = thrift_dump_list;
+  dump_fn[THRIFT_TYPE_SET] = NULL; // not implemented
+  dump_fn[THRIFT_TYPE_MAP] = NULL; // not implemented
+  dump_fn[THRIFT_TYPE_STRUCT] = thrift_dump_struct;
+  dump_fn[THRIFT_TYPE_UUID] = NULL; // not implemented
 
   // check if the field type is out of range
-  if (field_type >= THRIFT_FIELD_TYPE_SIZE) return -1;
+  if (field_type >= THRIFT_TYPE_SIZE) return -1;
 
   // check if the dump function is available
   if (dump_fn[field_type] == NULL) return -1;
@@ -1007,12 +1091,12 @@ static i64 thrift_dump_struct(struct thrift_dump_context *ctx, const char *buffe
     buffer_size -= result;
 
     // check if we reached the end of the struct
-    if (header.type == THRIFT_FIELD_STOP) {
-      writef("%ifield=%x, type=%s\n", ctx->intend, header.field, thrift_type_to_string(header.type));
+    if (header.type == THRIFT_TYPE_STOP) {
+      writef("%ifield=%d, type=%s\n", ctx->intend, header.field, thrift_type_to_string(header.type));
       break;
     }
 
-    writef("%ifield=%x, type=%s", ctx->intend, header.field, thrift_type_to_string(header.type));
+    writef("%ifield=%d, type=%s", ctx->intend, header.field, thrift_type_to_string(header.type));
 
     result = thrift_dump_field(ctx, header.type, buffer, buffer_size);
     if (result < 0) return -1;
@@ -1034,6 +1118,7 @@ static i64 thrift_dump_struct(struct thrift_dump_context *ctx, const char *buffe
 
 int thrift_main() {
   i64 result, read;
+  const u64 SIZE = 4 * 4096;
 
   char *buffer;
   u64 buffer_size;
@@ -1045,11 +1130,11 @@ int thrift_main() {
   malloc_init(&pool);
 
   // allocate memory for the input
-  result = malloc(&pool, 4096);
+  result = malloc(&pool, SIZE);
   if (result <= 0) return -1;
 
   buffer = (char *)result;
-  buffer_size = 4096;
+  buffer_size = SIZE;
 
   // initialize the context
   ctx.intend = 0;
@@ -1065,6 +1150,11 @@ int thrift_main() {
     buffer_size -= result;
   } while (result > 0 && buffer_size > 0);
 
+  if (buffer_size == 0) {
+    writef("Error: Input buffer overflow.\n");
+    return -1;
+  }
+
   // rewind the buffer
   buffer -= read;
   buffer_size = read;
@@ -1076,7 +1166,12 @@ int thrift_main() {
 
   writef("\n");
 
-  // clean up
+  // free the buffer
+  free(&pool, buffer, SIZE);
+
+  // clean up the memory pool
   malloc_destroy(&pool);
+
+  // success
   return 0;
 }

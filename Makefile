@@ -70,3 +70,15 @@ $(OBJDIR)/%.s.o: $(SRCDIR)/%.s
 .phony: clean
 clean:
 	@rm -rf $(OBJDIR) $(TMPDIR) $(BINDIR)
+
+.phony: thrift-dump-01
+thrift-dump-01: $(THRIFTOUTPUT)
+	@dd if=data/test01.parquet skip=18152 bs=1 count=579 status=none | $(THRIFTOUTPUT) > data/test01.meta
+
+.phony: thrift-dump-02
+thrift-dump-02: $(THRIFTOUTPUT)
+	@dd if=data/test02.parquet skip=5939 bs=1 count=14110 status=none | $(THRIFTOUTPUT) > data/test02.meta
+
+.phony: thrift-dump-03
+thrift-dump-03: $(THRIFTOUTPUT)
+	@dd if=data/test03.parquet skip=3408 bs=1 count=6841 status=none | $(THRIFTOUTPUT) > data/test03.meta

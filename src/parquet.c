@@ -130,7 +130,7 @@ static i64 parquet_metadata_alloc(struct parquet_metadata *metadata, u64 size) {
 static i64 parquet_read_version(struct parquet_metadata *metadata, enum thrift_type field_type,
                                 const char *buffer, u64 buffer_size) {
   // check if the field type is correct
-  if (field_type != THRIFT_FIELD_I32) {
+  if (field_type != THRIFT_TYPE_I32) {
     return -1;
   }
 
@@ -141,7 +141,7 @@ static i64 parquet_read_version(struct parquet_metadata *metadata, enum thrift_t
 static i64 parquet_read_num_rows(struct parquet_metadata *metadata, enum thrift_type field_type,
                                  const char *buffer, u64 buffer_size) {
   // check if the field type is correct
-  if (field_type != THRIFT_FIELD_I64) {
+  if (field_type != THRIFT_TYPE_I64) {
     return -1;
   }
 
@@ -155,7 +155,7 @@ static i64 parquet_read_created_by(struct parquet_metadata *metadata, enum thrif
   u32 size;
 
   // check if the field type is correct
-  if (field_type != THRIFT_FIELD_BINARY) {
+  if (field_type != THRIFT_TYPE_BINARY) {
     return -1;
   }
 
@@ -226,7 +226,7 @@ i64 parquet_parse(struct parquet_file *file) {
     buffer_size -= result;
 
     // check if we reached the end of the struct
-    if (header.type == THRIFT_FIELD_STOP) {
+    if (header.type == THRIFT_TYPE_STOP) {
       break;
     }
 
