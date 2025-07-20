@@ -6,7 +6,7 @@
 #include "typing.h"
 
 struct thrift_dump_context {
-  u32 intend;
+  u32 indent;
 };
 
 typedef i64 (*thrift_ignore_field_fn)(const char *buffer, u64 buffer_size);
@@ -185,7 +185,7 @@ i64 thrift_read_struct_header(struct thrift_struct_header *target, const char *b
   u16 delta, type;
 
   // check if the buffer is large enough
-  if (buffer_size == 0) return -1;
+  if (buffer_size == 0) return THRIFT_ERROR_BUFFER_OVERFLOW;
 
   // extract values from the short notation
   type = *buffer & 0x0f;
@@ -206,7 +206,7 @@ i64 thrift_read_struct_header(struct thrift_struct_header *target, const char *b
   // if delta is zero, follow long notation
   if (delta == 0) {
     result = thrift_read_u16(&delta, buffer, buffer_size);
-    if (result < 0) return -1;
+    if (result < 0) return result;
 
     // move the buffer pointer and size
     read += result;
@@ -215,14 +215,11 @@ i64 thrift_read_struct_header(struct thrift_struct_header *target, const char *b
   }
 
   // if delta is zero, it is invalid
-  if (delta == 0) return -1;
+  if (delta == 0) return THRIFT_ERROR_INVALID_VALUE;
 
   // update the target struct header
   target->field += delta;
   target->type = type;
-
-  // if computed field index is zero, it is invalid
-  if (target->field == 0) return -1;
 
   // success
   return read;
@@ -233,7 +230,7 @@ i64 thrift_read_binary_header(u32 *target, const char *buffer, u64 buffer_size) 
 
   // read the size of the binary data
   result = thrift_read_u32(target, buffer, buffer_size);
-  if (result < 0) return -1;
+  if (result < 0) return result;
 
   // success
   return result;
@@ -243,7 +240,7 @@ i64 thrift_read_binary_content(char *target, u32 size, const char *buffer, u64 b
   u32 index;
 
   // check if the buffer is large enough
-  if (buffer_size < size) return -1;
+  if (buffer_size < size) return THRIFT_ERROR_BUFFER_OVERFLOW;
 
   // copy byte by byte
   if (target) {
@@ -264,7 +261,7 @@ i64 thrift_read_list_header(struct thrift_list_header *target, const char *buffe
   u32 size, type;
 
   // check if the buffer is large enough
-  if (buffer_size == 0) return -1;
+  if (buffer_size == 0) return THRIFT_ERROR_BUFFER_OVERFLOW;
 
   // extract values from the short notation
   type = *buffer & 0x0f;
@@ -278,7 +275,7 @@ i64 thrift_read_list_header(struct thrift_list_header *target, const char *buffe
   // if the size is 0x0f, follow long notation
   if (size == 0x0f) {
     result = thrift_read_u32(&size, buffer, buffer_size);
-    if (result < 0) return -1;
+    if (result < 0) return result;
 
     // move the buffer pointer and size
     read += result;
@@ -296,7 +293,7 @@ i64 thrift_read_list_header(struct thrift_list_header *target, const char *buffe
 
 i64 thrift_read_bool(bool *target, const char *buffer, u64 buffer_size) {
   // check if the buffer is large enough
-  if (buffer_size < 1) return -1;
+  if (buffer_size < 1) return THRIFT_ERROR_BUFFER_OVERFLOW;
 
   // read the bool
   if (target) switch (*buffer) {
@@ -307,7 +304,7 @@ i64 thrift_read_bool(bool *target, const char *buffer, u64 buffer_size) {
         *target = FALSE;
         break;
       default:
-        return -1; // invalid type
+        return THRIFT_ERROR_INVALID_VALUE;
     }
 
   // success
@@ -316,7 +313,7 @@ i64 thrift_read_bool(bool *target, const char *buffer, u64 buffer_size) {
 
 i64 thrift_read_i8(i8 *target, const char *buffer, u64 buffer_size) {
   // check if the buffer is large enough
-  if (buffer_size < 1) return -1;
+  if (buffer_size < 1) return THRIFT_ERROR_BUFFER_OVERFLOW;
 
   // read the byte
   if (target) *target = (i8)*buffer;
@@ -378,12 +375,12 @@ i64 thrift_read_u32(u32 *target, const char *buffer, u64 buffer_size) {
 
   // check if the buffer is too small
   if (next & 0x80) {
-    return -1;
+    return THRIFT_ERROR_BUFFER_OVERFLOW;
   }
 
   // check for the last byte overflow
   if (shift >= 28 && (next & 0xf0)) {
-    return -1;
+    return THRIFT_ERROR_BITS_OVERFLOW;
   }
 
   // success
@@ -429,12 +426,12 @@ i64 thrift_read_i64(i64 *target, const char *buffer, u64 buffer_size) {
 
   // check if the buffer is too small
   if (next & 0x80) {
-    return -1;
+    return THRIFT_ERROR_BUFFER_OVERFLOW;
   }
 
   // check for the last byte overflow
   if (shift >= 56 && (next & 0xf0)) {
-    return -1;
+    return THRIFT_ERROR_BITS_OVERFLOW;
   }
 
   // zigzag to i64
@@ -444,7 +441,7 @@ i64 thrift_read_i64(i64 *target, const char *buffer, u64 buffer_size) {
   return shift / 7;
 }
 
-static void can_read_struct_header_in_short_version() {
+static void can_read_struct_header_short_version() {
   struct thrift_struct_header header;
   const char buffer[] = {0x35, 0x44, 0x00};
   i64 result;
@@ -477,7 +474,18 @@ static void can_read_struct_header_in_short_version() {
   assert(header.type == THRIFT_TYPE_STOP, "should read type THRIFT_TYPE_STOP");
 }
 
-static void can_read_struct_header_in_long_version() {
+static void can_detect_struct_header_short_buffer_overflow() {
+  struct thrift_struct_header header;
+  const char buffer[] = {};
+
+  // read the struct header from the buffer
+  i64 result = thrift_read_struct_header(&header, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
+}
+
+static void can_read_struct_header_long_version() {
   struct thrift_struct_header header;
   const char buffer[] = {0x05, 0x10, 0x04, 0x11, 0x00};
   i64 result;
@@ -510,6 +518,28 @@ static void can_read_struct_header_in_long_version() {
   assert(header.type == THRIFT_TYPE_STOP, "should read type THRIFT_TYPE_STOP");
 }
 
+static void can_detect_struct_header_long_buffer_overflow() {
+  struct thrift_struct_header header;
+  const char buffer[] = {0x05};
+
+  // read the struct header from the buffer
+  i64 result = thrift_read_struct_header(&header, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
+}
+
+static void can_detect_struct_header_long_zero_delta() {
+  struct thrift_struct_header header;
+  const char buffer[] = {0x05, 0x00};
+
+  // read the struct header from the buffer
+  i64 result = thrift_read_struct_header(&header, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_INVALID_VALUE, "should fail with THRIFT_ERROR_INVALID_VALUE for zero delta");
+}
+
 static void can_ignore_struct_content() {
   i64 result;
   const char buffer[] = {0x35, 0x13, 0x44, 0x14, 0x00};
@@ -521,7 +551,96 @@ static void can_ignore_struct_content() {
   assert(result == 5, "should read five bytes");
 }
 
-static void can_read_list_header_in_short_version() {
+static void can_read_binary_header() {
+  u32 size;
+  const char buffer[] = {0x85, 0x01};
+
+  // read the binary header from the buffer
+  i64 result = thrift_read_binary_header(&size, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 2, "should read two bytes");
+  assert(size == 133, "should read size 133");
+}
+
+static void can_detect_binary_header_buffer_overflow() {
+  u32 size;
+  const char buffer[] = {};
+
+  // read the binary header from the buffer
+  i64 result = thrift_read_binary_header(&size, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
+}
+
+static void can_read_binary_content() {
+  char content[] = {0xff, 0xff, 0xff};
+  const char buffer[] = {0x01, 0x02, 0x03};
+
+  // read the binary content
+  i64 result = thrift_read_binary_content(content, 2, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 2, "should read two bytes");
+  assert(content[0] == 0x01, "should read first byte as 0x01");
+  assert(content[1] == 0x02, "should read second byte as 0x02");
+  assert(content[2] == 0x00, "should terminate the buffer with 0x00");
+}
+
+static void can_read_binary_content_buffer_overflow() {
+  char content[] = {0xff, 0xff, 0xff};
+  const char buffer[] = {0x01};
+
+  // read the binary content
+  i64 result = thrift_read_binary_content(content, 2, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
+}
+
+static void can_read_bool() {
+  bool value;
+  const char buffer[] = {0x01, 0x02};
+
+  // read the boolean value from the buffer
+  i64 result = thrift_read_bool(&value, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 1, "should read one byte");
+  assert(value == TRUE, "should read value TRUE");
+
+  // read the boolean value from the buffer
+  result = thrift_read_bool(&value, buffer + 1, sizeof(buffer) - 1);
+
+  // assert the result
+  assert(result == 1, "should read one byte");
+  assert(value == FALSE, "should read value FALSE");
+}
+
+static void can_detect_bool_buffer_overflow() {
+  bool value;
+  const char buffer[] = {};
+
+  // read the boolean value from the buffer
+  i64 result = thrift_read_bool(&value, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
+}
+
+static void can_detect_bool_invalid_value() {
+  bool value;
+  const char buffer[] = {0x03};
+
+  // read the boolean value from the buffer
+  i64 result = thrift_read_bool(&value, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_INVALID_VALUE, "should fail with THRIFT_ERROR_INVALID_VALUE");
+}
+
+static void can_read_list_header_short_version() {
   struct thrift_list_header header;
   const char buffer[] = {0x35};
 
@@ -534,7 +653,18 @@ static void can_read_list_header_in_short_version() {
   assert(header.type == THRIFT_TYPE_I32, "should read type THRIFT_TYPE_I32");
 }
 
-static void can_read_list_header_in_long_version() {
+static void can_detect_list_header_short_buffer_overflow() {
+  struct thrift_list_header header;
+  const char buffer[] = {};
+
+  // read the list header from the buffer
+  i64 result = thrift_read_list_header(&header, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
+}
+
+static void can_read_list_header_long_version() {
   struct thrift_list_header header;
   const char buffer[] = {0xf5, 0x0f};
 
@@ -545,6 +675,52 @@ static void can_read_list_header_in_long_version() {
   assert(result == 2, "should read two bytes");
   assert(header.size == 15, "should read size 15");
   assert(header.type == THRIFT_TYPE_I32, "should read type THRIFT_TYPE_I32");
+}
+
+static void can_detect_list_header_long_buffer_overflow() {
+  struct thrift_list_header header;
+  const char buffer[] = {0xf5};
+
+  // read the list header from the buffer
+  i64 result = thrift_read_list_header(&header, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
+}
+
+static void can_read_i8_positive() {
+  i8 value;
+  const char buffer[] = {0x14};
+
+  // read the i8 value from the buffer
+  i64 result = thrift_read_i8(&value, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 1, "should read one byte");
+  assert(value == 20, "should read value 20");
+}
+
+static void can_read_i8_negative() {
+  i8 value;
+  const char buffer[] = {0xe4};
+
+  // read the i8 value from the buffer
+  i64 result = thrift_read_i8(&value, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 1, "should read one byte");
+  assert(value == -28, "should read value -28");
+}
+
+static void can_detect_i8_buffer_overflow() {
+  i8 value;
+  const char buffer[] = {};
+
+  // read the i8 value from the buffer
+  i64 result = thrift_read_i8(&value, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
 }
 
 static void can_read_single_byte_i32_positive() {
@@ -637,7 +813,7 @@ static void can_detect_i32_bits_overflow() {
   i64 result = thrift_read_i32(&value, buffer, sizeof(buffer));
 
   // assert the result
-  assert(result == -1, "should fail with -1");
+  assert(result == THRIFT_ERROR_BITS_OVERFLOW, "should fail with THRIFT_ERROR_BITS_OVERFLOW");
 }
 
 static void can_detect_i32_buffer_overflow() {
@@ -648,7 +824,7 @@ static void can_detect_i32_buffer_overflow() {
   i64 result = thrift_read_i32(&value, buffer, sizeof(buffer));
 
   // assert the result
-  assert(result == -1, "should fail with -1");
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
 }
 
 static void can_read_single_byte_u32_positive() {
@@ -695,7 +871,7 @@ static void can_detect_u32_bits_overflow() {
   i64 result = thrift_read_u32(&value, buffer, sizeof(buffer));
 
   // assert the result
-  assert(result == -1, "should fail with -1");
+  assert(result == THRIFT_ERROR_BITS_OVERFLOW, "should fail with THRIFT_ERROR_BITS_OVERFLOW");
 }
 
 static void can_detect_u32_buffer_overflow() {
@@ -706,7 +882,7 @@ static void can_detect_u32_buffer_overflow() {
   i64 result = thrift_read_u32(&value, buffer, sizeof(buffer));
 
   // assert the result
-  assert(result == -1, "should fail with -1");
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
 }
 
 static void can_read_single_byte_i64_positive() {
@@ -789,7 +965,7 @@ static void can_detect_i64_bits_overflow() {
   i64 result = thrift_read_i64(&value, buffer, sizeof(buffer));
 
   // assert the result
-  assert(result == -1, "should fail with -1");
+  assert(result == THRIFT_ERROR_BITS_OVERFLOW, "should fail with THRIFT_ERROR_BITS_OVERFLOW");
 }
 
 static void can_detect_i64_buffer_overflow() {
@@ -800,18 +976,39 @@ static void can_detect_i64_buffer_overflow() {
   i64 result = thrift_read_i64(&value, buffer, sizeof(buffer));
 
   // assert the result
-  assert(result == -1, "should fail with -1");
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
 }
 
 void thrift_test_cases(struct runner_context *ctx) {
   // list cases
-  test_case(ctx, "can read list header in short version", can_read_list_header_in_short_version);
-  test_case(ctx, "can read list header in long version", can_read_list_header_in_long_version);
+  test_case(ctx, "can read list header short version", can_read_list_header_short_version);
+  test_case(ctx, "can detect list header short buffer overflow", can_detect_list_header_short_buffer_overflow);
+  test_case(ctx, "can read list header long version", can_read_list_header_long_version);
+  test_case(ctx, "can detect list header long buffer overflow", can_detect_list_header_long_buffer_overflow);
 
   // struct cases
-  test_case(ctx, "can read struct header in short version", can_read_struct_header_in_short_version);
-  test_case(ctx, "can read struct header in long version", can_read_struct_header_in_long_version);
+  test_case(ctx, "can read struct header short version", can_read_struct_header_short_version);
+  test_case(ctx, "can detect struct header short buffer overflow", can_detect_struct_header_short_buffer_overflow);
+  test_case(ctx, "can read struct header long version", can_read_struct_header_long_version);
+  test_case(ctx, "can detect struct header long buffer overflow", can_detect_struct_header_long_buffer_overflow);
+  test_case(ctx, "can detect struct header long zero delta", can_detect_struct_header_long_zero_delta);
   test_case(ctx, "can ignore struct content", can_ignore_struct_content);
+
+  // binary cases
+  test_case(ctx, "can read binary header", can_read_binary_header);
+  test_case(ctx, "can detect binary header buffer overflow", can_detect_binary_header_buffer_overflow);
+  test_case(ctx, "can read binary content", can_read_binary_content);
+  test_case(ctx, "can read binary content buffer overflow", can_read_binary_content_buffer_overflow);
+
+  // bool cases
+  test_case(ctx, "can read bool", can_read_bool);
+  test_case(ctx, "can detect bool buffer overflow", can_detect_bool_buffer_overflow);
+  test_case(ctx, "can detect bool invalid value", can_detect_bool_invalid_value);
+
+  // i8 cases
+  test_case(ctx, "can read i8 positive", can_read_i8_positive);
+  test_case(ctx, "can read i8 negative", can_read_i8_negative);
+  test_case(ctx, "can detect i8 buffer overflow", can_detect_i8_buffer_overflow);
 
   // i32 cases
   test_case(ctx, "can read single-byte i32 positive", can_read_single_byte_i32_positive);
@@ -875,6 +1072,21 @@ static i64 thrift_dump_i8(struct thrift_dump_context *, const char *buffer, u64 
 
   // read the i8 value from the buffer
   result = thrift_read_i8(&value, buffer, buffer_size);
+  if (result < 0) return result;
+
+  // print the value
+  writef(", value=%d", value);
+
+  // success
+  return result;
+}
+
+static i64 thrift_dump_i16(struct thrift_dump_context *, const char *buffer, u64 buffer_size) {
+  i16 value;
+  i64 result;
+
+  // read the i16 value from the buffer
+  result = thrift_read_i16(&value, buffer, buffer_size);
   if (result < 0) return result;
 
   // print the value
@@ -987,7 +1199,7 @@ static i64 thrift_dump_list(struct thrift_dump_context *ctx, const char *buffer,
   dump_fn[THRIFT_TYPE_BOOL_TRUE] = thrift_dump_bool;
   dump_fn[THRIFT_TYPE_BOOL_FALSE] = thrift_dump_bool;
   dump_fn[THRIFT_TYPE_I8] = thrift_dump_i8;
-  dump_fn[THRIFT_TYPE_I16] = NULL; // not implemented
+  dump_fn[THRIFT_TYPE_I16] = thrift_dump_i16;
   dump_fn[THRIFT_TYPE_I32] = thrift_dump_i32;
   dump_fn[THRIFT_TYPE_I64] = thrift_dump_i64;
   dump_fn[THRIFT_TYPE_DOUBLE] = NULL; // not implemented
@@ -1013,12 +1225,12 @@ static i64 thrift_dump_list(struct thrift_dump_context *ctx, const char *buffer,
   // check if the dump function is available
   if (dump_fn[header.type] == NULL) return -1;
 
-  ctx->intend++;
-  writef(", size=%d, item-type=%s\n%ilist-start", header.size, thrift_type_to_string(header.type), ctx->intend);
-  ctx->intend++;
+  ctx->indent++;
+  writef(", size=%d, item-type=%s\n%ilist-start", header.size, thrift_type_to_string(header.type), ctx->indent);
+  ctx->indent++;
 
   for (index = 0; index < header.size; index++) {
-    writef("\n%iindex=%d, type=%s", ctx->intend, index, thrift_type_to_string(header.type));
+    writef("\n%iindex=%d, type=%s", ctx->indent, index, thrift_type_to_string(header.type));
 
     // read the list element content and print it
     result = dump_fn[header.type](ctx, buffer, buffer_size);
@@ -1030,9 +1242,9 @@ static i64 thrift_dump_list(struct thrift_dump_context *ctx, const char *buffer,
     buffer_size -= result;
   }
 
-  ctx->intend--;
-  writef("\n%ilist-end", ctx->intend);
-  ctx->intend--;
+  ctx->indent--;
+  writef("\n%ilist-end", ctx->indent);
+  ctx->indent--;
 
   return read;
 }
@@ -1045,7 +1257,7 @@ static i64 thrift_dump_field(struct thrift_dump_context *ctx, enum thrift_type f
   dump_fn[THRIFT_TYPE_BOOL_TRUE] = thrift_dump_bool_true;
   dump_fn[THRIFT_TYPE_BOOL_FALSE] = thrift_dump_bool_false;
   dump_fn[THRIFT_TYPE_I8] = thrift_dump_i8;
-  dump_fn[THRIFT_TYPE_I16] = NULL; // not implemented
+  dump_fn[THRIFT_TYPE_I16] = thrift_dump_i16;
   dump_fn[THRIFT_TYPE_I32] = thrift_dump_i32;
   dump_fn[THRIFT_TYPE_I64] = thrift_dump_i64;
   dump_fn[THRIFT_TYPE_DOUBLE] = NULL; // not implemented
@@ -1072,13 +1284,13 @@ static i64 thrift_dump_struct(struct thrift_dump_context *ctx, const char *buffe
   // default
   read = 0;
 
-  if (ctx->intend > 0) {
+  if (ctx->indent > 0) {
     writef("\n");
   }
 
-  ctx->intend++;
-  writef("%istruct-start\n", ctx->intend);
-  ctx->intend++;
+  ctx->indent++;
+  writef("%istruct-start\n", ctx->indent);
+  ctx->indent++;
 
   while (TRUE) {
     // read the next struct header of the footer
@@ -1092,11 +1304,11 @@ static i64 thrift_dump_struct(struct thrift_dump_context *ctx, const char *buffe
 
     // check if we reached the end of the struct
     if (header.type == THRIFT_TYPE_STOP) {
-      writef("%ifield=%d, type=%s\n", ctx->intend, header.field, thrift_type_to_string(header.type));
+      writef("%ifield=%d, type=%s\n", ctx->indent, header.field, thrift_type_to_string(header.type));
       break;
     }
 
-    writef("%ifield=%d, type=%s", ctx->intend, header.field, thrift_type_to_string(header.type));
+    writef("%ifield=%d, type=%s", ctx->indent, header.field, thrift_type_to_string(header.type));
 
     result = thrift_dump_field(ctx, header.type, buffer, buffer_size);
     if (result < 0) return -1;
@@ -1109,9 +1321,9 @@ static i64 thrift_dump_struct(struct thrift_dump_context *ctx, const char *buffe
     buffer_size -= result;
   }
 
-  ctx->intend--;
-  writef("%istruct-end", ctx->intend);
-  ctx->intend--;
+  ctx->indent--;
+  writef("%istruct-end", ctx->indent);
+  ctx->indent--;
 
   return read;
 }
@@ -1137,7 +1349,7 @@ int thrift_main() {
   buffer_size = SIZE;
 
   // initialize the context
-  ctx.intend = 0;
+  ctx.indent = 0;
 
   do {
     // read data from standard input

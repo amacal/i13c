@@ -21,13 +21,24 @@ enum thrift_type {
   THRIFT_TYPE_SIZE,
 };
 
+enum thrift_error {
+  // indicates that the read would overflow the buffer
+  THRIFT_ERROR_BUFFER_OVERFLOW = -256,
+
+  // indicates that the read would overflow integer bits
+  THRIFT_ERROR_BITS_OVERFLOW = -257,
+
+  // indicates that the read value is invalid, e.g., zero delta
+  THRIFT_ERROR_INVALID_VALUE = -258,
+};
+
 struct thrift_list_header {
-  u32 size;                   // number of elements in the list
+  u32 size;              // number of elements in the list
   enum thrift_type type; // type of the elements in the list
 };
 
 struct thrift_struct_header {
-  u32 field;                    // index of the field in the struct
+  u32 field;             // index of the field in the struct
   enum thrift_type type; // type of the struct
 };
 
