@@ -330,6 +330,9 @@ i64 thrift_read_u16(u16 *target, const char *buffer, u64 buffer_size) {
   result = thrift_read_u32(&value, buffer, buffer_size);
   if (result < 0) return result;
 
+  // check if the value fits into u16
+  if (value > 0xffff) return THRIFT_ERROR_BITS_OVERFLOW;
+
   // convert to u16
   if (target) *target = (u16)value;
 
@@ -723,6 +726,64 @@ static void can_detect_i8_buffer_overflow() {
   assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
 }
 
+static void can_read_single_byte_u16_positive() {
+  u16 value;
+  const char buffer[] = {0x14};
+
+  // read the u16 value from the buffer
+  i64 result = thrift_read_u16(&value, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 1, "should read one byte");
+  assert(value == 20, "should read value 20");
+}
+
+static void can_read_multiple_bytes_u16_positive() {
+  u16 value;
+  const char buffer[] = {0xf2, 0x14};
+
+  // read the u16 value from the buffer
+  i64 result = thrift_read_u16(&value, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 2, "should read two bytes");
+  assert(value == 2674, "should read value 2674");
+}
+
+static void can_handle_max_u16_value() {
+  u16 value;
+  const char buffer[] = {0xff, 0xff, 0x03};
+
+  // read the u16 value from the buffer
+  i64 result = thrift_read_u16(&value, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 3, "should read three bytes");
+  assert(value == 65535, "should read value 65535");
+}
+
+static void can_detect_u16_bits_overflow() {
+  u16 value;
+  const char buffer[] = {0xff, 0xff, 0x07};
+
+  // read the u16 value from the buffer
+  i64 result = thrift_read_u16(&value, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BITS_OVERFLOW, "should fail with THRIFT_ERROR_BITS_OVERFLOW");
+}
+
+static void can_detect_u16_buffer_overflow() {
+  u16 value;
+  const char buffer[] = {0xff, 0xff};
+
+  // read the u16 value from the buffer
+  i64 result = thrift_read_u16(&value, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
+}
+
 static void can_read_single_byte_i32_positive() {
   i32 value;
   const char buffer[] = {0x14};
@@ -1009,6 +1070,13 @@ void thrift_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can read i8 positive", can_read_i8_positive);
   test_case(ctx, "can read i8 negative", can_read_i8_negative);
   test_case(ctx, "can detect i8 buffer overflow", can_detect_i8_buffer_overflow);
+
+  // u16 cases
+  test_case(ctx, "can read single-byte u16 positive", can_read_single_byte_u16_positive);
+  test_case(ctx, "can read multiple bytes u16 positive", can_read_multiple_bytes_u16_positive);
+  test_case(ctx, "can handle max u16 value", can_handle_max_u16_value);
+  test_case(ctx, "can detected u16 bits overflow", can_detect_u16_bits_overflow);
+  test_case(ctx, "can detected u16 buffer overflow", can_detect_u16_buffer_overflow);
 
   // i32 cases
   test_case(ctx, "can read single-byte i32 positive", can_read_single_byte_i32_positive);
