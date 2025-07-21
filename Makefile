@@ -86,3 +86,7 @@ thrift-dump-03: $(THRIFTOUTPUT)
 .phony: thrift-dump-04
 thrift-dump-04: $(THRIFTOUTPUT)
 	@dd if=data/test04.parquet skip=38843 bs=1 count=1160 status=none | $(THRIFTOUTPUT) > data/test04.meta
+
+.phony: thrift-dump-05
+thrift-dump-05: $(THRIFTOUTPUT)
+	@dd if=data/test05.parquet skip=590 bs=1 count=1321 status=none | $(THRIFTOUTPUT) > data/test05.meta
