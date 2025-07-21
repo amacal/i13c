@@ -4,24 +4,23 @@
 #include "typing.h"
 
 struct parquet_metadata {
-  char *buffer;     // the buffer behind metadata storage
-  u64 buffer_size;  // the size
-  u64 buffer_tail;  //
-
   i32 version;      // parquet file version
   i64 num_rows;     // number of rows
   char *created_by; // created by string, optional
 };
 
 struct parquet_file {
-  u32 fd;                            // file descriptor for the parquet file
-  char *buffer;                      // allocated buffer for the footer
-  char *buffer_start;                // pointer to the start of the footer
-  char *buffer_end;                  // pointer to the end of the footer
-  u64 buffer_size;                   // size of the allocated buffer
-  u64 footer_size;                   // size of the footer in bytes
-  struct parquet_metadata *metadata; // metadata of the parquet file
-  struct malloc_pool *pool;          // memory pool for buffer allocation
+  struct malloc_pool *pool; // memory pool for buffer allocation
+  u32 fd;                   // file descriptor for the parquet file
+
+  u64 footer_size;           // size of the footer in bytes
+  char *footer_buffer;       // allocated buffer for the footer
+  u64 footer_buffer_size;    // size of the allocated buffer
+  char *footer_buffer_start; // pointer to the start of the footer
+  char *footer_buffer_end;   // pointer to the end of the footer
+
+  char *metadata_buffer;    // buffer for metadata
+  u64 metadata_buffer_size; // size of the metadata buffer
 };
 
 /// @brief Initializes a parquet file structure.
@@ -41,8 +40,9 @@ extern void parquet_close(struct parquet_file *file);
 
 /// @brief Parses the footer of a parquet file.
 /// @param file Pointer to the parquet_file structure.
+/// @param metadata Pointer to the parquet_metadata structure to fill.
 /// @return 0 on success, or a negative error code on failure.
-extern i64 parquet_parse(struct parquet_file *file);
+extern i64 parquet_parse(struct parquet_file *file, struct parquet_metadata *metadata);
 
 /// @brief Registers parquet test cases.
 /// @param ctx Pointer to the runner_context structure.

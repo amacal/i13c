@@ -6,17 +6,24 @@
 #include "thrift.h"
 #include "typing.h"
 
+struct parquet_parse_context {
+  void *target;    // pointer to the target structure to fill
+  char *buffer;    // the buffer behind metadata storage
+  u64 buffer_size; // the size of the buffer
+  u64 buffer_tail; // the tail of the buffer
+};
+
 void parquet_init(struct parquet_file *file, struct malloc_pool *pool) {
   file->fd = 0;
   file->pool = pool;
 
-  file->buffer = NULL;
-  file->buffer_start = NULL;
-  file->buffer_end = NULL;
-  file->buffer_size = 0;
-  file->footer_size = 0;
+  file->footer_buffer = NULL;
+  file->footer_buffer_start = NULL;
+  file->footer_buffer_end = NULL;
+  file->footer_buffer_size = 0;
 
-  file->metadata = NULL;
+  file->metadata_buffer = NULL;
+  file->metadata_buffer_size = 0;
 }
 
 i64 parquet_open(struct parquet_file *file, const char *path) {
@@ -40,41 +47,43 @@ i64 parquet_open(struct parquet_file *file, const char *path) {
   }
 
   // allocate a buffer for the file content
-  file->buffer_size = 4096;
-  result = malloc(file->pool, file->buffer_size);
+  file->footer_buffer_size = 4096;
+  result = malloc(file->pool, file->footer_buffer_size);
   if (result == 0) goto error_malloc;
-  else file->buffer = (char *)result;
+  else file->footer_buffer = (char *)result;
 
   // adjust buffer pointers
   if (stat.st_size < 4096) {
-    file->buffer_start = file->buffer + 4096 - stat.st_size;
-    file->buffer_end = file->buffer + 4096;
+    file->footer_buffer_start = file->footer_buffer + 4096 - stat.st_size;
+    file->footer_buffer_end = file->footer_buffer + 4096;
   } else {
-    file->buffer_start = file->buffer;
-    file->buffer_end = file->buffer + 4096;
+    file->footer_buffer_start = file->footer_buffer;
+    file->footer_buffer_end = file->footer_buffer + 4096;
   }
 
   completed = 0;
-  remaining = file->buffer_end - file->buffer_start;
+  remaining = file->footer_buffer_end - file->footer_buffer_start;
   offset = stat.st_size - remaining;
 
   // fill the buffer
   while (remaining > 0) {
-    result = sys_pread(file->fd, file->buffer_start + completed, remaining, offset);
+    // read next chunk of the footer
+    result = sys_pread(file->fd, file->footer_buffer_start + completed, remaining, offset);
     if (result < 0) goto error_read;
 
+    // move the offset and completed bytes
     offset += result;
     completed += result;
     remaining -= result;
   }
 
   // recompute buffer boundaries
-  file->footer_size = *(u32 *)(file->buffer_end - 8);
-  file->buffer_end = file->buffer_end - 8;
-  file->buffer_start = file->buffer_end - file->footer_size;
+  file->footer_size = *(u32 *)(file->footer_buffer_end - 8);
+  file->footer_buffer_end = file->footer_buffer_end - 8;
+  file->footer_buffer_start = file->footer_buffer_end - file->footer_size;
 
   // check if the buffer is too small to handle the footer
-  if (file->buffer_start < file->buffer) {
+  if (file->footer_buffer_start < file->footer_buffer) {
     result = -1;
     goto error_read;
   }
@@ -83,9 +92,11 @@ i64 parquet_open(struct parquet_file *file, const char *path) {
   return 0;
 
 error_read:
-  free(file->pool, file->buffer, file->buffer_size);
-  file->buffer = NULL;
-  file->buffer_size = 0;
+  free(file->pool, file->footer_buffer, file->footer_buffer_size);
+  file->footer_buffer = NULL;
+  file->footer_buffer_size = 0;
+  file->footer_buffer_start = NULL;
+  file->footer_buffer_end = NULL;
 
 error_malloc:
 error_stat:
@@ -98,59 +109,73 @@ cleanup:
 
 void parquet_close(struct parquet_file *file) {
   // free the buffer using the pool
-  free(file->pool, file->buffer, file->buffer_size);
-  file->buffer = NULL;
-  file->buffer_size = 0;
+  free(file->pool, file->footer_buffer, file->footer_buffer_size);
+  file->footer_buffer = NULL;
+  file->footer_buffer_size = 0;
+  file->footer_buffer_start = NULL;
+  file->footer_buffer_end = NULL;
 
   // close the file descriptor
   sys_close(file->fd);
   file->fd = 0;
 
-  // free the metadata if it exists
-  if (file->metadata) {
-    free(file->pool, file->metadata->buffer, file->metadata->buffer_size);
-    file->metadata = NULL;
+  // free the metadata buffer, if exists
+  if (file->metadata_buffer) {
+    free(file->pool, file->metadata_buffer, file->metadata_buffer_size);
+    file->metadata_buffer = NULL;
+    file->metadata_buffer_size = 0;
   }
 }
 
-static i64 parquet_metadata_alloc(struct parquet_metadata *metadata, u64 size) {
+static i64 parquet_metadata_alloc(struct parquet_parse_context *ctx, u64 size) {
   u64 offset;
 
   // check if there is enough space
-  if (metadata->buffer_tail + size > metadata->buffer_size) return -1;
+  if (ctx->buffer_tail + size > ctx->buffer_size) return -1;
 
   // move tail
-  offset = metadata->buffer_tail;
-  metadata->buffer_tail += size;
+  offset = ctx->buffer_tail;
+  ctx->buffer_tail += size;
 
   // allocated space
-  return (i64)(metadata->buffer + offset);
+  return (i64)(ctx->buffer + offset);
 }
 
-static i64 parquet_read_version(struct parquet_metadata *metadata, enum thrift_type field_type,
-                                const char *buffer, u64 buffer_size) {
+static i64 parquet_read_version(struct parquet_parse_context *ctx, enum thrift_type field_type, const char *buffer,
+                                u64 buffer_size) {
+  struct parquet_metadata *metadata;
+
+  // target points at the metadata structure
+  metadata = (struct parquet_metadata *)ctx->target;
+
   // check if the field type is correct
   if (field_type != THRIFT_TYPE_I32) {
     return -1;
   }
 
-  writef("Reading parquet file version\n");
+  // read i32 as the parquet version
   return thrift_read_i32(&metadata->version, buffer, buffer_size);
 }
 
-static i64 parquet_read_num_rows(struct parquet_metadata *metadata, enum thrift_type field_type,
-                                 const char *buffer, u64 buffer_size) {
+static i64 parquet_read_num_rows(struct parquet_parse_context *ctx, enum thrift_type field_type, const char *buffer,
+                                 u64 buffer_size) {
+  struct parquet_metadata *metadata;
+
+  // target points at the metadata structure
+  metadata = (struct parquet_metadata *)ctx->target;
+
   // check if the field type is correct
   if (field_type != THRIFT_TYPE_I64) {
     return -1;
   }
 
-  writef("Reading number of rows in parquet file\n");
+  // read i64 as the number of rows
   return thrift_read_i64(&metadata->num_rows, buffer, buffer_size);
 }
 
-static i64 parquet_read_created_by(struct parquet_metadata *metadata, enum thrift_type field_type,
-                                   const char *buffer, u64 buffer_size) {
+static i64 parquet_read_created_by(struct parquet_parse_context *ctx, enum thrift_type field_type, const char *buffer,
+                                   u64 buffer_size) {
+  struct parquet_metadata *metadata;
   i64 result, read;
   u32 size;
 
@@ -169,10 +194,11 @@ static i64 parquet_read_created_by(struct parquet_metadata *metadata, enum thrif
   buffer_size -= result;
 
   // allocate the space for the copy
-  result = parquet_metadata_alloc(metadata, size + 1);
+  result = parquet_metadata_alloc(ctx, size + 1);
   if (result < 0) return result;
 
   // remember allocated memory slice
+  metadata = (struct parquet_metadata *)ctx->target;
   metadata->created_by = (char *)result;
 
   // copy binary content
@@ -183,25 +209,12 @@ static i64 parquet_read_created_by(struct parquet_metadata *metadata, enum thrif
   return read + result;
 }
 
-i64 parquet_parse(struct parquet_file *file) {
-  i64 result;
-  char *buffer;
-  u64 buffer_size;
+static i64 parquet_parse_footer(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size) {
+  i64 result, read;
+  struct thrift_struct_header header;
 
   const u32 FIELDS_SLOTS = 7;
   thrift_read_fn fields[FIELDS_SLOTS];
-
-  struct thrift_struct_header header;
-
-  // allocate memory for the metadata
-  result = malloc(file->pool, 4096);
-  if (result <= 0) return -1;
-
-  // initialize the metadata
-  file->metadata = (struct parquet_metadata *)result;
-  file->metadata->buffer = (char *)result;
-  file->metadata->buffer_size = 4096;
-  file->metadata->buffer_tail = sizeof(struct parquet_metadata);
 
   // prepare the mapping of fields
   fields[1] = (thrift_read_fn)parquet_read_version;    // version
@@ -211,10 +224,9 @@ i64 parquet_parse(struct parquet_file *file) {
   fields[5] = (thrift_read_fn)thrift_ignore_field;     // ignored
   fields[6] = (thrift_read_fn)parquet_read_created_by; // created_by
 
-  // initialize
+  // default
+  read = 0;
   header.field = 0;
-  buffer = file->buffer_start;
-  buffer_size = file->footer_size;
 
   while (TRUE) {
     // read the next struct header of the footer
@@ -234,20 +246,49 @@ i64 parquet_parse(struct parquet_file *file) {
     if (header.field >= FIELDS_SLOTS) {
       result = thrift_ignore_field(NULL, header.type, buffer, buffer_size);
     } else {
-      result = fields[header.field](file->metadata, header.type, buffer, buffer_size);
+      result = fields[header.field](ctx, header.type, buffer, buffer_size);
     }
 
     // perhaps callback failed
     if (result < 0) return result;
 
     // move the buffer pointer and size
+    read += result;
     buffer += result;
     buffer_size -= result;
   }
 
+  // success
+  return read;
+}
+
+i64 parquet_parse(struct parquet_file *file, struct parquet_metadata *metadata) {
+  i64 result;
+  char *buffer;
+  u64 buffer_size;
+  struct parquet_parse_context ctx;
+
+  // allocate memory for the metadata
+  result = malloc(file->pool, file->footer_buffer_size);
+  if (result <= 0) return -1;
+
+  // initialize the context
+  ctx.target = metadata;
+  ctx.buffer = (char *)result;
+  ctx.buffer_size = file->footer_buffer_size;
+  ctx.buffer_tail = 0;
+
+  // initialize
+  buffer = file->footer_buffer_start;
+  buffer_size = file->footer_size;
+
+  // parse the footer as the root structure
+  result = parquet_parse_footer(&ctx, buffer, buffer_size);
+  if (result < 0) return result;
+
   writef("Parquet file metadata left: %x\n", buffer_size);
-  writef("Parquet file version: %x, number of rows: %x\n", file->metadata->version, file->metadata->num_rows);
-  writef("Created by: %s\n", file->metadata->created_by);
+  writef("Parquet file version: %x, number of rows: %x\n", metadata->version, metadata->num_rows);
+  writef("Created by: %s\n", metadata->created_by);
 
   return 0;
 }

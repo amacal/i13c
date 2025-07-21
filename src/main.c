@@ -8,6 +8,7 @@ i32 main() {
 
   struct parquet_file file;
   struct malloc_pool pool;
+  struct parquet_metadata metadata;
 
   malloc_init(&pool);
   parquet_init(&file, &pool);
@@ -15,7 +16,7 @@ i32 main() {
   result = parquet_open(&file, "data/test01.parquet");
   writef("opening parquet file ... %x, %x\n", result, file.fd);
 
-  result = parquet_parse(&file);
+  result = parquet_parse(&file, &metadata);
   writef("parsing parquet file ... %x\n", result);
 
   parquet_close(&file);
