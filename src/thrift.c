@@ -1564,7 +1564,6 @@ static const char *thrift_type_to_string(enum thrift_type type) {
   }
 
   return "unknown";
-
 }
 
 static i64 thrift_dump_list(struct thrift_dump_context *ctx, const char *buffer, u64 buffer_size) {
@@ -1688,7 +1687,10 @@ int thrift_main() {
 
   // allocate memory for the input
   result = malloc(&pool, SIZE);
-  if (result <= 0) return -1;
+  if (result <= 0) {
+    writef("Error: Could not allocate memory for input buffer: %x.\n", result);
+    goto clear_memory_init;
+  }
 
   buffer = (char *)result;
   buffer_size = SIZE;
@@ -1699,7 +1701,10 @@ int thrift_main() {
   do {
     // read data from standard input
     result = stdin_read(buffer, buffer_size);
-    if (result < 0) return -1;
+    if (result < 0) {
+      writef("Error: Could not read data from standard input: %x\n", result);
+      goto clean_memory_alloc;
+    }
 
     // advance the read pointer
     read += result;
@@ -1709,7 +1714,7 @@ int thrift_main() {
 
   if (buffer_size == 0) {
     writef("Error: Buffer would overflow.\n");
-    return -1;
+    goto clean_memory_alloc;
   }
 
   // rewind the buffer
@@ -1719,16 +1724,20 @@ int thrift_main() {
 
   // dump the thrift struct
   result = thrift_dump_struct(&ctx, buffer, buffer_size);
-  if (result < 0) return -1;
-
-  writef("\n");
-
-  // free the buffer
-  free(&pool, buffer, SIZE);
-
-  // clean up the memory pool
-  malloc_destroy(&pool);
+  if (result < 0) {
+    writef("Error: Could not dump thrift struct: %x\n", result);
+    goto clean_memory_alloc;
+  }
 
   // success
-  return 0;
+  writef("\n");
+  result = 0;
+
+clean_memory_alloc:
+  free(&pool, buffer, SIZE);
+
+clear_memory_init:
+  malloc_destroy(&pool);
+
+  return result;
 }
