@@ -237,6 +237,54 @@ i64 thrift_read_struct_header(struct thrift_struct_header *target, const char *b
   target->field += delta;
   target->type = type;
 
+  // if the field index is too large (32767), return an error
+  if (target->field > 0x7fff) return THRIFT_ERROR_BITS_OVERFLOW;
+
+  // success
+  return read;
+}
+
+i64 thrift_read_struct_content(
+  void *target, thrift_read_fn *fields, u32 field_size, const char *buffer, u64 buffer_size) {
+
+  i64 result, read;
+  struct thrift_struct_header header;
+
+  // default
+  read = 0;
+  header.field = 0;
+
+  while (TRUE) {
+    // read the next struct header of the footer
+    result = thrift_read_struct_header(&header, buffer, buffer_size);
+    if (result < 0) return result;
+
+    // move the buffer pointer and size
+    read += result;
+    buffer += result;
+    buffer_size -= result;
+
+    // check if we reached the end of the struct
+    if (header.type == THRIFT_TYPE_STOP) {
+      break;
+    }
+
+    // call the field callback or ignore function
+    if (header.field >= field_size) {
+      result = thrift_ignore_field(NULL, header.type, buffer, buffer_size);
+    } else {
+      result = fields[header.field](target, header.type, buffer, buffer_size);
+    }
+
+    // perhaps callback failed
+    if (result < 0) return result;
+
+    // move the buffer pointer and size
+    read += result;
+    buffer += result;
+    buffer_size -= result;
+  }
+
   // success
   return read;
 }
@@ -557,6 +605,106 @@ static void can_detect_struct_header_long_zero_delta() {
 
   // assert the result
   assert(result == THRIFT_ERROR_INVALID_VALUE, "should fail with THRIFT_ERROR_INVALID_VALUE for zero delta");
+}
+
+static void can_detect_struct_header_long_bit_overflow_01() {
+  struct thrift_struct_header header;
+  const char buffer[] = {0x05, 0xff, 0xff, 0x02};
+
+  // default
+  header.field = 0;
+
+  // read the struct header from the buffer
+  i64 result = thrift_read_struct_header(&header, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BITS_OVERFLOW, "should fail with THRIFT_ERROR_BITS_OVERFLOW");
+}
+
+static void can_detect_struct_header_long_bit_overflow_02() {
+  struct thrift_struct_header header;
+  const char buffer[] = {0x05, 0xff, 0xff, 0x01, 0x05, 0xff, 0x7f};
+
+  // default
+  header.field = 0;
+
+  // read the struct header from the buffer
+  i64 result = thrift_read_struct_header(&header, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 4, "should read four bytes");
+
+  // read the struct header from the buffer
+  result = thrift_read_struct_header(&header, buffer + 4, sizeof(buffer) - 4);
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BITS_OVERFLOW, "should fail with THRIFT_ERROR_BITS_OVERFLOW");
+}
+
+static void can_read_struct_content_empty() {
+  const char buffer[] = {0x00};
+  i64 result, context;
+
+  const u32 FIELDS_SLOTS = 3;
+  thrift_read_fn fields[FIELDS_SLOTS];
+
+  // default
+  context = 0;
+
+  // prepare the mapping of fields
+  fields[1] = (thrift_read_fn)thrift_ignore_field; // ignored
+  fields[2] = (thrift_read_fn)thrift_ignore_field; // ignored
+
+  // read the struct header from the buffer
+  result = thrift_read_struct_content(&context, fields, FIELDS_SLOTS, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 1, "should read one byte");
+  assert(context == 0, "should not change context");
+}
+
+static void can_read_struct_content_one_field() {
+  i64 result, context;
+  const char buffer[] = {0x15, 0x13, 0x00};
+
+  const u32 FIELDS_SLOTS = 3;
+  thrift_read_fn fields[FIELDS_SLOTS];
+
+  // default
+  context = 0;
+
+  // prepare the mapping of fields
+  fields[1] = (thrift_read_fn)thrift_ignore_field; // ignored
+  fields[2] = (thrift_read_fn)thrift_ignore_field; // ignored
+
+  // read the struct header from the buffer
+  result = thrift_read_struct_content(&context, fields, FIELDS_SLOTS, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 3, "should read three bytes");
+  assert(context == 0, "should not change context");
+}
+
+static void can_read_struct_content_two_fields() {
+  i64 result, context;
+  const char buffer[] = {0x15, 0x13, 0x15, 0x14, 0x00};
+
+  const u32 FIELDS_SLOTS = 3;
+  thrift_read_fn fields[FIELDS_SLOTS];
+
+  // default
+  context = 0;
+
+  // prepare the mapping of fields
+  fields[1] = (thrift_read_fn)thrift_ignore_field; // ignored
+  fields[2] = (thrift_read_fn)thrift_ignore_field; // ignored
+
+  // read the struct header from the buffer
+  result = thrift_read_struct_content(&context, fields, FIELDS_SLOTS, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 5, "should read five bytes");
+  assert(context == 0, "should not change context");
 }
 
 static void can_ignore_struct_content() {
@@ -1292,12 +1440,19 @@ void thrift_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can read list header long version", can_read_list_header_long_version);
   test_case(ctx, "can detect list header long buffer overflow", can_detect_list_header_long_buffer_overflow);
 
-  // struct cases
+  // struct header cases
   test_case(ctx, "can read struct header short version", can_read_struct_header_short_version);
   test_case(ctx, "can detect struct header short buffer overflow", can_detect_struct_header_short_buffer_overflow);
   test_case(ctx, "can read struct header long version", can_read_struct_header_long_version);
   test_case(ctx, "can detect struct header long buffer overflow", can_detect_struct_header_long_buffer_overflow);
   test_case(ctx, "can detect struct header long zero delta", can_detect_struct_header_long_zero_delta);
+  test_case(ctx, "can detect struct header long bit overflow 1", can_detect_struct_header_long_bit_overflow_01);
+  test_case(ctx, "can detect struct header long bit overflow 2", can_detect_struct_header_long_bit_overflow_02);
+
+  // struct content cases
+  test_case(ctx, "can read struct content empty", can_read_struct_content_empty);
+  test_case(ctx, "can read struct content one field", can_read_struct_content_one_field);
+  test_case(ctx, "can read struct content two fields", can_read_struct_content_two_fields);
 
   // binary cases
   test_case(ctx, "can read binary header", can_read_binary_header);

@@ -57,6 +57,16 @@ typedef i64 (*thrift_read_fn)(void *target, enum thrift_type field_type, const c
 /// @return The number of bytes read from the buffer, or a negative error code.
 extern i64 thrift_read_struct_header(struct thrift_struct_header *target, const char *buffer, u64 buffer_size);
 
+/// @brief Reads the content of a struct from the buffer.
+/// @param target Pointer to the target struct.
+/// @param fields Pointer to the array of field read functions.
+/// @param field_size Number of fields in the struct.
+/// @param buffer Pointer to the buffer containing the data.
+/// @param buffer_size Size of the buffer.
+/// @return The number of bytes read from the buffer, or a negative error code.
+extern i64
+thrift_read_struct_content(void *target, thrift_read_fn *fields, u32 field_size, const char *buffer, u64 buffer_size);
+
 /// @brief Ignores a field in the struct.
 /// @param target Pointer to the target struct (unused).
 /// @param field_type Type of the field to ignore.

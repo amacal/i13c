@@ -77,7 +77,7 @@ i64 parquet_open(struct parquet_file *file, const char *path) {
     remaining -= result;
   }
 
-  // recompute buffer boundaries
+  // recompute buffer boundaries, next op is properly aligned
   file->footer_size = *(u32 *)(file->footer_buffer_end - 8);
   file->footer_buffer_end = file->footer_buffer_end - 8;
   file->footer_buffer_start = file->footer_buffer_end - file->footer_size;
@@ -255,7 +255,6 @@ static i64 parquet_read_schema_name(struct parquet_parse_context *ctx,
 
 static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size) {
   i64 result, read;
-  struct thrift_struct_header header;
 
   const u32 FIELDS_SLOTS = 5;
   thrift_read_fn fields[FIELDS_SLOTS];
@@ -268,38 +267,15 @@ static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const
 
   // default
   read = 0;
-  header.field = 0;
 
-  while (TRUE) {
-    // read the next struct header of the footer
-    result = thrift_read_struct_header(&header, buffer, buffer_size);
-    if (result < 0) return result;
+  // delegate content reading to the thrift function
+  result = thrift_read_struct_content(ctx, fields, FIELDS_SLOTS, buffer, buffer_size);
+  if (result < 0) return result;
 
-    // move the buffer pointer and size
-    read += result;
-    buffer += result;
-    buffer_size -= result;
-
-    // check if we reached the end of the struct
-    if (header.type == THRIFT_TYPE_STOP) {
-      break;
-    }
-
-    // call the field callback or ignore function
-    if (header.field >= FIELDS_SLOTS) {
-      result = thrift_ignore_field(NULL, header.type, buffer, buffer_size);
-    } else {
-      result = fields[header.field](ctx, header.type, buffer, buffer_size);
-    }
-
-    // perhaps callback failed
-    if (result < 0) return result;
-
-    // move the buffer pointer and size
-    read += result;
-    buffer += result;
-    buffer_size -= result;
-  }
+  // move the buffer pointer and size
+  read += result;
+  buffer += result;
+  buffer_size -= result;
 
   // success
   return read;
@@ -309,13 +285,12 @@ static i64 parquet_parse_schema(struct parquet_parse_context *ctx,
                                 enum thrift_type field_type,
                                 const char *buffer,
                                 u64 buffer_size) {
-  struct parquet_schema_element *schemas;
   struct parquet_parse_context context;
   struct parquet_metadata *metadata;
   struct thrift_list_header header;
 
   i64 result, read;
-  u32 size, index;
+  u32 index;
 
   // check if the field type is correct
   if (field_type != THRIFT_TYPE_LIST) {
@@ -374,7 +349,6 @@ static i64 parquet_parse_schema(struct parquet_parse_context *ctx,
 
 static i64 parquet_parse_footer(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size) {
   i64 result, read;
-  struct thrift_struct_header header;
 
   const u32 FIELDS_SLOTS = 7;
   thrift_read_fn fields[FIELDS_SLOTS];
@@ -389,38 +363,15 @@ static i64 parquet_parse_footer(struct parquet_parse_context *ctx, const char *b
 
   // default
   read = 0;
-  header.field = 0;
 
-  while (TRUE) {
-    // read the next struct header of the footer
-    result = thrift_read_struct_header(&header, buffer, buffer_size);
-    if (result < 0) return result;
+  // delegate content reading to the thrift function
+  result = thrift_read_struct_content(ctx, fields, FIELDS_SLOTS, buffer, buffer_size);
+  if (result < 0) return result;
 
-    // move the buffer pointer and size
-    read += result;
-    buffer += result;
-    buffer_size -= result;
-
-    // check if we reached the end of the struct
-    if (header.type == THRIFT_TYPE_STOP) {
-      break;
-    }
-
-    // call the field callback or ignore function
-    if (header.field >= FIELDS_SLOTS) {
-      result = thrift_ignore_field(NULL, header.type, buffer, buffer_size);
-    } else {
-      result = fields[header.field](ctx, header.type, buffer, buffer_size);
-    }
-
-    // perhaps callback failed
-    if (result < 0) return result;
-
-    // move the buffer pointer and size
-    read += result;
-    buffer += result;
-    buffer_size -= result;
-  }
+  // move the buffer pointer and size
+  read += result;
+  buffer += result;
+  buffer_size -= result;
 
   // success
   return read;
