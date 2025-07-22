@@ -1863,7 +1863,6 @@ int thrift_main() {
     }
 
     // advance the read pointer
-    read += result;
     buffer += result;
     buffer_size -= result;
   } while (result > 0 && buffer_size > 0);

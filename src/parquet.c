@@ -526,6 +526,10 @@ i64 parquet_parse(struct parquet_file *file, struct parquet_metadata *metadata) 
   ctx.buffer_size = file->footer_buffer_size;
   ctx.buffer_tail = 0;
 
+  // remember the metadata buffer
+  file->metadata_buffer = ctx.buffer;
+  file->metadata_buffer_size = file->footer_buffer_size;
+
   // initialize
   buffer = file->footer_buffer_start;
   buffer_size = file->footer_size;
