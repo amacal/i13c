@@ -27,8 +27,8 @@ i32 main() {
   }
 
   for (index = 0; index < metadata.schemas_size; index++) {
-    writef("Schema element %d: name=%s, type=%d, num_children=%d\n", index, metadata.schemas[index].name,
-           metadata.schemas[index].type, metadata.schemas[index].num_children);
+    writef("Schema element %d: name=%s, type=%d, converted_type=%d\n", index, metadata.schemas[index].name,
+           (i64)metadata.schemas[index].type, (i64)metadata.schemas[index].converted_type);
   }
 
   parquet_close(&file);

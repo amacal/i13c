@@ -14,7 +14,7 @@
 #define SUBSTITUTION_ASCII_FALLBACK 0x2e
 
 #define SUBSTITUTION_DECIMAL 'd'
-#define SUBSTITUTION_DECIMAL_LEN 20
+#define SUBSTITUTION_DECIMAL_LEN 21
 #define SUBSTITUTION_DECIMAL_ALPHABET "0123456789"
 #define SUBSTITUTION_DECIMAL_ALPHABET_LEN 10
 
@@ -54,18 +54,26 @@ static void substitute_intend(u64 *offset, char *buffer, u64 intend) {
   }
 }
 
-static void substitute_decimal(u64 *offset, char *buffer, u64 value) {
+static void substitute_decimal(u64 *offset, char *buffer, i64 value) {
   i32 index;
+  i64 value_abs;
+
   char tmp[SUBSTITUTION_DECIMAL_LEN];
   const char *chars = SUBSTITUTION_DECIMAL_ALPHABET;
 
   // default
   index = 0;
+  value_abs = value < 0 ? -value : value;
+
+  // if the value is negative, add a minus sign
+  if (value < 0 && *offset < SUBSTITUTION_BUFFER_SIZE) {
+    buffer[(*offset)++] = '-';
+  }
 
   // extract digit by digit
-  while (value > 0 && *offset < SUBSTITUTION_BUFFER_SIZE) {
-    tmp[index++] = chars[value % SUBSTITUTION_DECIMAL_ALPHABET_LEN];
-    value /= SUBSTITUTION_DECIMAL_ALPHABET_LEN;
+  while (value_abs > 0 && *offset < SUBSTITUTION_BUFFER_SIZE) {
+    tmp[index++] = chars[value_abs % SUBSTITUTION_DECIMAL_ALPHABET_LEN];
+    value_abs /= SUBSTITUTION_DECIMAL_ALPHABET_LEN;
   }
 
   // if no digits were extracted, add a zero
@@ -139,7 +147,7 @@ void writef(const char *fmt, ...) {
           substitute_intend(&buffer_offset, buffer, (u64)vargs[vargs_offset++]);
           break;
         case SUBSTITUTION_DECIMAL:
-          substitute_decimal(&buffer_offset, buffer, (u64)vargs[vargs_offset++]);
+          substitute_decimal(&buffer_offset, buffer, (i64)vargs[vargs_offset++]);
           break;
         case SUBSTITUTION_ASCII:
           substitute_ascii(&buffer_offset, buffer, (const char *)vargs[vargs_offset], (u64)vargs[vargs_offset + 1]);

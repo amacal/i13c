@@ -130,6 +130,9 @@ void parquet_close(struct parquet_file *file) {
 static i64 parquet_metadata_alloc(struct parquet_parse_context *ctx, u64 size) {
   u64 offset;
 
+  // align to next 8 bytes
+  size = (size + 7) & ~7;
+
   // check if there is enough space
   if (ctx->buffer_tail + size > ctx->buffer_size) return -1;
 
@@ -215,6 +218,36 @@ static i64 parquet_read_created_by(struct parquet_parse_context *ctx,
   return read + result;
 }
 
+static i64 parquet_read_schema_type(struct parquet_parse_context *ctx,
+                                    enum thrift_type field_type,
+                                    const char *buffer,
+                                    u64 buffer_size) {
+  struct parquet_schema_element *schema;
+  i64 result;
+  i32 value;
+
+  // check if the field type is correct
+  if (field_type != THRIFT_TYPE_I32) {
+    return -1;
+  }
+
+  // read the schema type as an i32
+  result = thrift_read_i32(&value, buffer, buffer_size);
+  if (result < 0) return result;
+
+  // check if the value is within the valid range
+  if (value < 0 || value >= PARQUET_SCHEMA_TYPE_SIZE) {
+    return -1;
+  }
+
+  // remember allocated memory slice
+  schema = (struct parquet_schema_element *)ctx->target;
+  schema->type = (enum parquet_schema_type)value;
+
+  // success
+  return result;
+}
+
 static i64 parquet_read_schema_name(struct parquet_parse_context *ctx,
                                     enum thrift_type field_type,
                                     const char *buffer,
@@ -253,17 +286,58 @@ static i64 parquet_read_schema_name(struct parquet_parse_context *ctx,
   return read + result;
 }
 
+static i64 parquet_read_converted_type(struct parquet_parse_context *ctx,
+                                       enum thrift_type field_type,
+                                       const char *buffer,
+                                       u64 buffer_size) {
+  struct parquet_schema_element *schema;
+  i64 result;
+  i32 value;
+
+  // check if the field type is correct
+  if (field_type != THRIFT_TYPE_I32) {
+    return -1;
+  }
+
+  // read the schema type as an i32
+  result = thrift_read_i32(&value, buffer, buffer_size);
+  if (result < 0) return result;
+
+  // check if the value is within the valid range
+  if (value < 0 || value >= PARQUET_CONVERTED_TYPE_SIZE) {
+    return -1;
+  }
+
+  // remember allocated memory slice
+  schema = (struct parquet_schema_element *)ctx->target;
+  schema->converted_type = (enum parquet_converted_type)value;
+
+  // success
+  return result;
+}
+
 static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size) {
   i64 result, read;
+  struct parquet_schema_element *schema;
 
-  const u32 FIELDS_SLOTS = 5;
+  const u32 FIELDS_SLOTS = 7;
   thrift_read_fn fields[FIELDS_SLOTS];
 
   // prepare the mapping of fields
-  fields[1] = (thrift_read_fn)thrift_ignore_field;      // ignored
-  fields[2] = (thrift_read_fn)thrift_ignore_field;      // ignored
-  fields[3] = (thrift_read_fn)thrift_ignore_field;      // ignored
-  fields[4] = (thrift_read_fn)parquet_read_schema_name; // ignored
+  fields[1] = (thrift_read_fn)parquet_read_schema_type;    // ignored
+  fields[2] = (thrift_read_fn)thrift_ignore_field;         // ignored
+  fields[3] = (thrift_read_fn)thrift_ignore_field;         // ignored
+  fields[4] = (thrift_read_fn)parquet_read_schema_name;    // ignored
+  fields[5] = (thrift_read_fn)thrift_ignore_field;         // ignored
+  fields[6] = (thrift_read_fn)parquet_read_converted_type; // ignored
+
+  // get schema
+  schema = (struct parquet_schema_element *)ctx->target;
+  schema->type = -1;
+  schema->type_length = -1;
+  schema->name = NULL;
+  schema->num_children = -1;
+  schema->converted_type = -1;
 
   // default
   read = 0;

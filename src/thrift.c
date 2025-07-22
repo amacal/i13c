@@ -1775,6 +1775,7 @@ static i64 thrift_dump_struct(struct thrift_dump_context *ctx, const char *buffe
 
   // default
   read = 0;
+  header.field = 0;
 
   if (ctx->indent > 0) {
     writef("\n");
