@@ -5,6 +5,7 @@
 
 i32 main() {
   i64 result;
+  u32 index;
 
   struct parquet_file file;
   struct malloc_pool pool;
@@ -18,6 +19,17 @@ i32 main() {
 
   result = parquet_parse(&file, &metadata);
   writef("parsing parquet file ... %x\n", result);
+
+  writef("Parquet file version: %d, number of rows: %d\n", metadata.version, metadata.num_rows);
+
+  if (metadata.created_by) {
+    writef("Created by: %s\n", metadata.created_by);
+  }
+
+  for (index = 0; index < metadata.schemas_size; index++) {
+    writef("Schema element %d: name=%s, type=%d, num_children=%d\n", index, metadata.schemas[index].name,
+           metadata.schemas[index].type, metadata.schemas[index].num_children);
+  }
 
   parquet_close(&file);
   malloc_destroy(&pool);

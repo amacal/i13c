@@ -2,6 +2,7 @@ AllowShortIfStatementsOnASingleLine: AllIfsAndElse
 AllowShortIfElseStatementsOnASingleLine: Always
 
 AllowShortFunctionsOnASingleLine: false
+BinPackParameters: false
 ColumnLimit: 120
 ContinuationIndentWidth: 2
 IndentCaseLabels: true

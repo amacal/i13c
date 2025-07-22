@@ -3,10 +3,42 @@
 #include "malloc.h"
 #include "typing.h"
 
+enum parquet_schema_type {
+  PARQUET_SCHEMA_TYPE_BOOLEAN = 1,
+  PARQUET_SCHEMA_TYPE_INT32 = 0,
+  PARQUET_SCHEMA_TYPE_INT64 = 1,
+  PARQUET_SCHEMA_TYPE_INT96 = 2,
+  PARQUET_SCHEMA_TYPE_FLOAT = 3,
+  PARQUET_SCHEMA_TYPE_DOUBLE = 4,
+  PARQUET_SCHEMA_TYPE_BYTE_ARRAY = 5,
+  PARQUET_SCHEMA_TYPE_BYTE_ARRAY_FIXED = 6,
+  PARQUET_SCHEMA_TYPE_SIZE,
+};
+
+enum parquet_converted_type {
+  PARQUET_CONVERTED_TYPE_UTF8 = 1,
+  PARQUET_CONVERTED_TYPE_MAP = 2,
+  PARQUET_CONVERTED_TYPE_MAP_KEY_VALUE = 3,
+  PARQUET_CONVERTED_TYPE_LIST = 4,
+  PARQUET_CONVERTED_TYPE_SIZE,
+};
+
+struct parquet_schema_element {
+  char *name;       // name of the schema element
+  i32 num_children; // number of children in the schema
+  i32 type_length;  // if type is FIXED_BYTE_ARRAY, this is the length of the array
+
+  enum parquet_schema_type type;              // data type for this field, set only in leaf-node
+  enum parquet_converted_type converted_type; // the original type to help with cross conversion
+};
+
 struct parquet_metadata {
   i32 version;      // parquet file version
   i64 num_rows;     // number of rows
   char *created_by; // created by string, optional
+
+  struct parquet_schema_element *schemas; // array of schema elements
+  u32 schemas_size;                       // size of the schemas array
 };
 
 struct parquet_file {
