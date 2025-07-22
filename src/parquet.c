@@ -248,6 +248,36 @@ static i64 parquet_read_schema_type(struct parquet_parse_context *ctx,
   return result;
 }
 
+static i64 parquet_read_repetition_type(struct parquet_parse_context *ctx,
+                                        enum thrift_type field_type,
+                                        const char *buffer,
+                                        u64 buffer_size) {
+  struct parquet_schema_element *schema;
+  i64 result;
+  i32 value;
+
+  // check if the field type is correct
+  if (field_type != THRIFT_TYPE_I32) {
+    return -1;
+  }
+
+  // read the repetition type as an i32
+  result = thrift_read_i32(&value, buffer, buffer_size);
+  if (result < 0) return result;
+
+  // check if the value is within the valid range
+  if (value < 0 || value >= PARQUET_REPETITION_TYPE_SIZE) {
+    return -1;
+  }
+
+  // remember allocated memory slice
+  schema = (struct parquet_schema_element *)ctx->target;
+  schema->repetition_type = (enum parquet_repetition_type)value;
+
+  // success
+  return result;
+}
+
 static i64 parquet_read_schema_name(struct parquet_parse_context *ctx,
                                     enum thrift_type field_type,
                                     const char *buffer,
@@ -284,6 +314,34 @@ static i64 parquet_read_schema_name(struct parquet_parse_context *ctx,
 
   // successs
   return read + result;
+}
+
+static i64 parquet_read_num_children(struct parquet_parse_context *ctx,
+                                     enum thrift_type field_type,
+                                     const char *buffer,
+                                     u64 buffer_size) {
+  struct parquet_schema_element *schema;
+  i64 result;
+  i32 value;
+
+  // check if the field type is correct
+  if (field_type != THRIFT_TYPE_I32) {
+    return -1;
+  }
+
+  // read the number of children as an i32
+  result = thrift_read_i32(&value, buffer, buffer_size);
+  if (result < 0) return result;
+
+  // check if the value is within the valid range
+  if (value < 0) return -1;
+
+  // remember allocated memory slice
+  schema = (struct parquet_schema_element *)ctx->target;
+  schema->num_children = value;
+
+  // success
+  return result;
 }
 
 static i64 parquet_read_converted_type(struct parquet_parse_context *ctx,
@@ -324,17 +382,18 @@ static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const
   thrift_read_fn fields[FIELDS_SLOTS];
 
   // prepare the mapping of fields
-  fields[1] = (thrift_read_fn)parquet_read_schema_type;    // ignored
-  fields[2] = (thrift_read_fn)thrift_ignore_field;         // ignored
-  fields[3] = (thrift_read_fn)thrift_ignore_field;         // ignored
-  fields[4] = (thrift_read_fn)parquet_read_schema_name;    // ignored
-  fields[5] = (thrift_read_fn)thrift_ignore_field;         // ignored
-  fields[6] = (thrift_read_fn)parquet_read_converted_type; // ignored
+  fields[1] = (thrift_read_fn)parquet_read_schema_type;     // schema_type
+  fields[2] = (thrift_read_fn)thrift_ignore_field;          // ignored
+  fields[3] = (thrift_read_fn)parquet_read_repetition_type; // repetition_type
+  fields[4] = (thrift_read_fn)parquet_read_schema_name;     // schema_name
+  fields[5] = (thrift_read_fn)parquet_read_num_children;    // num_children
+  fields[6] = (thrift_read_fn)parquet_read_converted_type;  // converted_type
 
   // get schema
   schema = (struct parquet_schema_element *)ctx->target;
   schema->type = -1;
   schema->type_length = -1;
+  schema->repetition_type = -1;
   schema->name = NULL;
   schema->num_children = -1;
   schema->converted_type = -1;

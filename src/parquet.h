@@ -15,6 +15,13 @@ enum parquet_schema_type {
   PARQUET_SCHEMA_TYPE_SIZE,
 };
 
+enum parquet_repetition_type {
+  PARQUET_REPETITION_TYPE_REQUIRED = 0,
+  PARQUET_REPETITION_TYPE_OPTIONAL = 1,
+  PARQUET_REPETITION_TYPE_REPEATED = 2,
+  PARQUET_REPETITION_TYPE_SIZE,
+};
+
 enum parquet_converted_type {
   PARQUET_CONVERTED_TYPE_UTF8 = 0,
   PARQUET_CONVERTED_TYPE_MAP = 1,
@@ -46,8 +53,9 @@ struct parquet_schema_element {
   i32 num_children; // number of children in the schema
   i32 type_length;  // if type is FIXED_BYTE_ARRAY, this is the length of the array
 
-  i8 type;           // data type for this field, set only in leaf-node
-  i8 converted_type; // common types used by frameworks using parquet
+  i8 type;            // data type for this field, set only in leaf-node
+  i8 repetition_type; // repetition of the field, not set in the root-node
+  i8 converted_type;  // common types used by frameworks using parquet
 };
 
 struct parquet_metadata {
