@@ -44,7 +44,9 @@ OBJS_TEST   := $(patsubst $(SRCDIR)/%.c, $(OBJDIR_TESTS)/%.c.o, $(SRCS_C)) \
 OBJS_THRIFT := $(patsubst $(SRCDIR)/%.c, $(OBJDIR_THRIFT)/%.c.o, $(SRCS_C)) \
                $(patsubst $(SRCDIR)/%.s, $(OBJDIR_THRIFT)/%.s.o, $(SRCS_ASM))
 
--include $(OBJS:.o=.d)
+-include $(OBJS_MAIN:.o=.d)
+-include $(OBJS_TEST:.o=.d)
+-include $(OBJS_THRIFT:.o=.d)
 
 $(BINOUTPUT): $(OBJDIR_MAIN)/main.s.o $(OBJS_MAIN)
 	@mkdir -p bin
@@ -82,45 +84,45 @@ $(OBJDIR_THRIFT)/%.s.o: $(SRCDIR)/%.s
 	@mkdir -p $(dir $@)
 	@$(NASM) $(NASMFLAGS_THRIFT) $< -o $@
 
-.phony: clean
+.PHONY: clean
 clean:
 	@rm -rf $(OBJDIR_MAIN) $(OBJDIR_TESTS) $(OBJDIR_THRIFT) $(TMPDIR) $(BINDIR)
 
-.phony: build
+.PHONY: build
 build: $(BINOUTPUT) $(TESTOUTPUT) $(THRIFTOUTPUT)
 
-.phony: run
+.PHONY: run
 run: $(BINOUTPUT)
 	@$(BINOUTPUT)
 
-.phony: test
+.PHONY: test
 test: $(TESTOUTPUT)
 	@$(TESTOUTPUT)
 
-.phony: thrift
+.PHONY: thrift
 thrift: $(THRIFTOUTPUT)
 	@$(THRIFTOUTPUT)
 
-.phony: debug
+.PHONY: debug
 debug: $(BINOUTPUT)
 	@edb --run $(BINOUTPUT) 2> /dev/null
 
-.phony: thrift-dump-01
+.PHONY: thrift-dump-01
 thrift-dump-01: $(THRIFTOUTPUT)
 	@dd if=data/test01.parquet skip=18152 bs=1 count=579 status=none | $(THRIFTOUTPUT) > data/test01.thrift
 
-.phony: thrift-dump-02
+.PHONY: thrift-dump-02
 thrift-dump-02: $(THRIFTOUTPUT)
 	@dd if=data/test02.parquet skip=5939 bs=1 count=14110 status=none | $(THRIFTOUTPUT) > data/test02.thrift
 
-.phony: thrift-dump-03
+.PHONY: thrift-dump-03
 thrift-dump-03: $(THRIFTOUTPUT)
 	@dd if=data/test03.parquet skip=3408 bs=1 count=6841 status=none | $(THRIFTOUTPUT) > data/test03.thrift
 
-.phony: thrift-dump-04
+.PHONY: thrift-dump-04
 thrift-dump-04: $(THRIFTOUTPUT)
 	@dd if=data/test04.parquet skip=38843 bs=1 count=1160 status=none | $(THRIFTOUTPUT) > data/test04.thrift
 
-.phony: thrift-dump-05
+.PHONY: thrift-dump-05
 thrift-dump-05: $(THRIFTOUTPUT)
 	@dd if=data/test05.parquet skip=590 bs=1 count=1321 status=none | $(THRIFTOUTPUT) > data/test05.thrift
