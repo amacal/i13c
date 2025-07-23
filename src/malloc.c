@@ -74,6 +74,8 @@ void free(struct malloc_pool *pool, void *ptr, u64 size) {
   pool->slots[index] = slot;
 }
 
+#if defined(I13C_TESTS)
+
 static void can_init_and_destroy_pool() {
   struct malloc_pool pool;
 
@@ -146,3 +148,5 @@ void malloc_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can allocate and free memory", can_allocate_and_free_memory);
   test_case(ctx, "can reuse deallocated slot", can_reuse_deallocated_slot);
 }
+
+#endif

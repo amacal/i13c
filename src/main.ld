@@ -3,9 +3,9 @@ SECTIONS
     ENTRY(_main)
     . = 0x400000;
 
-    .text 0x400000 : { *(.text) }
-    .rodata 0x500000 : { *(.rodata) }
-    .data 0x600000 : { *(.data) }
+    .text 0x400000 : { *(.text .text.*) }
+    .rodata 0x500000 : { *(.rodata .rodata.*) }
+    .data 0x600000 : { *(.data .data.*) }
     .bss 0x700000 : { *(.bss) *(COMMON) }
 
     /DISCARD/ : {
@@ -13,5 +13,6 @@ SECTIONS
         *(.note*)
         *(.eh_frame*)
         *(.eh_frame_hdr*)
+        *(.debug*)
     }
 }

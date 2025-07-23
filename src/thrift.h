@@ -146,6 +146,10 @@ extern i64 thrift_read_i32(i32 *target, const char *buffer, u64 buffer_size);
 /// @return The number of bytes read from the buffer, or a negative error code.
 extern i64 thrift_read_i64(i64 *target, const char *buffer, u64 buffer_size);
 
+#if defined(I13C_TESTS)
+
 /// @brief Registers thrift test cases.
 /// @param ctx Pointer to the runner_context structure.
 extern void thrift_test_cases(struct runner_context *ctx);
+
+#endif

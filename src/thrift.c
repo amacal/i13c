@@ -508,6 +508,8 @@ i64 thrift_read_i64(i64 *target, const char *buffer, u64 buffer_size) {
   return shift / 7;
 }
 
+#if defined(I13C_TESTS)
+
 static void can_read_struct_header_short_version() {
   struct thrift_struct_header header;
   const char buffer[] = {0x35, 0x44, 0x00};
@@ -1532,6 +1534,10 @@ void thrift_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can ignore i64 value", can_ignore_i64_value);
 }
 
+#endif
+
+#if defined(I13C_THRIFT) || defined(I13C_TESTS)
+
 struct thrift_dump_context {
   u32 indent; // current indentation level
 };
@@ -1848,6 +1854,7 @@ int thrift_main() {
     goto clear_memory_init;
   }
 
+  read = 0;
   buffer = (char *)result;
   buffer_size = SIZE;
 
@@ -1858,11 +1865,12 @@ int thrift_main() {
     // read data from standard input
     result = stdin_read(buffer, buffer_size);
     if (result < 0) {
-      writef("Error: Could not read data from standard input: %x\n", result);
+      writef("Error: Could not read data from standard input: %d\n", result);
       goto clean_memory_alloc;
     }
 
     // advance the read pointer
+    read += result;
     buffer += result;
     buffer_size -= result;
   } while (result > 0 && buffer_size > 0);
@@ -1880,7 +1888,7 @@ int thrift_main() {
   // dump the thrift struct
   result = thrift_dump_struct(&ctx, buffer, buffer_size);
   if (result < 0) {
-    writef("Error: Could not dump thrift struct: %x\n", result);
+    writef("Error: Could not dump thrift struct: %d\n", result);
     goto clean_memory_alloc;
   }
 
@@ -1896,3 +1904,5 @@ clear_memory_init:
 
   return result;
 }
+
+#endif

@@ -545,6 +545,8 @@ i64 parquet_parse(struct parquet_file *file, struct parquet_metadata *metadata) 
   return 0;
 }
 
+#if defined(I13C_TESTS)
+
 static void can_open_and_close_parquet_file() {
   struct parquet_file file;
   struct malloc_pool pool;
@@ -588,3 +590,5 @@ void parquet_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can open and close parquet file", can_open_and_close_parquet_file);
   test_case(ctx, "can detect non-existing parquet file", can_detect_non_existing_parquet_file);
 }
+
+#endif

@@ -1,0 +1,18 @@
+{
+  "configurations": [
+    {
+      "name": "Linux",
+      "defines": [
+        "I13C_THRIFT",
+        "I13C_TESTS"
+      ],
+      "includePath": [
+        "${workspaceFolder}/src"
+      ],
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "intelliSenseMode": "linux-gcc-x64"
+    }
+  ],
+  "version": 4
+}

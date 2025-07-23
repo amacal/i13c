@@ -58,6 +58,16 @@ struct parquet_schema_element {
   i8 converted_type;  // common types used by frameworks using parquet
 };
 
+struct parquet_column_chunk {
+};
+
+struct parquet_row_group {
+  i64 num_rows;
+  i64 file_offset;
+  i64 total_byte_size;
+  i64 total_compressed_size;
+};
+
 struct parquet_metadata {
   i32 version;      // parquet file version
   i64 num_rows;     // number of rows
@@ -102,6 +112,10 @@ extern void parquet_close(struct parquet_file *file);
 /// @return 0 on success, or a negative error code on failure.
 extern i64 parquet_parse(struct parquet_file *file, struct parquet_metadata *metadata);
 
+#if defined(I13C_TESTS)
+
 /// @brief Registers parquet test cases.
 /// @param ctx Pointer to the runner_context structure.
 extern void parquet_test_cases(struct runner_context *ctx);
+
+#endif

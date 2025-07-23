@@ -6,6 +6,8 @@
 #include "thrift.h"
 #include "typing.h"
 
+#if defined(I13C_TESTS)
+
 void test_case(struct runner_context *ctx, const char *name, void (*execute)(struct runner_context *ctx)) {
   ctx->entries[ctx->offset].name = name;
   ctx->entries[ctx->offset].execute = execute;
@@ -37,3 +39,5 @@ i32 runner_execute() {
 
   return 0;
 }
+
+#endif

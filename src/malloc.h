@@ -35,6 +35,10 @@ extern i64 malloc(struct malloc_pool *pool, u64 size);
 /// @param size Size of the memory block to free.
 extern void free(struct malloc_pool *pool, void *ptr, u64 size);
 
+#if defined(I13C_TESTS)
+
 /// @brief Registers malloc test cases.
 /// @param ctx Pointer to the runner_context structure.
 extern void malloc_test_cases(struct runner_context *ctx);
+
+#endif
