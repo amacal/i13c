@@ -1,5 +1,9 @@
 name: CI/CD Workflow
 
+permissions:
+  contents: read
+  packages: write
+
 on:
   workflow_dispatch:
   push:
