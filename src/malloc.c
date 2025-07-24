@@ -33,17 +33,17 @@ i64 malloc_acquire(struct malloc_pool *pool, struct malloc_lease *lease) {
 
   // check if the size if too small
   if (lease->size < 4096) {
-    return (i64)NULL;
+    return MALLOC_INVALID_SIZE;
   }
 
   // check if the size is a power of two
   if (__builtin_popcountll(lease->size) != 1) {
-    return (i64)NULL;
+    return MALLOC_INVALID_SIZE;
   }
 
   // check if the size if too large
   if ((index = __builtin_ctzl(lease->size >> 12)) >= MALLOC_SLOTS) {
-    return (i64)NULL;
+    return MALLOC_INVALID_SIZE;
   }
 
   // check if there's a free slot in the pool

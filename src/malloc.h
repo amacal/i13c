@@ -5,6 +5,11 @@
 
 #define MALLOC_SLOTS 5 // from 4096 to 65536 bytes, 5 slots
 
+enum malloc_error {
+  // indicates that the size is not acceptable, e.g., too small, too big or not a power of two
+  MALLOC_INVALID_SIZE = -274,
+};
+
 struct malloc_slot {
   struct malloc_slot *next; // next slot in the linked list
   void *ptr;                // pointer to the allocated memory

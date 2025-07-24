@@ -6,7 +6,7 @@
 #define SUBSTITUTION_BUFFER_SIZE 256
 #define SUBSTITUTION_MARKER '%'
 #define SUBSTITUTION_STRING 's'
-#define SUBSTITUTION_INTEND 'i'
+#define SUBSTITUTION_INTENT 'i'
 
 #define SUBSTITUTION_ASCII 'a'
 #define SUBSTITUTION_ASCII_MIN 0x20
@@ -156,7 +156,7 @@ void writef(const char *fmt, ...) {
         case SUBSTITUTION_HEX:
           substitute_hex(&buffer_offset, buffer, (u64)vargs[vargs_offset++]);
           break;
-        case SUBSTITUTION_INTEND:
+        case SUBSTITUTION_INTENT:
           substitute_intent(&buffer_offset, buffer, (u64)vargs[vargs_offset++]);
           break;
         case SUBSTITUTION_DECIMAL:
