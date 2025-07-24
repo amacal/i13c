@@ -60,6 +60,13 @@ static void substitute_indent(u64 *offset, char *buffer, u64 indent) {
   }
 }
 
+static void substitute_marker(u64 *offset, char *buffer) {
+  // append the substitution marker
+  if (*offset < SUBSTITUTION_BUFFER_SIZE) {
+    buffer[(*offset)++] = SUBSTITUTION_MARKER;
+  }
+}
+
 static void substitute_decimal(u64 *offset, char *buffer, i64 value) {
   i32 index;
   u64 value_abs;
@@ -167,6 +174,12 @@ static u64 format(struct stdout_context *ctx) {
         case SUBSTITUTION_DECIMAL:
           substitute_decimal(&buffer_offset, ctx->buffer, (i64)ctx->vargs[vargs_offset++]);
           break;
+        case SUBSTITUTION_MARKER:
+          substitute_marker(&buffer_offset, ctx->buffer);
+          break;
+        case EOS:
+          substitute_marker(&buffer_offset, ctx->buffer);
+          goto result;
       }
 
       // continue looping
@@ -176,6 +189,13 @@ static u64 format(struct stdout_context *ctx) {
 
     // append regular character
     ctx->buffer[buffer_offset++] = *ctx->fmt++;
+  }
+
+result:
+
+  // append EOS to the buffer if there's space
+  if (buffer_offset < SUBSTITUTION_BUFFER_SIZE) {
+    ctx->buffer[buffer_offset] = EOS;
   }
 
   return buffer_offset;
@@ -199,10 +219,8 @@ void writef(const char *fmt, ...) {
   // format the string
   buffer_offset = format(&ctx);
 
-  // print the final buffer
-  if (flush_buffer(buffer, buffer_offset) < 0) {
-    sys_exit(1);
-  }
+  // print the final buffer and ignore the result
+  flush_buffer(buffer, buffer_offset);
 }
 
 #if defined(I13C_TESTS)
@@ -380,6 +398,24 @@ static void can_format_with_ascii_substitution() {
   assert_eq_str(buffer, "ASCII: Hello, ..limak!", "should format 'ASCII: Hello, ..limak!'");
 }
 
+static void can_format_with_percent_escape() {
+  char buffer[SUBSTITUTION_BUFFER_SIZE];
+  struct stdout_context ctx;
+  u64 offset = 0;
+
+  // initialize the context
+  ctx.fmt = "50%% done%";
+  ctx.vargs = NULL;
+  ctx.buffer = buffer;
+
+  // format a string
+  offset = format(&ctx);
+
+  // assert the result
+  assert(offset == 9, "should write 9 bytes");
+  assert_eq_str(buffer, "50% done%", "should format '50% done%'");
+}
+
 void stdout_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can format without substitutions", can_format_without_substitutions);
   test_case(ctx, "can format with string substitution", can_format_with_string_substitution);
@@ -389,6 +425,7 @@ void stdout_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can format with decimal int64 min", can_format_with_decimal_int64_min);
   test_case(ctx, "can format with indent substitution", can_format_with_indent_substitution);
   test_case(ctx, "can format with ascii substitution", can_format_with_ascii_substitution);
+  test_case(ctx, "can format with percent escape", can_format_with_percent_escape);
 }
 
 #endif

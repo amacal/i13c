@@ -22,18 +22,19 @@ void assert(bool condition, const char *msg) {
 }
 
 static i64 strcmp(const char *actual, const char *expected) {
-  while (*actual && *expected) {
-    if (*actual++ != *expected++) {
+  // loop until any string reaches the end
+  while (*actual != EOS && *expected != EOS) {
+    if (*actual != *expected) {
       return -1;
     }
 
-    // even if actual may not be terminated
-    if (*expected == EOS) {
-      break;
-    }
+    // move to the next character
+    actual++;
+    expected++;
   }
 
-  return 0;
+  // both strings ended at the same time
+  return *actual == *expected ? 0 : -1;
 }
 
 void assert_eq_str(const char *actual, const char *expected, const char *msg) {
@@ -44,12 +45,16 @@ static void can_compare_strings() {
   const char *str1 = "Hello, World!";
   const char *str2 = "Hello, World!";
   const char *str3 = "Goodbye, World!";
+  const char *str4 = "Hello, World!!";
 
   // assert that str1 and str2 are equal
   assert(strcmp(str1, str2) == 0, "should be equal");
 
   // assert that str1 and str3 are not equal
   assert(strcmp(str1, str3) != 0, "should not be equal");
+
+  // assert that strings with common prefix but different length are not equal
+  assert(strcmp(str1, str4) != 0, "should not ignore termination");
 }
 
 void runner_test_cases(struct runner_context *ctx) {

@@ -44,6 +44,9 @@ make clean test
 
 # runs i13-thrift
 make clean thrift
+
+# run all unit tests
+make clean test
 ```
 
 # license
