@@ -168,10 +168,67 @@ static void can_reuse_deallocated_slot() {
   }
 }
 
+static void cannot_allocate_too_small_lease() {
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // prepare the lease
+  lease.size = 1024;
+
+  // try to acquire memory
+  assert(malloc_acquire(&pool, &lease) == MALLOC_INVALID_SIZE, "should not allocate too small lease");
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void cannot_allocate_too_large_lease() {
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // prepare the lease
+  lease.size = 1048576;
+
+  // try to acquire memory
+  assert(malloc_acquire(&pool, &lease) == MALLOC_INVALID_SIZE, "should not allocate too large lease");
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void cannot_allocate_not_power_of_two() {
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // prepare the lease
+  lease.size = 5000;
+
+  // try to acquire memory
+  assert(malloc_acquire(&pool, &lease) == MALLOC_INVALID_SIZE, "should not allocate not power of two");
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
 void malloc_test_cases(struct runner_context *ctx) {
+  // positive cases
   test_case(ctx, "can init and destroy pool", can_init_and_destroy_pool);
   test_case(ctx, "can allocate and free memory", can_allocate_and_free_memory);
   test_case(ctx, "can reuse deallocated slot", can_reuse_deallocated_slot);
+
+  // negative cases
+  test_case(ctx, "cannot allocate too small lease", cannot_allocate_too_small_lease);
+  test_case(ctx, "cannot allocate too large lease", cannot_allocate_too_large_lease);
+  test_case(ctx, "cannot allocate not power of two", cannot_allocate_not_power_of_two);
 }
 
 #endif

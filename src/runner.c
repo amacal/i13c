@@ -22,6 +22,7 @@ void assert(bool condition, const char *msg) {
 }
 
 i32 runner_execute() {
+  u64 index;
   struct runner_context ctx;
 
   // register test cases
@@ -31,12 +32,13 @@ i32 runner_execute() {
   thrift_test_cases(&ctx);
 
   // execute all registered test cases
-  for (u64 i = 0; i < ctx.offset; i++) {
-    writef("Executing '%s' ...", ctx.entries[i].name);
-    ctx.entries[i].execute(&ctx);
+  for (index = 0; index < ctx.offset; index++) {
+    writef("Executing '%s' ...", ctx.entries[index].name);
+    ctx.entries[index].execute(&ctx);
     writef(" OK\n");
   }
 
+  writef("\nAll %d test cases passed.\n", index);
   return 0;
 }
 
