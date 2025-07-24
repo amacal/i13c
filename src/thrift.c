@@ -65,8 +65,8 @@ static i64 thrift_ignore_field_bool_false(const char *, u64) {
   return 0;
 }
 
-static i64 thrift_ignore_field_bool(const char *, u64) {
-  return 1;
+static i64 thrift_ignore_field_bool(const char *buffer, u64 buffer_size) {
+  return thrift_read_bool(NULL, buffer, buffer_size);
 }
 
 static i64 thrift_ignore_field_i8(const char *buffer, u64 buffer_size) {
@@ -356,20 +356,25 @@ i64 thrift_read_list_header(struct thrift_list_header *target, const char *buffe
 }
 
 i64 thrift_read_bool(bool *target, const char *buffer, u64 buffer_size) {
+  bool value;
+
   // check if the buffer is large enough
   if (buffer_size < 1) return THRIFT_ERROR_BUFFER_OVERFLOW;
 
   // read the bool
-  if (target) switch (*buffer) {
+  switch (*buffer) {
       case THRIFT_TYPE_BOOL_TRUE:
-        *target = TRUE;
+        value = TRUE;
         break;
       case THRIFT_TYPE_BOOL_FALSE:
-        *target = FALSE;
+        value = FALSE;
         break;
       default:
         return THRIFT_ERROR_INVALID_VALUE;
     }
+
+  // set the target
+  if (target) *target = value;
 
   // success
   return 1;
@@ -817,6 +822,23 @@ static void can_read_bool() {
   assert(value == FALSE, "should read value FALSE");
 }
 
+static void can_ignore_bool_in_list() {
+  i64 result;
+  const char buffer[] = {0x21, 0x01, 0x02, 0x22, 0x01, 0x02};
+
+  // read the boolean value from the buffer
+  result = thrift_ignore_field(NULL, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 3, "should read three bytes");
+
+  // read the boolean value from the buffer
+  result = thrift_ignore_field(NULL, THRIFT_TYPE_LIST, buffer + 3, sizeof(buffer) - 3);
+
+  // assert the result
+  assert(result == 3, "should read three bytes");
+}
+
 static void can_ignore_bool_true() {
   const char buffer[] = {};
 
@@ -854,6 +876,17 @@ static void can_detect_bool_invalid_value() {
 
   // read the boolean value from the buffer
   i64 result = thrift_read_bool(&value, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_INVALID_VALUE, "should fail with THRIFT_ERROR_INVALID_VALUE");
+}
+
+static void can_detect_bool_invalid_value_in_list() {
+  i64 result;
+  const char buffer[] = {0x11, 0x03};
+
+  // read the boolean value from the buffer
+  result = thrift_ignore_field(NULL, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == THRIFT_ERROR_INVALID_VALUE, "should fail with THRIFT_ERROR_INVALID_VALUE");
@@ -1466,6 +1499,7 @@ void thrift_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can read bool", can_read_bool);
   test_case(ctx, "can detect bool buffer overflow", can_detect_bool_buffer_overflow);
   test_case(ctx, "can detect bool invalid value", can_detect_bool_invalid_value);
+  test_case(ctx, "can detect bool invalid value in list", can_detect_bool_invalid_value_in_list);
 
   // i8 cases
   test_case(ctx, "can read i8 positive", can_read_i8_positive);
@@ -1526,6 +1560,7 @@ void thrift_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can ignore binary content", can_ignore_binary_content);
   test_case(ctx, "can detect binary ignore buffer overflow 1", can_detect_binary_ignore_buffer_overflow_01);
   test_case(ctx, "can detect binary ignore buffer overflow 2", can_detect_binary_ignore_buffer_overflow_02);
+  test_case(ctx, "can ignore bool in list", can_ignore_bool_in_list);
   test_case(ctx, "can ignore bool true", can_ignore_bool_true);
   test_case(ctx, "can ignore bool false", can_ignore_bool_false);
   test_case(ctx, "can ignore i8 value", can_ignore_i8_value);
