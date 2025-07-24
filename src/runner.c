@@ -21,12 +21,39 @@ void assert(bool condition, const char *msg) {
   }
 }
 
-void assert_eq_str(const char *actual, const char *expected, const char *msg) {
+static i64 strcmp(const char *actual, const char *expected) {
   while (*actual && *expected) {
     if (*actual++ != *expected++) {
-      assert(*actual != *expected, msg);
+      return -1;
+    }
+
+    // even if actual may not be terminated
+    if (*expected == EOS) {
+      break;
     }
   }
+
+  return 0;
+}
+
+void assert_eq_str(const char *actual, const char *expected, const char *msg) {
+  assert(strcmp(actual, expected) == 0, msg);
+}
+
+static void can_compare_strings() {
+  const char *str1 = "Hello, World!";
+  const char *str2 = "Hello, World!";
+  const char *str3 = "Goodbye, World!";
+
+  // assert that str1 and str2 are equal
+  assert(strcmp(str1, str2) == 0, "should be equal");
+
+  // assert that str1 and str3 are not equal
+  assert(strcmp(str1, str3) != 0, "should not be equal");
+}
+
+void runner_test_cases(struct runner_context *ctx) {
+  test_case(ctx, "can compare strings", can_compare_strings);
 }
 
 i32 runner_execute() {
@@ -35,6 +62,7 @@ i32 runner_execute() {
 
   // register test cases
   ctx.offset = 0;
+  runner_test_cases(&ctx);
   malloc_test_cases(&ctx);
   parquet_test_cases(&ctx);
   stdout_test_cases(&ctx);
