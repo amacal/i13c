@@ -225,8 +225,147 @@ static void can_format_without_substitutions() {
   assert_eq_str(buffer, "Hello, World!", "should format 'Hello, World!'");
 }
 
+static void can_format_with_string_substitution() {
+  char buffer[SUBSTITUTION_BUFFER_SIZE];
+  struct stdout_context ctx;
+  void *vargs[VARGS_MAX];
+  u64 offset = 0;
+
+  // initialize the context
+  ctx.fmt = "Hello, %s!";
+  ctx.vargs = vargs;
+  ctx.buffer = buffer;
+
+  // not initialize all vargs
+  vargs[0] = "World";
+
+  // format a string with substitution
+  offset = format(&ctx);
+
+  // assert the result
+  assert(offset == 13, "should format 'Hello, World!'");
+  assert_eq_str(buffer, "Hello, World!", "should format 'Hello, World!'");
+}
+
+static void can_format_with_hex_substitution() {
+  char buffer[SUBSTITUTION_BUFFER_SIZE];
+  struct stdout_context ctx;
+  void *vargs[VARGS_MAX];
+  u64 offset = 0;
+
+  // initialize the context
+  ctx.fmt = "Value: %x";
+  ctx.vargs = vargs;
+  ctx.buffer = buffer;
+
+  // not initialize all vargs
+  vargs[0] = (void *)(u64)0x1234abcd01020304;
+
+  // format a string with hex substitution
+  offset = format(&ctx);
+
+  // assert the result
+  assert(offset == 25, "should format 'Value: 0x1234abcd01020304'");
+  assert_eq_str(buffer, "Value: 0x1234abcd01020304", "should format 'Value: 0x1234abcd01020304'");
+}
+
+static void can_format_with_decimal_positive() {
+  char buffer[SUBSTITUTION_BUFFER_SIZE];
+  struct stdout_context ctx;
+  void *vargs[VARGS_MAX];
+  u64 offset = 0;
+
+  // initialize the context
+  ctx.fmt = "Value: %d";
+  ctx.vargs = vargs;
+  ctx.buffer = buffer;
+
+  // not initialize all vargs
+  vargs[0] = (void *)(i64)123456789;
+
+  // format a string with decimal substitution
+  offset = format(&ctx);
+
+  // assert the result
+  assert(offset == 16, "should format 'Value: 123456789'");
+  assert_eq_str(buffer, "Value: 123456789", "should format 'Value: 123456789'");
+}
+
+static void can_format_with_decimal_negative() {
+  char buffer[SUBSTITUTION_BUFFER_SIZE];
+  struct stdout_context ctx;
+  void *vargs[VARGS_MAX];
+  u64 offset = 0;
+
+  // initialize the context
+  ctx.fmt = "Value: %d";
+  ctx.vargs = vargs;
+  ctx.buffer = buffer;
+
+  // not initialize all vargs
+  vargs[0] = (void *)(i64)-123456789;
+
+  // format a string with decimal substitution
+  offset = format(&ctx);
+
+  // assert the result
+  assert(offset == 17, "should format 'Value: -123456789'");
+  assert_eq_str(buffer, "Value: -123456789", "should format 'Value: -123456789'");
+}
+
+static void can_format_with_intent_substitution() {
+  char buffer[SUBSTITUTION_BUFFER_SIZE];
+  struct stdout_context ctx;
+  void *vargs[VARGS_MAX];
+  u64 offset = 0;
+
+  // initialize the context
+  ctx.fmt = "%iabcdef";
+  ctx.vargs = vargs;
+  ctx.buffer = buffer;
+
+  // not initialize all vargs
+  vargs[0] = (void *)(u64)4;
+
+  // format a string with intent substitution
+  offset = format(&ctx);
+
+  // assert the result
+  assert(offset == 10, "should format '    abcdef'");
+  assert_eq_str(buffer, "    abcdef", "should format '    abcdef'");
+}
+
+static void can_format_with_ascii_substitution() {
+  char buffer[SUBSTITUTION_BUFFER_SIZE];
+  struct stdout_context ctx;
+  void *vargs[VARGS_MAX];
+  u64 offset = 0;
+
+  // initialize the context
+  ctx.fmt = "ASCII: %a";
+  ctx.vargs = vargs;
+  ctx.buffer = buffer;
+
+  // not initialize all vargs
+  vargs[0] = "Hello, Ślimak!";
+  vargs[1] = (void *)(u64)13;
+
+  // format a string with ascii substitution
+  offset = format(&ctx);
+
+  // assert the result
+  assert(offset == 20, "should format 'ASCII: Hello, ?limak!'");
+  assert_eq_str(buffer, "ASCII: Hello, ?limak!", "should format 'ASCII: Hello, ?limak!'");
+}
+
 void stdout_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can format without substitutions", can_format_without_substitutions);
+  test_case(ctx, "can format with string substitution", can_format_with_string_substitution);
+  test_case(ctx, "can format with hex substitution", can_format_with_hex_substitution);
+  test_case(ctx, "can format with decimal positive", can_format_with_decimal_positive);
+  test_case(ctx, "can format with decimal negative", can_format_with_decimal_negative);
+  test_case(ctx, "can format with intent substitution", can_format_with_intent_substitution);
+  test_case(ctx, "can format with ascii substitution", can_format_with_ascii_substitution);
 }
 
 #endif
