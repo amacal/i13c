@@ -21,6 +21,14 @@ void assert(bool condition, const char *msg) {
   }
 }
 
+void assert_eq_str(const char *actual, const char *expected, const char *msg) {
+  while (*actual && *expected) {
+    if (*actual++ != *expected++) {
+      assert(*actual != *expected, msg);
+    }
+  }
+}
+
 i32 runner_execute() {
   u64 index;
   struct runner_context ctx;
@@ -29,6 +37,7 @@ i32 runner_execute() {
   ctx.offset = 0;
   malloc_test_cases(&ctx);
   parquet_test_cases(&ctx);
+  stdout_test_cases(&ctx);
   thrift_test_cases(&ctx);
 
   // execute all registered test cases

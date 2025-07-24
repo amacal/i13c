@@ -24,3 +24,9 @@ void test_case(struct runner_context *ctx, const char *name, void (*execute)(str
 /// @param condition Condition to check.
 /// @param msg Message to print on failure.
 void assert(bool condition, const char *msg);
+
+/// @brief Asserts that two strings are equal.
+/// @param actual Actual string.
+/// @param expected Expected string.
+/// @param msg Message to print on failure.
+void assert_eq_str(const char *actual, const char *expected, const char *msg);

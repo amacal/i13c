@@ -23,6 +23,12 @@
 #define SUBSTITUTION_HEX_ALPHABET_LEN 16
 #define SUBSTITUTION_HEX_ALPHABET "0123456789abcdef"
 
+struct stdout_context {
+  const char *fmt; // format string
+  char *buffer;    // output buffer
+  void **vargs;    // variable arguments
+};
+
 static void substitute_string(u64 *offset, char *buffer, const char *src) {
   // copy the string until EOS or buffer is full
   while (*src != EOS && *offset < SUBSTITUTION_BUFFER_SIZE) {
@@ -123,58 +129,104 @@ static i64 flush_buffer(const char *buffer, u64 length) {
   return 0;
 }
 
-void writef(const char *fmt, ...) {
-  u8 vargs_offset = 0;
-  void *vargs[VARGS_MAX];
+static u64 format(struct stdout_context *ctx) {
+  u8 vargs_offset;
+  u64 buffer_offset;
 
-  u64 buffer_offset = 0;
-  char buffer[SUBSTITUTION_BUFFER_SIZE];
-
-  // initialize variable argument list
-  vargs_init(vargs);
+  // default values
+  vargs_offset = 0;
+  buffer_offset = 0;
 
   // handle the format string
-  while (*fmt != EOS && buffer_offset < SUBSTITUTION_BUFFER_SIZE) {
+  while (*ctx->fmt != EOS && buffer_offset < SUBSTITUTION_BUFFER_SIZE) {
 
     // handle two consecutive substitution markers
-    if (*fmt == SUBSTITUTION_MARKER && vargs_offset + 1 < VARGS_MAX) {
-      switch (*(fmt + 1)) {
+    if (*ctx->fmt == SUBSTITUTION_MARKER && vargs_offset + 1 < VARGS_MAX) {
+      switch (*(ctx->fmt + 1)) {
         case SUBSTITUTION_ASCII:
-          substitute_ascii(&buffer_offset, buffer, (const char *)vargs[vargs_offset], (u64)vargs[vargs_offset + 1]);
+          substitute_ascii(&buffer_offset, ctx->buffer, (const char *)ctx->vargs[vargs_offset],
+                           (u64)ctx->vargs[vargs_offset + 1]);
           vargs_offset += 2;
-          fmt += 2;
+          ctx->fmt += 2;
           continue;
       }
     }
 
     // handle single substitution markers
-    if (*fmt == SUBSTITUTION_MARKER && vargs_offset < VARGS_MAX) {
-      switch (*++fmt) {
+    if (*ctx->fmt == SUBSTITUTION_MARKER && vargs_offset < VARGS_MAX) {
+      switch (*++ctx->fmt) {
         case SUBSTITUTION_STRING:
-          substitute_string(&buffer_offset, buffer, vargs[vargs_offset++]);
+          substitute_string(&buffer_offset, ctx->buffer, ctx->vargs[vargs_offset++]);
           break;
         case SUBSTITUTION_HEX:
-          substitute_hex(&buffer_offset, buffer, (u64)vargs[vargs_offset++]);
+          substitute_hex(&buffer_offset, ctx->buffer, (u64)ctx->vargs[vargs_offset++]);
           break;
         case SUBSTITUTION_INTENT:
-          substitute_intent(&buffer_offset, buffer, (u64)vargs[vargs_offset++]);
+          substitute_intent(&buffer_offset, ctx->buffer, (u64)ctx->vargs[vargs_offset++]);
           break;
         case SUBSTITUTION_DECIMAL:
-          substitute_decimal(&buffer_offset, buffer, (i64)vargs[vargs_offset++]);
+          substitute_decimal(&buffer_offset, ctx->buffer, (i64)ctx->vargs[vargs_offset++]);
           break;
       }
 
       // continue looping
-      fmt++;
+      ctx->fmt++;
       continue;
     }
 
     // append regular character
-    buffer[buffer_offset++] = *fmt++;
+    ctx->buffer[buffer_offset++] = *ctx->fmt++;
   }
+
+  return buffer_offset;
+}
+
+void writef(const char *fmt, ...) {
+  void *vargs[VARGS_MAX];
+  char buffer[SUBSTITUTION_BUFFER_SIZE];
+
+  u64 buffer_offset;
+  struct stdout_context ctx;
+
+  // collect argument list
+  vargs_init(vargs);
+
+  // initialize the context
+  ctx.fmt = fmt;
+  ctx.vargs = vargs;
+  ctx.buffer = buffer;
+
+  // format the string
+  buffer_offset = format(&ctx);
 
   // print the final buffer
   if (flush_buffer(buffer, buffer_offset) < 0) {
     sys_exit(1);
   }
 }
+
+#if defined(I13C_TESTS)
+
+static void can_format_without_substitutions() {
+  char buffer[SUBSTITUTION_BUFFER_SIZE];
+  struct stdout_context ctx;
+  u64 offset = 0;
+
+  // initialize the context
+  ctx.fmt = "Hello, World!";
+  ctx.vargs = NULL;
+  ctx.buffer = buffer;
+
+  // format a simple string
+  offset = format(&ctx);
+
+  // assert the result
+  assert(offset == 13, "should format 'Hello, World!'");
+  assert_eq_str(buffer, "Hello, World!", "should format 'Hello, World!'");
+}
+
+void stdout_test_cases(struct runner_context *ctx) {
+  test_case(ctx, "can format without substitutions", can_format_without_substitutions);
+}
+
+#endif
