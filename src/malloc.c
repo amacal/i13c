@@ -26,52 +26,66 @@ void malloc_destroy(struct malloc_pool *pool) {
   }
 }
 
-i64 malloc_acquire(struct malloc_pool *pool, u64 size) {
+i64 malloc_acquire(struct malloc_pool *pool, struct malloc_lease *lease) {
   u32 index;
+  i64 result;
   struct malloc_slot *slot;
 
   // check if the size if too small
-  if (size < 4096) {
+  if (lease->size < 4096) {
     return (i64)NULL;
   }
 
   // check if the size is a power of two
-  if (__builtin_popcountll(size) != 1) {
+  if (__builtin_popcountll(lease->size) != 1) {
     return (i64)NULL;
   }
 
   // check if the size if too large
-  if ((index = __builtin_ctzl(size >> 12)) >= MALLOC_SLOTS) {
+  if ((index = __builtin_ctzl(lease->size >> 12)) >= MALLOC_SLOTS) {
     return (i64)NULL;
   }
 
   // check if there's a free slot in the pool
   if ((slot = pool->slots[index]) != NULL) {
     pool->slots[index] = slot->next;
-    return (i64)slot->ptr;
+    lease->ptr = slot->ptr;
+    return 0;
   }
 
-  return sys_mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  // allocate memory using mmap
+  result = sys_mmap(NULL, lease->size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (result < 0) return result;
+
+  // prepare the lease
+  lease->ptr = (void *)result;
+
+  // success
+  return 0;
 }
 
-void malloc_release(struct malloc_pool *pool, void *ptr, u64 size) {
+void malloc_release(struct malloc_pool *pool, struct malloc_lease *lease) {
   u32 index;
   struct malloc_slot *slot;
 
   // if the size is too large, just release it
-  if ((index = __builtin_ctzl(size >> 12)) >= MALLOC_SLOTS) {
-    sys_munmap(ptr, size);
+  if ((index = __builtin_ctzl(lease->size >> 12)) >= MALLOC_SLOTS) {
+    sys_munmap(lease->ptr, lease->size);
     return;
   }
 
   // prepare the slot
-  slot = ptr;
-  slot->ptr = ptr;
-  slot->size = size;
+  slot = (struct malloc_slot *)lease->ptr;
+  slot->ptr = lease->ptr;
+  slot->size = lease->size;
   slot->next = pool->slots[index];
 
   // add as a head of the linked list
   pool->slots[index] = slot;
+
+  // clear the lease pointer
+  lease->ptr = NULL;
+  lease->size = 0;
 }
 
 #if defined(I13C_TESTS)
@@ -95,18 +109,21 @@ static void can_init_and_destroy_pool() {
 }
 
 static void can_allocate_and_free_memory() {
-  void *ptr;
   struct malloc_pool pool;
+  struct malloc_lease lease;
 
   // initialize the pool
   malloc_init(&pool);
 
+  // prepare the lease
+  lease.size = 4096;
+
   // acquire memory
-  ptr = (void *)malloc_acquire (&pool, 4096);
-  assert(ptr != NULL, "should allocate memory");
+  assert(malloc_acquire(&pool, &lease) == 0, "should allocate memory");
+  assert(lease.ptr != NULL, "lease ptr should be set");
 
   // release the memory
-  malloc_release(&pool, ptr, 4096);
+  malloc_release(&pool, &lease);
 
   // destroy the pool
   malloc_destroy(&pool);
@@ -117,23 +134,31 @@ static void can_allocate_and_free_memory() {
 }
 
 static void can_reuse_deallocated_slot() {
-  void *ptr1, *ptr2;
+  void *ptr;
   struct malloc_pool pool;
+  struct malloc_lease lease1, lease2;
 
   // initialize the pool
   malloc_init(&pool);
 
+  // prepare the leases
+  lease1.size = 4096;
+  lease2.size = 4096;
+
   // allocate memory
-  ptr1 = (void *)malloc_acquire(&pool, 4096);
-  assert(ptr1 != NULL, "should allocate memory");
+  assert(malloc_acquire(&pool, &lease1) == 0, "should allocate initial memory");
+  assert(lease1.ptr != NULL, "lease ptr should be set");
 
   // release the memory
-  malloc_release(&pool, ptr1, 4096);
+  ptr = lease1.ptr;
+  malloc_release(&pool, &lease1);
 
   // acquire again
-  ptr2 = (void *)malloc_acquire(&pool, 4096);
-  assert(ptr2 != NULL, "should allocate memory");
-  assert(ptr1 == ptr2, "should reuse deallocated memory");
+  assert(malloc_acquire(&pool, &lease2) == 0, "should allocate reused memory");
+  assert(ptr == lease2.ptr, "should reuse deallocated memory");
+
+  // release the memory
+  malloc_release(&pool, &lease2);
 
   // destroy the pool
   malloc_destroy(&pool);

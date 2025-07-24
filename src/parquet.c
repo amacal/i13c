@@ -17,13 +17,14 @@ void parquet_init(struct parquet_file *file, struct malloc_pool *pool) {
   file->fd = 0;
   file->pool = pool;
 
-  file->footer_buffer = NULL;
+  file->buffer_lease.ptr = NULL;
+  file->buffer_lease.size = 0;
+
   file->footer_buffer_start = NULL;
   file->footer_buffer_end = NULL;
-  file->footer_buffer_size = 0;
 
-  file->metadata_buffer = NULL;
-  file->metadata_buffer_size = 0;
+  file->metadata_lease.ptr = NULL;
+  file->metadata_lease.size = 0;
 }
 
 i64 parquet_open(struct parquet_file *file, const char *path) {
@@ -46,19 +47,20 @@ i64 parquet_open(struct parquet_file *file, const char *path) {
     goto error_stat;
   }
 
+  // prepare the buffer lease for the footer
+  file->buffer_lease.size = 4096;
+
   // allocate a buffer for the file content
-  file->footer_buffer_size = 4096;
-  result = malloc_acquire(file->pool, file->footer_buffer_size);
+  result = malloc_acquire(file->pool, &file->buffer_lease);
   if (result < 0) goto error_malloc;
-  file->footer_buffer = (char *)result;
 
   // adjust buffer pointers
   if (stat.st_size < 4096) {
-    file->footer_buffer_start = file->footer_buffer + 4096 - stat.st_size;
-    file->footer_buffer_end = file->footer_buffer + 4096;
+    file->footer_buffer_start = file->buffer_lease.ptr + 4096 - stat.st_size;
+    file->footer_buffer_end = file->buffer_lease.ptr + 4096;
   } else {
-    file->footer_buffer_start = file->footer_buffer;
-    file->footer_buffer_end = file->footer_buffer + 4096;
+    file->footer_buffer_start = file->buffer_lease.ptr;
+    file->footer_buffer_end = file->buffer_lease.ptr + 4096;
   }
 
   completed = 0;
@@ -83,7 +85,7 @@ i64 parquet_open(struct parquet_file *file, const char *path) {
   file->footer_buffer_start = file->footer_buffer_end - file->footer_size;
 
   // check if the buffer is too small to handle the footer
-  if (file->footer_buffer_start < file->footer_buffer) {
+  if (file->footer_buffer_start < (char *)file->buffer_lease.ptr) {
     result = -1;
     goto error_read;
   }
@@ -93,9 +95,7 @@ i64 parquet_open(struct parquet_file *file, const char *path) {
 
 error_read:
   // release the buffer and clear the pointers
-  malloc_release(file->pool, file->footer_buffer, file->footer_buffer_size);
-  file->footer_buffer = NULL;
-  file->footer_buffer_size = 0;
+  malloc_release(file->pool, &file->buffer_lease);
   file->footer_buffer_start = NULL;
   file->footer_buffer_end = NULL;
 
@@ -110,10 +110,8 @@ cleanup:
 }
 
 void parquet_close(struct parquet_file *file) {
-  // release the buffer using the pool
-  malloc_release(file->pool, file->footer_buffer, file->footer_buffer_size);
-  file->footer_buffer = NULL;
-  file->footer_buffer_size = 0;
+  // release the buffer lease using the pool
+  malloc_release(file->pool, &file->buffer_lease);
   file->footer_buffer_start = NULL;
   file->footer_buffer_end = NULL;
 
@@ -121,11 +119,9 @@ void parquet_close(struct parquet_file *file) {
   sys_close(file->fd);
   file->fd = 0;
 
-  // release the metadata buffer, if exists
-  if (file->metadata_buffer) {
-    malloc_release(file->pool, file->metadata_buffer, file->metadata_buffer_size);
-    file->metadata_buffer = NULL;
-    file->metadata_buffer_size = 0;
+  // release the metadata lease, if exists
+  if (file->metadata_lease.ptr) {
+    malloc_release(file->pool, &file->metadata_lease);
   }
 }
 
@@ -528,21 +524,21 @@ i64 parquet_parse(struct parquet_file *file, struct parquet_metadata *metadata) 
   i64 result;
   char *buffer;
   u64 buffer_size;
+
   struct parquet_parse_context ctx;
 
+  // prepare the metadata lease
+  file->metadata_lease.size = file->buffer_lease.size;
+
   // acquire memory for the metadata
-  result = malloc_acquire(file->pool, file->footer_buffer_size);
-  if (result <= 0) return -1;
+  result = malloc_acquire(file->pool, &file->metadata_lease);
+  if (result < 0) return -1;
 
   // initialize the context
   ctx.target = metadata;
-  ctx.buffer = (char *)result;
-  ctx.buffer_size = file->footer_buffer_size;
+  ctx.buffer = file->metadata_lease.ptr;
+  ctx.buffer_size = file->metadata_lease.size;
   ctx.buffer_tail = 0;
-
-  // remember the metadata buffer, to free it later
-  file->metadata_buffer = ctx.buffer;
-  file->metadata_buffer_size = file->footer_buffer_size;
 
   // initialize
   buffer = file->footer_buffer_start;

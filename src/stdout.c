@@ -45,11 +45,11 @@ static void substitute_hex(u64 *offset, char *buffer, u64 value) {
   }
 }
 
-static void substitute_intend(u64 *offset, char *buffer, u64 intend) {
+static void substitute_intent(u64 *offset, char *buffer, u64 intent) {
   u64 index;
 
-  // append intend spaces
-  for (index = 0; index < intend && *offset < SUBSTITUTION_BUFFER_SIZE; index++) {
+  // append intent spaces
+  for (index = 0; index < intent && *offset < SUBSTITUTION_BUFFER_SIZE; index++) {
     buffer[(*offset)++] = ' ';
   }
 }
@@ -157,7 +157,7 @@ void writef(const char *fmt, ...) {
           substitute_hex(&buffer_offset, buffer, (u64)vargs[vargs_offset++]);
           break;
         case SUBSTITUTION_INTEND:
-          substitute_intend(&buffer_offset, buffer, (u64)vargs[vargs_offset++]);
+          substitute_intent(&buffer_offset, buffer, (u64)vargs[vargs_offset++]);
           break;
         case SUBSTITUTION_DECIMAL:
           substitute_decimal(&buffer_offset, buffer, (i64)vargs[vargs_offset++]);

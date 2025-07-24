@@ -149,14 +149,12 @@ struct parquet_file {
   struct malloc_pool *pool; // memory pool for buffer allocation
   u32 fd;                   // file descriptor for the parquet file
 
+  struct malloc_lease buffer_lease;   // lease for the buffer memory
+  struct malloc_lease metadata_lease; // lease for the metadata memory
+
   u64 footer_size;           // size of the footer in bytes
-  char *footer_buffer;       // allocated buffer for the footer
-  u64 footer_buffer_size;    // size of the allocated buffer
   char *footer_buffer_start; // pointer to the start of the footer
   char *footer_buffer_end;   // pointer to the end of the footer
-
-  char *metadata_buffer;    // buffer for metadata
-  u64 metadata_buffer_size; // size of the metadata buffer
 };
 
 /// @brief Initializes a parquet file structure.

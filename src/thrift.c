@@ -363,15 +363,15 @@ i64 thrift_read_bool(bool *target, const char *buffer, u64 buffer_size) {
 
   // read the bool
   switch (*buffer) {
-      case THRIFT_TYPE_BOOL_TRUE:
-        value = TRUE;
-        break;
-      case THRIFT_TYPE_BOOL_FALSE:
-        value = FALSE;
-        break;
-      default:
-        return THRIFT_ERROR_INVALID_VALUE;
-    }
+    case THRIFT_TYPE_BOOL_TRUE:
+      value = TRUE;
+      break;
+    case THRIFT_TYPE_BOOL_FALSE:
+      value = FALSE;
+      break;
+    default:
+      return THRIFT_ERROR_INVALID_VALUE;
+  }
 
   // set the target
   if (target) *target = value;
@@ -1877,21 +1877,25 @@ int thrift_main() {
   u64 buffer_size;
 
   struct malloc_pool pool;
+  struct malloc_lease lease;
   struct thrift_dump_context ctx;
 
   // new memory pool
   malloc_init(&pool);
 
+  // prepare the lease
+  lease.size = SIZE;
+
   // acquire memory for the input
-  result = malloc_acquire(&pool, SIZE);
-  if (result <= 0) {
+  result = malloc_acquire(&pool, &lease);
+  if (result < 0) {
     writef("Error: Could not acquire memory for input buffer: %x.\n", result);
     goto clear_memory_init;
   }
 
   read = 0;
-  buffer = (char *)result;
-  buffer_size = SIZE;
+  buffer = (char *)lease.ptr;
+  buffer_size = lease.size;
 
   // initialize the context
   ctx.indent = 0;
@@ -1932,7 +1936,7 @@ int thrift_main() {
   result = 0;
 
 clean_memory_alloc:
-  malloc_release(&pool, buffer, SIZE);
+  malloc_release(&pool, &lease);
 
 clear_memory_init:
   malloc_destroy(&pool);
