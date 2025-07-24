@@ -1,6 +1,6 @@
 # i13c
 
-A collection of ultra-lightweight Linux x86_64 utilities written in pure C. No external dependencies, no libc required. These tools are built for speed, transparency, and raw system introspection.
+A collection of ultra-lightweight Linux x86/64 utilities written in pure C. No external dependencies, no libc required. These tools are built for fun, speed, transparency and raw system introspection.
 
 ## tools
 
@@ -30,3 +30,22 @@ struct-end
 ```
 
 Supports: primitive types, nested structs, lists, zigzag decoding.
+
+## development
+
+Everything what you need is in the Makefile:
+
+```bash
+# builds all binaries
+make clean build
+
+# runs all tests
+make clean test
+
+# runs i13-thrift
+make clean thrift
+```
+
+# license
+
+Deliberately not set. Use with care.
