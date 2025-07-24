@@ -236,13 +236,13 @@ static i64 parquet_read_schema_type(struct parquet_parse_context *ctx,
   if (result < 0) return result;
 
   // check if the value is within the valid range
-  if (value < 0 || value >= PARQUET_SCHEMA_TYPE_SIZE) {
+  if (value < 0 || value >= PARQUET_DATA_TYPE_SIZE) {
     return -1;
   }
 
   // remember allocated memory slice
   schema = (struct parquet_schema_element *)ctx->target;
-  schema->type = (enum parquet_schema_type)value;
+  schema->data_type = (enum parquet_data_type)value;
 
   // success
   return result;
@@ -391,7 +391,7 @@ static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const
 
   // get schema
   schema = (struct parquet_schema_element *)ctx->target;
-  schema->type = -1;
+  schema->data_type = -1;
   schema->type_length = -1;
   schema->repetition_type = -1;
   schema->name = NULL;
@@ -444,14 +444,26 @@ static i64 parquet_parse_schema(struct parquet_parse_context *ctx,
     return -1;
   }
 
-  // allocate memory for the array
-  result = parquet_metadata_alloc(ctx, header.size * sizeof(struct parquet_schema_element));
+  // allocate memory for the pointers
+  result = parquet_metadata_alloc(ctx, (1 + header.size) * sizeof(struct parquet_schema_element *));
   if (result < 0) return result;
 
   // remember allocated memory slice
   metadata = (struct parquet_metadata *)ctx->target;
-  metadata->schemas = (struct parquet_schema_element *)result;
-  metadata->schemas_size = header.size;
+  metadata->schemas = (struct parquet_schema_element **)result;
+
+  // null-terminate the array
+  metadata->schemas[header.size] = NULL;
+
+  // allocate memory for the array
+  result = parquet_metadata_alloc(ctx, header.size * sizeof(struct parquet_schema_element));
+  if (result < 0) return result;
+
+  // fill out the array of schema elements
+  for (index = 0; index < header.size; index++) {
+    metadata->schemas[index] = (struct parquet_schema_element *)(result);
+    result += sizeof(struct parquet_schema_element);
+  }
 
   // initialize nested context
   context.buffer = ctx->buffer;
@@ -461,7 +473,7 @@ static i64 parquet_parse_schema(struct parquet_parse_context *ctx,
   // parse each schema element
   for (index = 0; index < header.size; index++) {
     // set the target for the nested context
-    context.target = &metadata->schemas[index];
+    context.target = metadata->schemas[index];
 
     // read the next schema element
     result = parquet_parse_schema_element(&context, buffer, buffer_size);

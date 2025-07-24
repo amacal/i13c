@@ -10,6 +10,7 @@ i32 main() {
   struct parquet_file file;
   struct malloc_pool pool;
   struct parquet_metadata metadata;
+  struct parquet_schema_element *schema;
 
   malloc_init(&pool);
   parquet_init(&file, &pool);
@@ -26,9 +27,15 @@ i32 main() {
     writef("Created by: %s\n", metadata.created_by);
   }
 
-  for (index = 0; index < metadata.schemas_size; index++) {
-    writef("Schema element %d: name=%s, type=%d, converted_type=%d, repetition_type=%d\n", index, metadata.schemas[index].name,
-           (i64)metadata.schemas[index].type, (i64)metadata.schemas[index].converted_type, (i64)metadata.schemas[index].repetition_type);
+  if (metadata.schemas) {
+    index = 0;
+    schema = metadata.schemas[index];
+
+    while (schema) {
+      writef("Schema element, name=%s, data_type=%d, converted_type=%d, repetition_type=%d\n", schema->name,
+             (i64)schema->data_type, (i64)schema->converted_type, (i64)schema->repetition_type);
+      schema = metadata.schemas[++index];
+    }
   }
 
   parquet_close(&file);
