@@ -49,7 +49,7 @@ i64 parquet_open(struct parquet_file *file, const char *path) {
   // allocate a buffer for the file content
   file->footer_buffer_size = 4096;
   result = malloc_acquire(file->pool, file->footer_buffer_size);
-  if (result == 0) goto error_malloc;
+  if (result < 0) goto error_malloc;
   file->footer_buffer = (char *)result;
 
   // adjust buffer pointers

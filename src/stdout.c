@@ -135,6 +135,19 @@ void writef(const char *fmt, ...) {
 
   // handle the format string
   while (*fmt != EOS && buffer_offset < SUBSTITUTION_BUFFER_SIZE) {
+
+    // handle two consecutive substitution markers
+    if (*fmt == SUBSTITUTION_MARKER && vargs_offset + 1 < VARGS_MAX) {
+      switch (*(fmt + 1)) {
+        case SUBSTITUTION_ASCII:
+          substitute_ascii(&buffer_offset, buffer, (const char *)vargs[vargs_offset], (u64)vargs[vargs_offset + 1]);
+          vargs_offset += 2;
+          fmt += 2;
+          continue;
+      }
+    }
+
+    // handle single substitution markers
     if (*fmt == SUBSTITUTION_MARKER && vargs_offset < VARGS_MAX) {
       switch (*++fmt) {
         case SUBSTITUTION_STRING:
@@ -148,10 +161,6 @@ void writef(const char *fmt, ...) {
           break;
         case SUBSTITUTION_DECIMAL:
           substitute_decimal(&buffer_offset, buffer, (i64)vargs[vargs_offset++]);
-          break;
-        case SUBSTITUTION_ASCII:
-          substitute_ascii(&buffer_offset, buffer, (const char *)vargs[vargs_offset], (u64)vargs[vargs_offset + 1]);
-          vargs_offset += 2;
           break;
       }
 
