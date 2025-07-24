@@ -26,7 +26,7 @@ void malloc_destroy(struct malloc_pool *pool) {
   }
 }
 
-i64 malloc(struct malloc_pool *pool, u64 size) {
+i64 malloc_acquire(struct malloc_pool *pool, u64 size) {
   u32 index;
   struct malloc_slot *slot;
 
@@ -36,7 +36,7 @@ i64 malloc(struct malloc_pool *pool, u64 size) {
   }
 
   // check if the size is a power of two
-  if (__builtin_popcount(size) != 1) {
+  if (__builtin_popcountll(size) != 1) {
     return (i64)NULL;
   }
 
@@ -54,7 +54,7 @@ i64 malloc(struct malloc_pool *pool, u64 size) {
   return sys_mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 }
 
-void free(struct malloc_pool *pool, void *ptr, u64 size) {
+void malloc_release(struct malloc_pool *pool, void *ptr, u64 size) {
   u32 index;
   struct malloc_slot *slot;
 
@@ -101,12 +101,12 @@ static void can_allocate_and_free_memory() {
   // initialize the pool
   malloc_init(&pool);
 
-  // allocate memory
-  ptr = (void *)malloc(&pool, 4096);
+  // acquire memory
+  ptr = (void *)malloc_acquire (&pool, 4096);
   assert(ptr != NULL, "should allocate memory");
 
-  // free the memory
-  free(&pool, ptr, 4096);
+  // release the memory
+  malloc_release(&pool, ptr, 4096);
 
   // destroy the pool
   malloc_destroy(&pool);
@@ -124,14 +124,14 @@ static void can_reuse_deallocated_slot() {
   malloc_init(&pool);
 
   // allocate memory
-  ptr1 = (void *)malloc(&pool, 4096);
+  ptr1 = (void *)malloc_acquire(&pool, 4096);
   assert(ptr1 != NULL, "should allocate memory");
 
-  // free the memory
-  free(&pool, ptr1, 4096);
+  // release the memory
+  malloc_release(&pool, ptr1, 4096);
 
-  // allocate again
-  ptr2 = (void *)malloc(&pool, 4096);
+  // acquire again
+  ptr2 = (void *)malloc_acquire(&pool, 4096);
   assert(ptr2 != NULL, "should allocate memory");
   assert(ptr1 == ptr2, "should reuse deallocated memory");
 

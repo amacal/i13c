@@ -48,9 +48,9 @@ i64 parquet_open(struct parquet_file *file, const char *path) {
 
   // allocate a buffer for the file content
   file->footer_buffer_size = 4096;
-  result = malloc(file->pool, file->footer_buffer_size);
+  result = malloc_acquire(file->pool, file->footer_buffer_size);
   if (result == 0) goto error_malloc;
-  else file->footer_buffer = (char *)result;
+  file->footer_buffer = (char *)result;
 
   // adjust buffer pointers
   if (stat.st_size < 4096) {
@@ -92,7 +92,8 @@ i64 parquet_open(struct parquet_file *file, const char *path) {
   return 0;
 
 error_read:
-  free(file->pool, file->footer_buffer, file->footer_buffer_size);
+  // release the buffer and clear the pointers
+  malloc_release(file->pool, file->footer_buffer, file->footer_buffer_size);
   file->footer_buffer = NULL;
   file->footer_buffer_size = 0;
   file->footer_buffer_start = NULL;
@@ -100,6 +101,7 @@ error_read:
 
 error_malloc:
 error_stat:
+  // close the file descriptor and clear it
   sys_close(file->fd);
   file->fd = 0;
 
@@ -108,8 +110,8 @@ cleanup:
 }
 
 void parquet_close(struct parquet_file *file) {
-  // free the buffer using the pool
-  free(file->pool, file->footer_buffer, file->footer_buffer_size);
+  // release the buffer using the pool
+  malloc_release(file->pool, file->footer_buffer, file->footer_buffer_size);
   file->footer_buffer = NULL;
   file->footer_buffer_size = 0;
   file->footer_buffer_start = NULL;
@@ -119,9 +121,9 @@ void parquet_close(struct parquet_file *file) {
   sys_close(file->fd);
   file->fd = 0;
 
-  // free the metadata buffer, if exists
+  // release the metadata buffer, if exists
   if (file->metadata_buffer) {
-    free(file->pool, file->metadata_buffer, file->metadata_buffer_size);
+    malloc_release(file->pool, file->metadata_buffer, file->metadata_buffer_size);
     file->metadata_buffer = NULL;
     file->metadata_buffer_size = 0;
   }
@@ -528,8 +530,8 @@ i64 parquet_parse(struct parquet_file *file, struct parquet_metadata *metadata) 
   u64 buffer_size;
   struct parquet_parse_context ctx;
 
-  // allocate memory for the metadata
-  result = malloc(file->pool, file->footer_buffer_size);
+  // acquire memory for the metadata
+  result = malloc_acquire(file->pool, file->footer_buffer_size);
   if (result <= 0) return -1;
 
   // initialize the context
@@ -538,7 +540,7 @@ i64 parquet_parse(struct parquet_file *file, struct parquet_metadata *metadata) 
   ctx.buffer_size = file->footer_buffer_size;
   ctx.buffer_tail = 0;
 
-  // remember the metadata buffer
+  // remember the metadata buffer, to free it later
   file->metadata_buffer = ctx.buffer;
   file->metadata_buffer_size = file->footer_buffer_size;
 

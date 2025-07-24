@@ -1847,10 +1847,10 @@ int thrift_main() {
   // new memory pool
   malloc_init(&pool);
 
-  // allocate memory for the input
-  result = malloc(&pool, SIZE);
+  // acquire memory for the input
+  result = malloc_acquire(&pool, SIZE);
   if (result <= 0) {
-    writef("Error: Could not allocate memory for input buffer: %x.\n", result);
+    writef("Error: Could not acquire memory for input buffer: %x.\n", result);
     goto clear_memory_init;
   }
 
@@ -1897,7 +1897,7 @@ int thrift_main() {
   result = 0;
 
 clean_memory_alloc:
-  free(&pool, buffer, SIZE);
+  malloc_release(&pool, buffer, SIZE);
 
 clear_memory_init:
   malloc_destroy(&pool);
