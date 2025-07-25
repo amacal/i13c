@@ -33,7 +33,7 @@ Supports: primitive types, nested structs, lists, zigzag decoding.
 
 ## development
 
-Everything what you need is in the Makefile:
+Everything is wired through the Makefile. The devcontainer provides all tooling, so you can just:
 
 ```bash
 # builds all binaries
@@ -42,7 +42,7 @@ make clean build
 # runs all tests
 make clean test
 
-# runs i13-thrift
+# runs i13c-thrift
 make thrift
 ```
 
