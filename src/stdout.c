@@ -36,6 +36,17 @@ static void substitute_string(u64 *offset, char *buffer, const char *src) {
   }
 }
 
+static void substitute_unknown(u64 *offset, char *buffer, char symbol) {
+  if (*offset < SUBSTITUTION_BUFFER_SIZE) {
+    buffer[(*offset)++] = SUBSTITUTION_MARKER;
+  }
+
+  // append an unknown substitution
+  if (*offset < SUBSTITUTION_BUFFER_SIZE) {
+    buffer[(*offset)++] = symbol;
+  }
+}
+
 static void substitute_hex(u64 *offset, char *buffer, u64 value) {
   i32 index;
   const char *chars = SUBSTITUTION_HEX_ALPHABET;
@@ -180,6 +191,9 @@ static u64 format(struct stdout_context *ctx) {
         case EOS:
           substitute_marker(&buffer_offset, ctx->buffer);
           goto result;
+        default:
+          substitute_unknown(&buffer_offset, ctx->buffer, *ctx->fmt);
+          break;
       }
 
       // continue looping
@@ -398,6 +412,24 @@ static void can_format_with_ascii_substitution() {
   assert_eq_str(buffer, "ASCII: Hello, ..limak!", "should format 'ASCII: Hello, ..limak!'");
 }
 
+static void can_format_with_unknown_substitution() {
+  char buffer[SUBSTITUTION_BUFFER_SIZE];
+  struct stdout_context ctx;
+  u64 offset = 0;
+
+  // initialize the context
+  ctx.fmt = "Unknown: %z";
+  ctx.vargs = NULL;
+  ctx.buffer = buffer;
+
+  // format a string with unknown substitution
+  offset = format(&ctx);
+
+  // assert the result
+  assert(offset == 11, "should write 11 bytes");
+  assert_eq_str(buffer, "Unknown: %z", "should format 'Unknown: %z'");
+}
+
 static void can_format_with_percent_escape() {
   char buffer[SUBSTITUTION_BUFFER_SIZE];
   struct stdout_context ctx;
@@ -425,6 +457,7 @@ void stdout_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can format with decimal int64 min", can_format_with_decimal_int64_min);
   test_case(ctx, "can format with indent substitution", can_format_with_indent_substitution);
   test_case(ctx, "can format with ascii substitution", can_format_with_ascii_substitution);
+  test_case(ctx, "can format with unknown substitution", can_format_with_unknown_substitution);
   test_case(ctx, "can format with percent escape", can_format_with_percent_escape);
 }
 
