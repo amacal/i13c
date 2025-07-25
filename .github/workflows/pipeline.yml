@@ -1,7 +1,7 @@
 name: CI/CD Workflow
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 on:
@@ -9,6 +9,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*.*.*'
   pull_request:
     branches:
       - main
@@ -50,3 +52,18 @@ jobs:
             bin/i13c-thrift
             LICENSE
             README.md
+
+  release:
+    runs-on: ubuntu-latest
+    needs: cicd
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: i13c-binaries
+
+      - name: Make release package
+        run: make release
