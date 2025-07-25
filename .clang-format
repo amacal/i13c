@@ -1,5 +1,4 @@
 AllowShortIfStatementsOnASingleLine: AllIfsAndElse
-AllowShortIfElseStatementsOnASingleLine: Always
 AllowShortFunctionsOnASingleLine: false
 BinPackParameters: false
 ColumnLimit: 120

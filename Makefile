@@ -91,6 +91,10 @@ clean:
 .PHONY: build
 build: $(BINOUTPUT) $(TESTOUTPUT) $(THRIFTOUTPUT)
 
+.PHONY: lint
+lint:
+	@clang-format --dry-run --Werror $(SRCDIR)/*.c $(SRCDIR)/*.h
+
 .PHONY: run
 run: $(BINOUTPUT)
 	@$(BINOUTPUT)

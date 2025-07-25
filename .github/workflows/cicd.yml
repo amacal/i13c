@@ -27,10 +27,16 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute image hash
+        id: hash
+        run: |
+          cat .github/workflows/cicd.yml .devcontainer/devcontainer.json .devcontainer/Dockerfile > tmp/combined
+          export HASH=$(sha256sum tmp/combined | cut -c1-12)
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+
       - name: Container Environment
         uses: devcontainers/ci@v0.3.1900000349
         with:
-          imageName: ghcr.io/amacal/i13c
-          cacheFrom: ghcr.io/amacal/i13c
+          imageName: ghcr.io/amacal/i13c:${{ steps.hash.outputs.hash }}
           push: always
-          runCmd: make clean build test
+          runCmd: make clean build test lint

@@ -8,7 +8,7 @@ RUN sudo sed -i 's|http://de.archive.ubuntu.com|http://mirror.ubuntu.com|g' /etc
         xxd wget tar make cmake libwayland-client0 \
         xdg-utils libgvc6 pkg-config git build-essential \
         libcapstone-dev qtbase5-dev libqt5xmlpatterns5-dev \
-        libqt5svg5-dev qttools5-dev \
+        libqt5svg5-dev qttools5-dev clang-format \
     && sudo rm -rf /var/lib/apt/lists/*
 
 RUN cd /tmp \

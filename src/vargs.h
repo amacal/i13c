@@ -8,4 +8,4 @@
 
 /// @brief Initialize variable argument list
 /// @param area Pointer to the memory area for the argument list
-extern void vargs_init(void* area);
+extern void vargs_init(void *area);
