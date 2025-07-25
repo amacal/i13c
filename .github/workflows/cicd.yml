@@ -37,6 +37,7 @@ jobs:
       - name: Container Environment
         uses: devcontainers/ci@v0.3.1900000349
         with:
-          imageName: ghcr.io/amacal/i13c:${{ steps.hash.outputs.hash }}
+          imageName: ghcr.io/amacal/i13c
+          imageTag: ${{ steps.hash.outputs.hash }}
           push: always
           runCmd: make clean build test lint
