@@ -37,10 +37,16 @@ Everything is wired through the Makefile. The devcontainer provides all tooling,
 
 ```bash
 # builds all binaries
-make clean build
+make build
 
 # runs all tests
-make clean test
+make test
+
+# checks formatting
+make lint
+
+# auto-formats sources
+make fix
 
 # runs i13c-thrift
 make thrift

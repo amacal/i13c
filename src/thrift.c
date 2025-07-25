@@ -1681,7 +1681,7 @@ static i64 thrift_dump_i8(struct thrift_dump_context *, const char *buffer, u64 
   if (result < 0) return result;
 
   // print the value
-  writef(", value=%d", value);
+  writef(", value=%d", (i64)value);
 
   // success
   return result;
@@ -1696,7 +1696,7 @@ static i64 thrift_dump_i16(struct thrift_dump_context *, const char *buffer, u64
   if (result < 0) return result;
 
   // print the value
-  writef(", value=%d", value);
+  writef(", value=%d", (i64)value);
 
   // success
   return result;
@@ -1711,7 +1711,7 @@ static i64 thrift_dump_i32(struct thrift_dump_context *, const char *buffer, u64
   if (result < 0) return result;
 
   // print the value
-  writef(", value=%d", value);
+  writef(", value=%d", (i64)value);
 
   // success
   return result;

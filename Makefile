@@ -1,4 +1,4 @@
-VERSION = 0.1.0
+VERSION ?= $(shell git describe --tags --abbrev=0 | sed 's/^v//')
 RELEASE_DIR = release
 TARBALL_DIR = $(RELEASE_DIR)/i13c-$(VERSION)
 DEB_DIR = $(RELEASE_DIR)/i13c-$(VERSION)-deb
@@ -58,6 +58,7 @@ OBJS_THRIFT := $(patsubst $(SRCDIR)/%.c, $(OBJDIR_THRIFT)/%.c.o, $(SRCS_C)) \
 $(BINOUTPUT): $(OBJDIR_MAIN)/main.s.o $(OBJS_MAIN)
 	@mkdir -p bin
 	@$(LD) -T src/main.ld $(LDFLAGS) -o $@ $^
+	@strip $(BINOUTPUT) -o $(BINOUTPUT)
 
 $(TESTOUTPUT): $(OBJDIR_TESTS)/runner.s.o $(OBJS_TEST)
 	@mkdir -p bin
@@ -66,6 +67,7 @@ $(TESTOUTPUT): $(OBJDIR_TESTS)/runner.s.o $(OBJS_TEST)
 $(THRIFTOUTPUT): $(OBJDIR_THRIFT)/thrift.s.o $(OBJS_THRIFT)
 	@mkdir -p bin
 	@$(LD) -T src/thrift.ld $(LDFLAGS) -o $@ $^
+	@strip $(THRIFTOUTPUT) -o $(THRIFTOUTPUT)
 
 $(OBJDIR_MAIN)/%.c.o: $(SRCDIR)/%.c
 	@mkdir -p $(dir $@)
@@ -110,16 +112,16 @@ $(RELEASE_DIR)/$(TARBALL_NAME):
 $(RELEASE_DIR)/$(DEB_NAME):
 	@mkdir -p $(DEB_DIR)/DEBIAN
 	@mkdir -p $(DEB_DIR)/usr/bin
-	cp bin/i13c-thrift $(DEB_DIR)/usr/bin/
-	chmod 755 $(DEB_DIR)/usr/bin/i13c-thrift
-	echo "Package: i13c" >  $(DEB_DIR)/DEBIAN/control
-	echo "Version: $(VERSION)-1" >> $(DEB_DIR)/DEBIAN/control
-	echo "Section: utils" >>       $(DEB_DIR)/DEBIAN/control
-	echo "Priority: optional" >>  $(DEB_DIR)/DEBIAN/control
-	echo "Architecture: amd64" >> $(DEB_DIR)/DEBIAN/control
-	echo "Maintainer: Adrian Macal <adma@amacal.pl>" >> $(DEB_DIR)/DEBIAN/control
-	echo "Description: Ultra-lightweight x86_64 tools" >> $(DEB_DIR)/DEBIAN/control
-	dpkg-deb --build $(DEB_DIR) $(RELEASE_DIR)/$(DEB_NAME)
+	@cp bin/i13c-thrift $(DEB_DIR)/usr/bin/
+	@chmod 755 $(DEB_DIR)/usr/bin/i13c-thrift
+	@echo "Package: i13c" >  $(DEB_DIR)/DEBIAN/control
+	@echo "Version: $(VERSION)-1" >> $(DEB_DIR)/DEBIAN/control
+	@echo "Section: utils" >>       $(DEB_DIR)/DEBIAN/control
+	@echo "Priority: optional" >>  $(DEB_DIR)/DEBIAN/control
+	@echo "Architecture: amd64" >> $(DEB_DIR)/DEBIAN/control
+	@echo "Maintainer: Adrian Macal <adma@amacal.pl>" >> $(DEB_DIR)/DEBIAN/control
+	@echo "Description: Ultra-lightweight x86_64 tools" >> $(DEB_DIR)/DEBIAN/control
+	@dpkg-deb --build $(DEB_DIR) $(RELEASE_DIR)/$(DEB_NAME)
 
 .PHONY: lint
 lint:
