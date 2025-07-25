@@ -1,4 +1,4 @@
-%ifdef I13C_THRIFT
+    %ifdef I13C_THRIFT
 
     section .text
     global thrift_start
@@ -10,4 +10,4 @@ thrift_start:
     mov rax, 60
     syscall
 
-%endif
+    %endif

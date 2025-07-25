@@ -94,6 +94,17 @@ build: $(BINOUTPUT) $(TESTOUTPUT) $(THRIFTOUTPUT)
 .PHONY: lint
 lint:
 	@clang-format --dry-run --Werror $(SRCDIR)/*.c $(SRCDIR)/*.h
+	@bash -c '\
+		nasmfmt -ii 4 -ci 60 $(SRCDIR)/*.s; \
+		git diff --exit-code $(SRCDIR)/*.s; \
+		ret=$$?; \
+		git checkout -- $(SRCDIR)/*.s; \
+		exit $$ret'
+
+.PHONY: fix
+fix:
+	@clang-format -i $(SRCDIR)/*.c $(SRCDIR)/*.h
+	@nasmfmt -ii 4 -ci 60 $(SRCDIR)/*.s
 
 .PHONY: run
 run: $(BINOUTPUT)

@@ -1,4 +1,4 @@
-%ifdef I13C_TESTS
+    %ifdef I13C_TESTS
 
     section .text
     global _runner
@@ -10,4 +10,4 @@ _runner:
     mov rax, 60
     syscall
 
-%endif
+    %endif
