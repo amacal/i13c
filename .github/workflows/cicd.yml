@@ -30,8 +30,8 @@ jobs:
       - name: Compute image hash
         id: hash
         run: |
-          cat .github/workflows/cicd.yml .devcontainer/devcontainer.json .devcontainer/Dockerfile > tmp/combined
-          export HASH=$(sha256sum tmp/combined | cut -c1-12)
+          cat .github/workflows/cicd.yml .devcontainer/devcontainer.json .devcontainer/Dockerfile > .combined
+          export HASH=$(sha256sum .combined | cut -c1-12)
           echo "hash=$HASH" >> $GITHUB_OUTPUT
 
       - name: Container Environment
