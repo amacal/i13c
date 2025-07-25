@@ -314,7 +314,7 @@
     index=1, type=struct
      struct-start
       field=1, type=binary, size=41, ascii=org.apache.spark.sql.parquet.row.metadata
-      field=2, type=binary, size=289, ascii={"type":"struct","fields":[{"name":"ipCountryCode","type":"string","nullable":true,"metadata":{}},{"name":"clid","type":"string","nullable":true,"metadata":{}},{"name":"hid","type":"string","nullable":true,"metadata":{}},{"name":"known_si
+      field=2, type=binary, size=289, ascii={"type":"struct","fields":[{"name":"ipCountryCode","type":"string","nullable":true,"metadata":{}},{"name":"clid","type":"string","nullable":true,"metadata":{}},{"name":"hid","type":"string","nullable":true,"metadata":{}},{"name":"known_since","type":"date","nullable":true,"metadata":{}}]}
       field=0, type=stop
      struct-end
     index=2, type=struct

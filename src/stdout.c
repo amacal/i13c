@@ -4,6 +4,8 @@
 #include "vargs.h"
 
 #define SUBSTITUTION_BUFFER_SIZE 256
+#define SUBSTITUTION_BUFFER_TRIGGER 192
+
 #define SUBSTITUTION_MARKER '%'
 #define SUBSTITUTION_STRING 's'
 #define SUBSTITUTION_INDENT 'i'
@@ -23,62 +25,84 @@
 #define SUBSTITUTION_HEX_ALPHABET_LEN 16
 #define SUBSTITUTION_HEX_ALPHABET "0123456789abcdef"
 
+/// @brief Flush the output buffer
+/// @param buffer The buffer to flush
+/// @param length The length of the buffer
+/// @return The number of bytes written
+typedef i64 (*flush_buffer_fn)(const char *buffer, u64 length);
+
 struct stdout_context {
-  const char *fmt; // format string
-  char *buffer;    // output buffer
-  void **vargs;    // variable arguments
+  const char *fmt;       // format string
+  char *buffer;          // output buffer
+  void **vargs;          // variable arguments
+  flush_buffer_fn flush; // function to flush the buffer
 };
 
-static void substitute_string(u64 *offset, char *buffer, const char *src) {
-  // copy the string until EOS or buffer is full
-  while (*src != EOS && *offset < SUBSTITUTION_BUFFER_SIZE) {
-    buffer[(*offset)++] = *src++;
-  }
+static void substitute_string(u64 *offset, struct stdout_context *ctx, const char *src) {
+  u64 available;
+
+  do {
+    // calculate available space in the buffer
+    available = SUBSTITUTION_BUFFER_TRIGGER - *offset;
+
+    // copy the string until EOS or buffer is full
+    while (*src != EOS && *offset < SUBSTITUTION_BUFFER_SIZE && available > 0) {
+      // append the character to the buffer
+      ctx->buffer[(*offset)++] = *src++;
+      available--;
+    }
+
+    // flush the buffer if it exceeds the trigger size
+    if (*offset >= SUBSTITUTION_BUFFER_TRIGGER) {
+      ctx->flush(ctx->buffer, *offset);
+      *offset = 0;
+    }
+  } while (*src != EOS);
 }
 
-static void substitute_unknown(u64 *offset, char *buffer, char symbol) {
+static void substitute_unknown(u64 *offset, struct stdout_context *ctx, char symbol) {
   if (*offset < SUBSTITUTION_BUFFER_SIZE) {
-    buffer[(*offset)++] = SUBSTITUTION_MARKER;
+    ctx->buffer[(*offset)++] = SUBSTITUTION_MARKER;
   }
 
   // append an unknown substitution
   if (*offset < SUBSTITUTION_BUFFER_SIZE) {
-    buffer[(*offset)++] = symbol;
+    ctx->buffer[(*offset)++] = symbol;
   }
 }
 
-static void substitute_hex(u64 *offset, char *buffer, u64 value) {
+static void substitute_hex(u64 *offset, struct stdout_context *ctx, u64 value) {
   i32 index;
   const char *chars = SUBSTITUTION_HEX_ALPHABET;
 
   // copy the hex representation only if there's enough space
   if (*offset + SUBSTITUTION_HEX_LEN < SUBSTITUTION_BUFFER_SIZE) {
-    buffer[(*offset)++] = '0';
-    buffer[(*offset)++] = 'x';
+    ctx->buffer[(*offset)++] = '0';
+    ctx->buffer[(*offset)++] = 'x';
 
     for (index = SUBSTITUTION_HEX_ALPHABET_LEN - 1; index >= 0; index--) {
-      buffer[(*offset)++] = chars[(value >> (index * 4)) & 0x0f];
+      ctx->buffer[(*offset)++] = chars[(value >> (index * 4)) & 0x0f];
     }
   }
 }
 
-static void substitute_indent(u64 *offset, char *buffer, u64 indent) {
+static void substitute_indent(u64 *offset, struct stdout_context *ctx, u64 indent) {
   u64 index;
 
   // append indent spaces
   for (index = 0; index < indent && *offset < SUBSTITUTION_BUFFER_SIZE; index++) {
-    buffer[(*offset)++] = ' ';
+    ctx->buffer[(*offset)++] = ' ';
   }
 }
 
-static void substitute_marker(u64 *offset, char *buffer) {
+static void substitute_marker(u64 *offset, struct stdout_context *ctx) {
   // append the substitution marker
   if (*offset < SUBSTITUTION_BUFFER_SIZE) {
-    buffer[(*offset)++] = SUBSTITUTION_MARKER;
+    ctx->buffer[(*offset)++] = SUBSTITUTION_MARKER;
   }
 }
 
-static void substitute_decimal(u64 *offset, char *buffer, i64 value) {
+static void substitute_decimal(u64 *offset, struct stdout_context *ctx, i64 value) {
   i32 index;
   u64 value_abs;
 
@@ -91,7 +115,7 @@ static void substitute_decimal(u64 *offset, char *buffer, i64 value) {
 
   // if the value is negative, add a minus sign
   if (value < 0 && *offset < SUBSTITUTION_BUFFER_SIZE) {
-    buffer[(*offset)++] = '-';
+    ctx->buffer[(*offset)++] = '-';
   }
 
   // extract digit by digit
@@ -107,26 +131,39 @@ static void substitute_decimal(u64 *offset, char *buffer, i64 value) {
 
   // copy the decimal representation only if there's enough space
   while (index > 0 && *offset < SUBSTITUTION_BUFFER_SIZE) {
-    buffer[(*offset)++] = tmp[--index];
+    ctx->buffer[(*offset)++] = tmp[--index];
   }
 }
 
-static void substitute_ascii(u64 *offset, char *buffer, const char *src, u64 size) {
+static void substitute_ascii(u64 *offset, struct stdout_context *ctx, const char *src, u64 size) {
   char ch;
+  u64 available;
 
-  // copy the string until size or buffer is full
-  while (*offset < SUBSTITUTION_BUFFER_SIZE && size > 0) {
-    size--;
-    ch = *src++;
+  do {
+    // calculate available space in the buffer
+    available = SUBSTITUTION_BUFFER_TRIGGER - *offset;
 
-    // if the character is not in the ASCII range, use fallback
-    if (ch < SUBSTITUTION_ASCII_MIN || ch > SUBSTITUTION_ASCII_MAX) {
-      ch = SUBSTITUTION_ASCII_FALLBACK;
+    // copy the string until EOS or buffer is full
+    while (size > 0 && *offset < SUBSTITUTION_BUFFER_SIZE && available > 0) {
+      size--;
+      ch = *src++;
+
+      // if the character is not in the ASCII range, use fallback
+      if (ch < SUBSTITUTION_ASCII_MIN || ch > SUBSTITUTION_ASCII_MAX) {
+        ch = SUBSTITUTION_ASCII_FALLBACK;
+      }
+
+      // append the character to the buffer
+      ctx->buffer[(*offset)++] = ch;
+      available--;
+
+      // flush the buffer if it exceeds the trigger size
+      if (*offset >= SUBSTITUTION_BUFFER_TRIGGER) {
+        ctx->flush(ctx->buffer, *offset);
+        *offset = 0;
+      }
     }
-
-    // append the character to the buffer
-    buffer[(*offset)++] = ch;
-  }
+  } while (size > 0);
 }
 
 static i64 flush_buffer(const char *buffer, u64 length) {
@@ -162,7 +199,7 @@ static u64 format(struct stdout_context *ctx) {
     if (*ctx->fmt == SUBSTITUTION_MARKER && vargs_offset + 1 < VARGS_MAX) {
       switch (*(ctx->fmt + 1)) {
         case SUBSTITUTION_ASCII:
-          substitute_ascii(&buffer_offset, ctx->buffer, (const char *)ctx->vargs[vargs_offset],
+          substitute_ascii(&buffer_offset, ctx, (const char *)ctx->vargs[vargs_offset],
                            (u64)ctx->vargs[vargs_offset + 1]);
           vargs_offset += 2;
           ctx->fmt += 2;
@@ -174,31 +211,37 @@ static u64 format(struct stdout_context *ctx) {
     if (*ctx->fmt == SUBSTITUTION_MARKER && vargs_offset < VARGS_MAX) {
       switch (*++ctx->fmt) {
         case SUBSTITUTION_STRING:
-          substitute_string(&buffer_offset, ctx->buffer, ctx->vargs[vargs_offset++]);
+          substitute_string(&buffer_offset, ctx, ctx->vargs[vargs_offset++]);
           break;
         case SUBSTITUTION_HEX:
-          substitute_hex(&buffer_offset, ctx->buffer, (u64)ctx->vargs[vargs_offset++]);
+          substitute_hex(&buffer_offset, ctx, (u64)ctx->vargs[vargs_offset++]);
           break;
         case SUBSTITUTION_INDENT:
-          substitute_indent(&buffer_offset, ctx->buffer, (u64)ctx->vargs[vargs_offset++]);
+          substitute_indent(&buffer_offset, ctx, (u64)ctx->vargs[vargs_offset++]);
           break;
         case SUBSTITUTION_DECIMAL:
-          substitute_decimal(&buffer_offset, ctx->buffer, (i64)ctx->vargs[vargs_offset++]);
+          substitute_decimal(&buffer_offset, ctx, (i64)ctx->vargs[vargs_offset++]);
           break;
         case SUBSTITUTION_MARKER:
-          substitute_marker(&buffer_offset, ctx->buffer);
+          substitute_marker(&buffer_offset, ctx);
           break;
         case EOS:
-          substitute_marker(&buffer_offset, ctx->buffer);
+          substitute_marker(&buffer_offset, ctx);
           goto result;
         default:
-          substitute_unknown(&buffer_offset, ctx->buffer, *ctx->fmt);
+          substitute_unknown(&buffer_offset, ctx, *ctx->fmt);
           break;
       }
 
       // continue looping
       ctx->fmt++;
       continue;
+    }
+
+    // flush the buffer if it exceeds the trigger size
+    if (buffer_offset >= SUBSTITUTION_BUFFER_TRIGGER) {
+      ctx->flush(ctx->buffer, buffer_offset);
+      buffer_offset = 0;
     }
 
     // append regular character
@@ -229,6 +272,7 @@ void writef(const char *fmt, ...) {
   ctx.fmt = fmt;
   ctx.vargs = vargs;
   ctx.buffer = buffer;
+  ctx.flush = flush_buffer;
 
   // format the string
   buffer_offset = format(&ctx);
@@ -248,6 +292,7 @@ static void can_format_without_substitutions() {
   ctx.fmt = "Hello, World!";
   ctx.vargs = NULL;
   ctx.buffer = buffer;
+  ctx.flush = NULL;
 
   // format a simple string
   offset = format(&ctx);
@@ -267,6 +312,7 @@ static void can_format_with_string_substitution() {
   ctx.fmt = "Hello, %s!";
   ctx.vargs = vargs;
   ctx.buffer = buffer;
+  ctx.flush = NULL;
 
   // not initialize all vargs
   vargs[0] = "World";
@@ -289,6 +335,7 @@ static void can_format_with_hex_substitution() {
   ctx.fmt = "Value: %x";
   ctx.vargs = vargs;
   ctx.buffer = buffer;
+  ctx.flush = NULL;
 
   // not initialize all vargs
   vargs[0] = (void *)(u64)0x1234abcd01020304;
@@ -311,6 +358,7 @@ static void can_format_with_decimal_positive() {
   ctx.fmt = "Value: %d";
   ctx.vargs = vargs;
   ctx.buffer = buffer;
+  ctx.flush = NULL;
 
   // not initialize all vargs
   vargs[0] = (void *)(i64)123456789;
@@ -333,6 +381,7 @@ static void can_format_with_decimal_negative() {
   ctx.fmt = "Value: %d";
   ctx.vargs = vargs;
   ctx.buffer = buffer;
+  ctx.flush = NULL;
 
   // not initialize all vargs
   vargs[0] = (void *)(i64)-123456789;
@@ -355,6 +404,7 @@ static void can_format_with_decimal_int64_min() {
   ctx.fmt = "Value: %d";
   ctx.vargs = vargs;
   ctx.buffer = buffer;
+  ctx.flush = NULL;
 
   // not initialize all vargs
   vargs[0] = (void *)(i64)(-9223372036854775807ll - 1);
@@ -377,6 +427,7 @@ static void can_format_with_indent_substitution() {
   ctx.fmt = "%iabcdef";
   ctx.vargs = vargs;
   ctx.buffer = buffer;
+  ctx.flush = NULL;
 
   // not initialize all vargs
   vargs[0] = (void *)(u64)4;
@@ -399,6 +450,7 @@ static void can_format_with_ascii_substitution() {
   ctx.fmt = "ASCII: %a";
   ctx.vargs = vargs;
   ctx.buffer = buffer;
+  ctx.flush = NULL;
 
   // not initialize all vargs
   vargs[0] = "Hello, Ślimak!";
@@ -421,6 +473,7 @@ static void can_format_with_unknown_substitution() {
   ctx.fmt = "Unknown: %z";
   ctx.vargs = NULL;
   ctx.buffer = buffer;
+  ctx.flush = NULL;
 
   // format a string with unknown substitution
   offset = format(&ctx);
@@ -439,6 +492,7 @@ static void can_format_with_percent_escape() {
   ctx.fmt = "50%% done%";
   ctx.vargs = NULL;
   ctx.buffer = buffer;
+  ctx.flush = NULL;
 
   // format a string
   offset = format(&ctx);
