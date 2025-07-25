@@ -101,13 +101,13 @@ build: $(BINOUTPUT) $(TESTOUTPUT) $(THRIFTOUTPUT)
 .PHONY: release
 release: $(RELEASE_DIR)/$(TARBALL_NAME) $(RELEASE_DIR)/$(DEB_NAME)
 
-$(RELEASE_DIR)/$(TARBALL_NAME): build
+$(RELEASE_DIR)/$(TARBALL_NAME):
 	@mkdir -p $(TARBALL_DIR)
 	@cp bin/i13c-thrift $(TARBALL_DIR)/
 	@cp LICENSE README.md $(TARBALL_DIR)/
 	@tar -czvf $@ -C $(RELEASE_DIR) $(notdir $(TARBALL_DIR))
 
-$(RELEASE_DIR)/$(DEB_NAME): build
+$(RELEASE_DIR)/$(DEB_NAME):
 	@mkdir -p $(DEB_DIR)/DEBIAN
 	@mkdir -p $(DEB_DIR)/usr/bin
 	cp bin/i13c-thrift $(DEB_DIR)/usr/bin/
