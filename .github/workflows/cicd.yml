@@ -30,7 +30,7 @@ jobs:
       - name: Compute image hash
         id: hash
         run: |
-          cat .github/workflows/cicd.yml .devcontainer/devcontainer.json .devcontainer/Dockerfile > .combined
+          cat .devcontainer/devcontainer.json .devcontainer/Dockerfile > .combined
           export HASH=$(sha256sum .combined | cut -c1-12)
           echo "hash=$HASH" >> $GITHUB_OUTPUT
 
@@ -41,3 +41,12 @@ jobs:
           imageTag: ${{ steps.hash.outputs.hash }}
           push: always
           runCmd: make clean build test lint
+
+      - name: Upload built binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: i13c-binaries
+          path: |
+            bin/i13c-thrift
+            LICENSE
+            README.md

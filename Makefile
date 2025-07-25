@@ -1,3 +1,10 @@
+VERSION = 0.1.0
+RELEASE_DIR = release
+TARBALL_DIR = $(RELEASE_DIR)/i13c-$(VERSION)
+DEB_DIR = $(RELEASE_DIR)/i13c-$(VERSION)-deb
+DEB_NAME = i13c-$(VERSION)-amd64.deb
+TARBALL_NAME = i13c-$(VERSION)-linux-x86_64.tar.gz
+
 AR=ar
 LD=ld
 CC=gcc
@@ -86,10 +93,33 @@ $(OBJDIR_THRIFT)/%.s.o: $(SRCDIR)/%.s
 
 .PHONY: clean
 clean:
-	@rm -rf $(OBJDIR_MAIN) $(OBJDIR_TESTS) $(OBJDIR_THRIFT) $(TMPDIR) $(BINDIR)
+	@rm -rf $(OBJDIR_MAIN) $(OBJDIR_TESTS) $(OBJDIR_THRIFT) $(TMPDIR) $(BINDIR) $(RELEASE_DIR)
 
 .PHONY: build
 build: $(BINOUTPUT) $(TESTOUTPUT) $(THRIFTOUTPUT)
+
+.PHONY: release
+release: $(RELEASE_DIR)/$(TARBALL_NAME) $(RELEASE_DIR)/$(DEB_NAME)
+
+$(RELEASE_DIR)/$(TARBALL_NAME): build
+	@mkdir -p $(TARBALL_DIR)
+	@cp bin/i13c-thrift $(TARBALL_DIR)/
+	@cp LICENSE README.md $(TARBALL_DIR)/
+	@tar -czvf $@ -C $(RELEASE_DIR) $(notdir $(TARBALL_DIR))
+
+$(RELEASE_DIR)/$(DEB_NAME): build
+	@mkdir -p $(DEB_DIR)/DEBIAN
+	@mkdir -p $(DEB_DIR)/usr/bin
+	cp bin/i13c-thrift $(DEB_DIR)/usr/bin/
+	chmod 755 $(DEB_DIR)/usr/bin/i13c-thrift
+	echo "Package: i13c" >  $(DEB_DIR)/DEBIAN/control
+	echo "Version: $(VERSION)-1" >> $(DEB_DIR)/DEBIAN/control
+	echo "Section: utils" >>       $(DEB_DIR)/DEBIAN/control
+	echo "Priority: optional" >>  $(DEB_DIR)/DEBIAN/control
+	echo "Architecture: amd64" >> $(DEB_DIR)/DEBIAN/control
+	echo "Maintainer: Adrian Macal <adma@amacal.pl>" >> $(DEB_DIR)/DEBIAN/control
+	echo "Description: Ultra-lightweight x86_64 tools" >> $(DEB_DIR)/DEBIAN/control
+	dpkg-deb --build $(DEB_DIR) $(RELEASE_DIR)/$(DEB_NAME)
 
 .PHONY: lint
 lint:
