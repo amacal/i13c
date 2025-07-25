@@ -43,12 +43,9 @@ make clean build
 make clean test
 
 # runs i13-thrift
-make clean thrift
-
-# run all unit tests
-make clean test
+make thrift
 ```
 
 # license
 
-Deliberately not set. Use with care.
+This project is licensed under the [Creative Commons Attribution-NonCommercial 4.0 International License](LICENSE).
