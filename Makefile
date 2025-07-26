@@ -138,6 +138,9 @@ fix:
 	@clang-format -i $(SRCDIR)/*.c $(SRCDIR)/*.h
 	@nasmfmt -ii 4 -ci 60 $(SRCDIR)/*.s
 
+.PHONY: check-commit
+check-commit: lint
+
 .PHONY: run
 run: $(BINOUTPUT)
 	@$(BINOUTPUT)
