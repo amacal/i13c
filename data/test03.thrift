@@ -19,7 +19,7 @@
         field=10, type=struct
          struct-start
           field=1, type=i8, value=32
-          field=2, type=bool-true, value=true
+          field=2, type=bool, value=true
           field=0, type=stop
          struct-end
         field=0, type=stop
@@ -37,7 +37,7 @@
         field=10, type=struct
          struct-start
           field=1, type=i8, value=64
-          field=2, type=bool-true, value=true
+          field=2, type=bool, value=true
           field=0, type=stop
          struct-end
         field=0, type=stop
@@ -55,7 +55,7 @@
         field=10, type=struct
          struct-start
           field=1, type=i8, value=32
-          field=2, type=bool-true, value=true
+          field=2, type=bool, value=true
           field=0, type=stop
          struct-end
         field=0, type=stop
@@ -105,7 +105,7 @@
         field=10, type=struct
          struct-start
           field=1, type=i8, value=64
-          field=2, type=bool-true, value=true
+          field=2, type=bool, value=true
           field=0, type=stop
          struct-end
         field=0, type=stop
@@ -123,7 +123,7 @@
         field=10, type=struct
          struct-start
           field=1, type=i8, value=64
-          field=2, type=bool-true, value=true
+          field=2, type=bool, value=true
           field=0, type=stop
          struct-end
         field=0, type=stop
@@ -258,7 +258,7 @@
         field=10, type=struct
          struct-start
           field=1, type=i8, value=32
-          field=2, type=bool-true, value=true
+          field=2, type=bool, value=true
           field=0, type=stop
          struct-end
         field=0, type=stop
@@ -405,7 +405,7 @@
         field=10, type=struct
          struct-start
           field=1, type=i8, value=64
-          field=2, type=bool-true, value=true
+          field=2, type=bool, value=true
           field=0, type=stop
          struct-end
         field=0, type=stop
@@ -533,7 +533,7 @@
         field=10, type=struct
          struct-start
           field=1, type=i8, value=64
-          field=2, type=bool-true, value=true
+          field=2, type=bool, value=true
           field=0, type=stop
          struct-end
         field=0, type=stop
@@ -551,7 +551,7 @@
         field=10, type=struct
          struct-start
           field=1, type=i8, value=64
-          field=2, type=bool-true, value=true
+          field=2, type=bool, value=true
           field=0, type=stop
          struct-end
         field=0, type=stop
@@ -622,7 +622,7 @@
         field=10, type=struct
          struct-start
           field=1, type=i8, value=32
-          field=2, type=bool-true, value=true
+          field=2, type=bool, value=true
           field=0, type=stop
          struct-end
         field=0, type=stop
@@ -640,7 +640,7 @@
         field=10, type=struct
          struct-start
           field=1, type=i8, value=32
-          field=2, type=bool-true, value=true
+          field=2, type=bool, value=true
           field=0, type=stop
          struct-end
         field=0, type=stop

@@ -58,7 +58,7 @@ OBJS_THRIFT := $(patsubst $(SRCDIR)/%.c, $(OBJDIR_THRIFT)/%.c.o, $(SRCS_C)) \
 $(BINOUTPUT): $(OBJDIR_MAIN)/main.s.o $(OBJS_MAIN)
 	@mkdir -p bin
 	@$(LD) -T src/main.ld $(LDFLAGS) -o $@ $^
-	@strip $(BINOUTPUT) -o $(BINOUTPUT)
+	@strip --strip-all $(BINOUTPUT) -o $(BINOUTPUT)
 
 $(TESTOUTPUT): $(OBJDIR_TESTS)/runner.s.o $(OBJS_TEST)
 	@mkdir -p bin
@@ -67,7 +67,7 @@ $(TESTOUTPUT): $(OBJDIR_TESTS)/runner.s.o $(OBJS_TEST)
 $(THRIFTOUTPUT): $(OBJDIR_THRIFT)/thrift.s.o $(OBJS_THRIFT)
 	@mkdir -p bin
 	@$(LD) -T src/thrift.ld $(LDFLAGS) -o $@ $^
-	@strip $(THRIFTOUTPUT) -o $(THRIFTOUTPUT)
+	@strip --strip-all $(THRIFTOUTPUT)
 
 $(OBJDIR_MAIN)/%.c.o: $(SRCDIR)/%.c
 	@mkdir -p $(dir $@)
