@@ -3,7 +3,16 @@
 #include "malloc.h"
 #include "typing.h"
 
+enum parquet_error {
+  // indicates that the read would overflow the buffer
+  PARQUET_ERROR_BUFFER_OVERFLOW = -288,
+
+  // indicates that the read field type is invalid
+  PARQUET_ERROR_INVALID_TYPE = -289,
+};
+
 enum parquet_data_type {
+  PARQUET_DATA_TYPE_NONE = -1,
   PARQUET_DATA_TYPE_BOOLEAN = 0,
   PARQUET_DATA_TYPE_INT32 = 1,
   PARQUET_DATA_TYPE_INT64 = 2,
@@ -83,12 +92,12 @@ enum parquet_page_type {
 };
 
 struct parquet_schema_element {
-  i8 data_type;       // 1, data type for this field, set only in leaf-node
-  i32 type_length;    // 2, if type is FIXED_BYTE_ARRAY, this is the length of the array
-  i8 repetition_type; // 3, repetition of the field, not set in the root-node
-  char *name;         // 4, name of the schema element
-  i32 num_children;   // 5, number of children in the schema
-  i8 converted_type;  // 6, common types used by frameworks using parquet
+  i32 data_type;       // 1, data type for this field, set only in leaf-node
+  i32 type_length;     // 2, if type is FIXED_BYTE_ARRAY, this is the length of the array
+  i32 repetition_type; // 3, repetition of the field, not set in the root-node
+  char *name;          // 4, name of the schema element
+  i32 num_children;    // 5, number of children in the schema
+  i32 converted_type;  // 6, common types used by frameworks using parquet
 };
 
 struct parquet_column_statistics {
@@ -103,16 +112,16 @@ struct parquet_column_statistics {
 };
 
 struct parquet_page_encoding_stats {
-  i8 page_type; // 1, type of the page
-  i8 encoding;  // 2, encoding used for the page
-  i32 count;    // 3, number of pages with this encoding
+  i32 page_type; // 1, type of the page
+  i32 encoding;  // 2, encoding used for the page
+  i32 count;     // 3, number of pages with this encoding
 };
 
 struct parquet_column_meta {
-  i8 data_type;                                        // 1, data type of this column
-  i8 *parquet_encoding;                                // 2, null-terminated array of encodings used for this column
+  i32 data_type;                                       // 1, data type of this column
+  i32 *parquet_encoding;                               // 2, null-terminated array of encodings used for this column
   char **path_in_schema;                               // 3, path to the column in the schema, null-terminated
-  i8 compression_codec;                                // 4, compression codec used for this column
+  i32 compression_codec;                               // 4, compression codec used for this column
   i64 num_values;                                      // 5, number of values in the column
   i64 total_uncompressed_size;                         // 6, total uncompressed size of the column
   i64 total_compressed_size;                           // 7, total compressed size of the column

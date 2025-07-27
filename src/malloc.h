@@ -7,7 +7,7 @@
 
 enum malloc_error {
   // indicates that the size is not acceptable, e.g., too small, too big or not a power of two
-  MALLOC_INVALID_SIZE = -274,
+  MALLOC_INVALID_SIZE = -272,
 };
 
 struct malloc_slot {

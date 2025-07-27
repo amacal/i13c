@@ -153,7 +153,7 @@ static i64 parquet_read_version(struct parquet_parse_context *ctx,
 
   // check if the field type is correct
   if (field_type != THRIFT_TYPE_I32) {
-    return -1;
+    return PARQUET_ERROR_INVALID_TYPE;
   }
 
   // read i32 as the parquet version
@@ -216,10 +216,10 @@ static i64 parquet_read_created_by(struct parquet_parse_context *ctx,
   return read + result;
 }
 
-static i64 parquet_read_schema_type(struct parquet_parse_context *ctx,
-                                    enum thrift_type field_type,
-                                    const char *buffer,
-                                    u64 buffer_size) {
+static i64 parquet_read_data_type(struct parquet_parse_context *ctx,
+                                  enum thrift_type field_type,
+                                  const char *buffer,
+                                  u64 buffer_size) {
   struct parquet_schema_element *schema;
   i64 result;
   i32 value;
@@ -238,9 +238,9 @@ static i64 parquet_read_schema_type(struct parquet_parse_context *ctx,
     return -1;
   }
 
-  // remember allocated memory slice
+  // remember read value
   schema = (struct parquet_schema_element *)ctx->target;
-  schema->data_type = (enum parquet_data_type)value;
+  schema->data_type = value;
 
   // success
   return result;
@@ -380,7 +380,7 @@ static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const
   thrift_read_fn fields[FIELDS_SLOTS];
 
   // prepare the mapping of fields
-  fields[1] = (thrift_read_fn)parquet_read_schema_type;     // schema_type
+  fields[1] = (thrift_read_fn)parquet_read_data_type;       // data_type
   fields[2] = (thrift_read_fn)thrift_ignore_field;          // ignored
   fields[3] = (thrift_read_fn)parquet_read_repetition_type; // repetition_type
   fields[4] = (thrift_read_fn)parquet_read_schema_name;     // schema_name
@@ -389,7 +389,7 @@ static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const
 
   // get schema
   schema = (struct parquet_schema_element *)ctx->target;
-  schema->data_type = -1;
+  schema->data_type = PARQUET_DATA_TYPE_NONE;
   schema->type_length = -1;
   schema->repetition_type = -1;
   schema->name = NULL;
@@ -596,9 +596,51 @@ static void can_detect_non_existing_parquet_file() {
   malloc_destroy(&pool);
 }
 
+static void can_read_parquet_version() {
+  struct parquet_parse_context ctx;
+  struct parquet_metadata metadata;
+
+  i64 result;
+  const char buffer[] = {0x02}; // zig-zag encoding of version 1
+
+  // defaults
+  ctx.target = &metadata;
+  metadata.version = 0;
+
+  // read the version from the buffer
+  result = parquet_read_version(&ctx, THRIFT_TYPE_I32, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 1, "should read one byte");
+  assert(metadata.version == 1, "should read version 1");
+}
+
+static void can_detected_parquet_version_invalid_type() {
+  struct parquet_parse_context ctx;
+  struct parquet_metadata metadata;
+
+  i64 result;
+  const char buffer[] = {0x02}; // zig-zag encoding of version 1
+
+  // defaults
+  ctx.target = &metadata;
+  metadata.version = 0;
+
+  // read the version from the buffer
+  result = parquet_read_version(&ctx, THRIFT_TYPE_I16, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
+}
+
 void parquet_test_cases(struct runner_context *ctx) {
+  // opening and closing cases
   test_case(ctx, "can open and close parquet file", can_open_and_close_parquet_file);
   test_case(ctx, "can detect non-existing parquet file", can_detect_non_existing_parquet_file);
+
+  // reading cases
+  test_case(ctx, "can read parquet version", can_read_parquet_version);
+  test_case(ctx, "can detect invalid parquet version", can_detected_parquet_version_invalid_type);
 }
 
 #endif
