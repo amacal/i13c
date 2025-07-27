@@ -9,6 +9,9 @@ enum parquet_error {
 
   // indicates that the read field type is invalid
   PARQUET_ERROR_INVALID_TYPE = -289,
+
+  // indicates that the read field value is invalid
+  PARQUET_ERROR_INVALID_VALUE = -290,
 };
 
 enum parquet_data_type {

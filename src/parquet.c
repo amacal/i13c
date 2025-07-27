@@ -146,6 +146,8 @@ static i64 parquet_read_version(struct parquet_parse_context *ctx,
                                 enum thrift_type field_type,
                                 const char *buffer,
                                 u64 buffer_size) {
+  i32 value;
+  i64 result;
   struct parquet_metadata *metadata;
 
   // target points at the metadata structure
@@ -157,13 +159,24 @@ static i64 parquet_read_version(struct parquet_parse_context *ctx,
   }
 
   // read i32 as the parquet version
-  return thrift_read_i32(&metadata->version, buffer, buffer_size);
+  result = thrift_read_i32(&value, buffer, buffer_size);
+  if (result < 0) return result;
+
+  // check if the value is within the valid range
+  if (value <= 0) return PARQUET_ERROR_INVALID_VALUE;
+
+  // version is OK
+  metadata->version = value;
+
+  // success
+  return result;
 }
 
 static i64 parquet_read_num_rows(struct parquet_parse_context *ctx,
                                  enum thrift_type field_type,
                                  const char *buffer,
                                  u64 buffer_size) {
+  i64 value, result;
   struct parquet_metadata *metadata;
 
   // target points at the metadata structure
@@ -171,11 +184,21 @@ static i64 parquet_read_num_rows(struct parquet_parse_context *ctx,
 
   // check if the field type is correct
   if (field_type != THRIFT_TYPE_I64) {
-    return -1;
+    return PARQUET_ERROR_INVALID_TYPE;
   }
 
   // read i64 as the number of rows
-  return thrift_read_i64(&metadata->num_rows, buffer, buffer_size);
+  result = thrift_read_i64(&value, buffer, buffer_size);
+  if (result < 0) return result;
+
+  // check if the value is within the valid range
+  if (value < 0) return PARQUET_ERROR_INVALID_VALUE;
+
+  // value is OK
+  metadata->num_rows = value;
+
+  // success
+  return result;
 }
 
 static i64 parquet_read_created_by(struct parquet_parse_context *ctx,
@@ -633,14 +656,92 @@ static void can_detected_parquet_version_invalid_type() {
   assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
 }
 
+static void can_detected_parquet_version_invalid_value() {
+  struct parquet_parse_context ctx;
+  struct parquet_metadata metadata;
+
+  i64 result;
+  const char buffer[] = {0x01}; // zig-zag encoding of version -1
+
+  // defaults
+  ctx.target = &metadata;
+  metadata.version = 0;
+
+  // read the version from the buffer
+  result = parquet_read_version(&ctx, THRIFT_TYPE_I32, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == PARQUET_ERROR_INVALID_VALUE, "should fail with PARQUET_ERROR_INVALID_VALUE");
+}
+
+static void can_read_num_rows() {
+  struct parquet_parse_context ctx;
+  struct parquet_metadata metadata;
+
+  i64 result;
+  const char buffer[] = {0xf2, 0x94, 0x12};
+
+  // defaults
+  ctx.target = &metadata;
+  metadata.num_rows = 0;
+
+  // read the version from the buffer
+  result = parquet_read_num_rows(&ctx, THRIFT_TYPE_I64, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 3, "should read three bytes");
+  assert(metadata.num_rows == 148793, "should read num_rows 148793");
+}
+
+static void can_detect_num_rows_invalid_type() {
+  struct parquet_parse_context ctx;
+  struct parquet_metadata metadata;
+
+  i64 result;
+  const char buffer[] = {0xf2, 0x94, 0x12};
+
+  // defaults
+  ctx.target = &metadata;
+  metadata.num_rows = 0;
+
+  // read the version from the buffer
+  result = parquet_read_num_rows(&ctx, THRIFT_TYPE_I32, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
+}
+
+static void can_detect_num_rows_invalid_value() {
+  struct parquet_parse_context ctx;
+  struct parquet_metadata metadata;
+
+  i64 result;
+  const char buffer[] = {0x01};
+
+  // defaults
+  ctx.target = &metadata;
+  metadata.num_rows = 0;
+
+  // read the version from the buffer
+  result = parquet_read_num_rows(&ctx, THRIFT_TYPE_I64, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == PARQUET_ERROR_INVALID_VALUE, "should fail with PARQUET_ERROR_INVALID_VALUE");
+}
+
 void parquet_test_cases(struct runner_context *ctx) {
   // opening and closing cases
   test_case(ctx, "can open and close parquet file", can_open_and_close_parquet_file);
   test_case(ctx, "can detect non-existing parquet file", can_detect_non_existing_parquet_file);
 
-  // reading cases
+  // reading footer cases
   test_case(ctx, "can read parquet version", can_read_parquet_version);
-  test_case(ctx, "can detect invalid parquet version", can_detected_parquet_version_invalid_type);
+  test_case(ctx, "can detect parquet version invalid type", can_detected_parquet_version_invalid_type);
+  test_case(ctx, "can detect parquet version invalid value", can_detected_parquet_version_invalid_value);
+
+  test_case(ctx, "can read num rows", can_read_num_rows);
+  test_case(ctx, "can detect num rows invalid type", can_detect_num_rows_invalid_type);
+  test_case(ctx, "can detect num rows invalid value", can_detect_num_rows_invalid_value);
 }
 
 #endif
