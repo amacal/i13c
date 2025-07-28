@@ -12,7 +12,6 @@ struct parquet_parse_context {
   u64 buffer_size; // the size of the buffer
   u64 buffer_tail; // the tail of the buffer
   void *ptrs[16];  // pointers to the fields in the target structure
-  char **created_by;
 };
 
 void parquet_init(struct parquet_file *file, struct malloc_pool *pool) {
@@ -196,9 +195,9 @@ static i64 parquet_read_i64_positive(
   return result;
 }
 
-static i64 parquet_read_created_by(
-  struct parquet_parse_context *ctx, i16, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
-  char *created_by;
+static i64 parquet_read_string(
+  struct parquet_parse_context *ctx, i16 field_id, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
+  char *value;
   i64 result, read;
   u32 size;
 
@@ -207,7 +206,7 @@ static i64 parquet_read_created_by(
     return PARQUET_ERROR_INVALID_TYPE;
   }
 
-  // read the size of the created_by string
+  // read the size of the value string
   result = thrift_read_binary_header(&size, buffer, buffer_size);
   if (result < 0) goto cleanup;
 
@@ -221,14 +220,14 @@ static i64 parquet_read_created_by(
   if (result < 0) goto cleanup;
 
   // remember allocated memory slice
-  created_by = (char *)result;
+  value = (char *)result;
 
   // copy binary content
-  result = thrift_read_binary_content(created_by, size, buffer, buffer_size);
+  result = thrift_read_binary_content(value, size, buffer, buffer_size);
   if (result < 0) goto cleanup_buffer;
 
   // value is OK
-  *(ctx->created_by) = created_by;
+  *(char **)ctx->ptrs[field_id] = value;
 
   // successs
   return read + result;
@@ -237,96 +236,6 @@ cleanup_buffer:
   parquet_metadata_release(ctx, size + 1);
 
 cleanup:
-  return result;
-}
-
-static i64 parquet_read_schema_name(
-  struct parquet_parse_context *ctx, i16, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
-  struct parquet_schema_element *schema;
-  i64 result, read;
-  u32 size;
-
-  // check if the field type is correct
-  if (field_type != THRIFT_TYPE_BINARY) {
-    return -1;
-  }
-
-  // read the size of the schema name string
-  result = thrift_read_binary_header(&size, buffer, buffer_size);
-  if (result < 0) return result;
-
-  // move the buffer pointer and size
-  read = result;
-  buffer += result;
-  buffer_size -= result;
-
-  // allocate the space for the copy
-  result = parquet_metadata_acquire(ctx, size + 1);
-  if (result < 0) return result;
-
-  // remember allocated memory slice
-  schema = (struct parquet_schema_element *)ctx->target;
-  schema->name = (char *)result;
-
-  // copy binary content
-  result = thrift_read_binary_content(schema->name, size, buffer, buffer_size);
-  if (result < 0) return result;
-
-  // successs
-  return read + result;
-}
-
-static i64 parquet_read_num_children(
-  struct parquet_parse_context *ctx, i16, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
-  struct parquet_schema_element *schema;
-  i64 result;
-  i32 value;
-
-  // check if the field type is correct
-  if (field_type != THRIFT_TYPE_I32) {
-    return -1;
-  }
-
-  // read the number of children as an i32
-  result = thrift_read_i32(&value, buffer, buffer_size);
-  if (result < 0) return result;
-
-  // check if the value is within the valid range
-  if (value < 0) return -1;
-
-  // remember allocated memory slice
-  schema = (struct parquet_schema_element *)ctx->target;
-  schema->num_children = value;
-
-  // success
-  return result;
-}
-
-static i64 parquet_read_converted_type(
-  struct parquet_parse_context *ctx, i16, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
-  struct parquet_schema_element *schema;
-  i64 result;
-  i32 value;
-
-  // check if the field type is correct
-  if (field_type != THRIFT_TYPE_I32) {
-    return -1;
-  }
-
-  // read the schema type as an i32
-  result = thrift_read_i32(&value, buffer, buffer_size);
-  if (result < 0) return result;
-
-  // check if the value is within the valid range
-  if (value < 0 || value >= PARQUET_CONVERTED_TYPE_SIZE) {
-    return -1;
-  }
-
-  // remember allocated memory slice
-  schema = (struct parquet_schema_element *)ctx->target;
-  schema->converted_type = (enum parquet_converted_type)value;
-
-  // success
   return result;
 }
 
@@ -339,12 +248,12 @@ static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const
   thrift_read_fn fields[FIELDS_SLOTS];
 
   // prepare the mapping of fields
-  fields[1] = (thrift_read_fn)parquet_read_i32_positive;   // data_type
-  fields[2] = (thrift_read_fn)thrift_ignore_field;         // ignored
-  fields[3] = (thrift_read_fn)parquet_read_i32_positive;   // repetition_type
-  fields[4] = (thrift_read_fn)parquet_read_schema_name;    // schema_name
-  fields[5] = (thrift_read_fn)parquet_read_num_children;   // num_children
-  fields[6] = (thrift_read_fn)parquet_read_converted_type; // converted_type
+  fields[1] = (thrift_read_fn)parquet_read_i32_positive; // data_type
+  fields[2] = (thrift_read_fn)thrift_ignore_field;       // ignored
+  fields[3] = (thrift_read_fn)parquet_read_i32_positive; // repetition_type
+  fields[4] = (thrift_read_fn)parquet_read_string;       // schema_name
+  fields[5] = (thrift_read_fn)parquet_read_i32_positive; // num_children
+  fields[6] = (thrift_read_fn)parquet_read_i32_positive; // converted_type
 
   // schema
   schema = (struct parquet_schema_element *)ctx->target;
@@ -364,6 +273,9 @@ static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const
   // targets
   context.ptrs[1] = &schema->data_type;
   context.ptrs[3] = &schema->repetition_type;
+  context.ptrs[4] = &schema->name;
+  context.ptrs[5] = &schema->num_children;
+  context.ptrs[6] = &schema->converted_type;
 
   // default
   read = 0;
@@ -473,7 +385,7 @@ static i64 parquet_parse_footer(struct parquet_parse_context *ctx, const char *b
   fields[3] = (thrift_read_fn)parquet_read_i64_positive; // num_rows
   fields[4] = (thrift_read_fn)thrift_ignore_field;       // ignored
   fields[5] = (thrift_read_fn)thrift_ignore_field;       // ignored
-  fields[6] = (thrift_read_fn)parquet_read_created_by;   // created_by
+  fields[6] = (thrift_read_fn)parquet_read_string;       // created_by
 
   // behind target we have metadata
   metadata = (struct parquet_metadata *)ctx->target;
@@ -481,7 +393,7 @@ static i64 parquet_parse_footer(struct parquet_parse_context *ctx, const char *b
   // targets
   ctx->ptrs[1] = (void *)&metadata->version;
   ctx->ptrs[3] = (void *)&metadata->num_rows;
-  ctx->created_by = &metadata->created_by;
+  ctx->ptrs[6] = (void *)&metadata->created_by;
 
   // default
   read = 0;
@@ -727,59 +639,63 @@ static void can_propagate_i64_positive_buffer_overflow() {
   assert(value == 0, "should not change value");
 }
 
-static void can_read_created_by() {
+static void can_read_string() {
   struct parquet_parse_context ctx;
-  char *created_by;
+  char *value;
 
   i64 result;
   u64 output[32];
   const char buffer[] = {0x04, 'i', '1', '3', 'c'};
 
   // defaults
-  ctx.created_by = &created_by;
+  ctx.ptrs[1] = &value;
+  value = NULL;
+
+  // buffer
   ctx.buffer = (char *)output;
   ctx.buffer_size = 256;
   ctx.buffer_tail = 1;
-  created_by = NULL;
 
-  // read the created_by from the buffer
-  result = parquet_read_created_by(&ctx, 0, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
+  // read the value from the buffer
+  result = parquet_read_string(&ctx, 1, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == 5, "should read five bytes");
-  assert(created_by != NULL, "should allocate created_by");
-  assert((u64)created_by % 8 == 0, "should be aligned to 8 bytes");
+  assert(value != NULL, "should allocate value");
+  assert((u64)value % 8 == 0, "should be aligned to 8 bytes");
   assert(ctx.buffer_tail == 13, "should update buffer tail to 13");
-  assert_eq_str(created_by, "i13c", "should read created_by 'i13c'");
+  assert_eq_str(value, "i13c", "should read value 'i13c'");
 }
 
-static void can_detect_created_by_invalid_type() {
+static void can_detect_string_invalid_type() {
   struct parquet_parse_context ctx;
-  char *created_by;
+  char *value;
 
   i64 result;
   u64 output[32];
   const char buffer[] = {0x05, 'i', '1', '3', 'c'};
 
   // defaults
-  ctx.created_by = &created_by;
+  ctx.ptrs[1] = &value;
+  value = NULL;
+
+  // buffer
   ctx.buffer = (char *)output;
   ctx.buffer_size = 256;
   ctx.buffer_tail = 1;
-  created_by = NULL;
 
-  // read the created_by from the buffer
-  result = parquet_read_created_by(&ctx, 0, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
+  // read the value from the buffer
+  result = parquet_read_string(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
-  assert(created_by == NULL, "should not allocate created_by");
+  assert(value == NULL, "should not allocate value");
   assert(ctx.buffer_tail == 1, "should not change buffer tail");
 }
 
-static void can_detect_created_by_buffer_overflow() {
+static void can_detect_string_buffer_overflow() {
   struct parquet_parse_context ctx;
-  char *created_by;
+  char *value;
 
   i64 result;
   u64 output[32];
@@ -787,66 +703,72 @@ static void can_detect_created_by_buffer_overflow() {
                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
   // defaults
-  ctx.created_by = &created_by;
+  ctx.ptrs[1] = &value;
+  value = NULL;
+
+  // buffer
   ctx.buffer = (char *)output;
   ctx.buffer_size = 8;
   ctx.buffer_tail = 0;
-  created_by = NULL;
 
-  // read the created_by from the buffer
-  result = parquet_read_created_by(&ctx, 0, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
+  // read the value from the buffer
+  result = parquet_read_string(&ctx, 1, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == PARQUET_ERROR_BUFFER_OVERFLOW, "should fail with PARQUET_ERROR_BUFFER_OVERFLOW");
-  assert(created_by == NULL, "should not allocate created_by");
+  assert(value == NULL, "should not allocate value");
   assert(ctx.buffer_tail == 0, "should not change buffer tail");
 }
 
-static void can_propagate_created_by_buffer_overflow_01() {
+static void can_propagate_string_buffer_overflow_01() {
   struct parquet_parse_context ctx;
-  char *created_by;
+  char *value;
 
   i64 result;
   u64 output[32];
   const char buffer[] = {0xf0};
 
   // defaults
-  ctx.created_by = &created_by;
+  ctx.ptrs[1] = &value;
+  value = NULL;
+
+  // buffer
   ctx.buffer = (char *)output;
   ctx.buffer_size = 256;
   ctx.buffer_tail = 0;
-  created_by = NULL;
 
-  // read the created_by from the buffer
-  result = parquet_read_created_by(&ctx, 0, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
+  // read the value from the buffer
+  result = parquet_read_string(&ctx, 1, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
-  assert(created_by == NULL, "should not allocate created_by");
+  assert(value == NULL, "should not allocate value");
   assert(ctx.buffer_tail == 0, "should not change buffer tail");
 }
 
-static void can_propagate_created_by_buffer_overflow_02() {
+static void can_propagate_string_buffer_overflow_02() {
   struct parquet_parse_context ctx;
-  char *created_by;
+  char *value;
 
   i64 result;
   u64 output[32];
   const char buffer[] = {0x04, 'i', '1', '3'};
 
   // defaults
-  ctx.created_by = &created_by;
+  ctx.ptrs[1] = &value;
+  value = NULL;
+
+  // buffer
   ctx.buffer = (char *)output;
   ctx.buffer_size = 256;
   ctx.buffer_tail = 0;
-  created_by = NULL;
 
-  // read the created_by from the buffer
-  result = parquet_read_created_by(&ctx, 0, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
+  // read the value from the buffer
+  result = parquet_read_string(&ctx, 1, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
-  assert(created_by == NULL, "should not allocate created_by");
+  assert(value == NULL, "should not allocate value");
   assert(ctx.buffer_tail == 0, "should not change buffer tail");
 }
 
@@ -866,11 +788,11 @@ void parquet_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can detect i64 positive invalid value", can_detect_i64_positive_invalid_value);
   test_case(ctx, "can propagate i64 positive buffer overflow", can_propagate_i64_positive_buffer_overflow);
 
-  test_case(ctx, "can read created by", can_read_created_by);
-  test_case(ctx, "can detect created by invalid type", can_detect_created_by_invalid_type);
-  test_case(ctx, "can detect created by buffer overflow", can_detect_created_by_buffer_overflow);
-  test_case(ctx, "can propagate created by buffer overflow 1", can_propagate_created_by_buffer_overflow_01);
-  test_case(ctx, "can propagate created by buffer overflow 2", can_propagate_created_by_buffer_overflow_02);
+  test_case(ctx, "can read string", can_read_string);
+  test_case(ctx, "can detect string invalid type", can_detect_string_invalid_type);
+  test_case(ctx, "can detect string buffer overflow", can_detect_string_buffer_overflow);
+  test_case(ctx, "can propagate string buffer overflow 1", can_propagate_string_buffer_overflow_01);
+  test_case(ctx, "can propagate string buffer overflow 2", can_propagate_string_buffer_overflow_02);
 }
 
 #endif
