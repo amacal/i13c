@@ -12,9 +12,11 @@ struct parquet_parse_context {
   u64 buffer_size; // the size of the buffer
   u64 buffer_tail; // the tail of the buffer
 
-  i32 *version;      // ptr to the version
-  i64 *num_rows;     // ptr to the num_rows
-  char **created_by; // ptr to the created_by
+  i32 *version;         // ptr to the version
+  i32 *data_type;       // ptr to the data_type
+  i32 *repetition_type; // ptr to the repetition_type
+  i64 *num_rows;        // ptr to the num_rows
+  char **created_by;    // ptr to the created_by
 };
 
 void parquet_init(struct parquet_file *file, struct malloc_pool *pool) {
@@ -149,7 +151,6 @@ static i64 parquet_metadata_acquire(struct parquet_parse_context *ctx, u64 size)
 
 static void parquet_metadata_release(struct parquet_parse_context *ctx, u64 size) {
   ctx->buffer_tail -= size;
-  ctx->buffer_size += size;
 }
 
 static i64 parquet_read_version(struct parquet_parse_context *ctx,
@@ -253,13 +254,12 @@ static i64 parquet_read_data_type(struct parquet_parse_context *ctx,
                                   enum thrift_type field_type,
                                   const char *buffer,
                                   u64 buffer_size) {
-  struct parquet_schema_element *schema;
   i64 result;
   i32 value;
 
   // check if the field type is correct
   if (field_type != THRIFT_TYPE_I32) {
-    return -1;
+    return PARQUET_ERROR_INVALID_TYPE;
   }
 
   // read the schema type as an i32
@@ -267,13 +267,10 @@ static i64 parquet_read_data_type(struct parquet_parse_context *ctx,
   if (result < 0) return result;
 
   // check if the value is within the valid range
-  if (value < 0 || value >= PARQUET_DATA_TYPE_SIZE) {
-    return -1;
-  }
+  if (value < 0) return PARQUET_ERROR_INVALID_VALUE;
 
-  // remember read value
-  schema = (struct parquet_schema_element *)ctx->target;
-  schema->data_type = value;
+  // value is OK
+  *(ctx->data_type) = value;
 
   // success
   return result;
@@ -408,6 +405,7 @@ static i64 parquet_read_converted_type(struct parquet_parse_context *ctx,
 static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size) {
   i64 result, read;
   struct parquet_schema_element *schema;
+  struct parquet_parse_context context;
 
   const u32 FIELDS_SLOTS = 7;
   thrift_read_fn fields[FIELDS_SLOTS];
@@ -420,7 +418,7 @@ static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const
   fields[5] = (thrift_read_fn)parquet_read_num_children;    // num_children
   fields[6] = (thrift_read_fn)parquet_read_converted_type;  // converted_type
 
-  // get schema
+  // schema
   schema = (struct parquet_schema_element *)ctx->target;
   schema->data_type = PARQUET_DATA_TYPE_NONE;
   schema->type_length = -1;
@@ -429,17 +427,29 @@ static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const
   schema->num_children = -1;
   schema->converted_type = -1;
 
+  // context
+  context.target = schema;
+  context.buffer = ctx->buffer;
+  context.buffer_size = ctx->buffer_size;
+  context.buffer_tail = ctx->buffer_tail;
+
+  // targets
+  context.data_type = &schema->data_type;
+
   // default
   read = 0;
 
   // delegate content reading to the thrift function
-  result = thrift_read_struct_content(ctx, fields, FIELDS_SLOTS, buffer, buffer_size);
+  result = thrift_read_struct_content(&context, fields, FIELDS_SLOTS, buffer, buffer_size);
   if (result < 0) return result;
 
   // move the buffer pointer and size
   read += result;
   buffer += result;
   buffer_size -= result;
+
+  // restore the context
+  ctx->buffer_tail = context.buffer_tail;
 
   // success
   return read;
@@ -913,6 +923,82 @@ static void can_propagate_created_by_buffer_overflow_02() {
   assert(ctx.buffer_tail == 0, "should not change buffer tail");
 }
 
+static void can_read_data_type() {
+  struct parquet_parse_context ctx;
+  i32 data_type;
+
+  i64 result;
+  const char buffer[] = {0x06};
+
+  // defaults
+  ctx.data_type = &data_type;
+  data_type = 0;
+
+  // read the version from the buffer
+  result = parquet_read_data_type(&ctx, THRIFT_TYPE_I32, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 1, "should read one byte");
+  assert(data_type == 3, "should read data_type 3");
+}
+
+static void can_detect_data_type_invalid_type() {
+  struct parquet_parse_context ctx;
+  i32 data_type;
+
+  i64 result;
+  const char buffer[] = {0x06};
+
+  // defaults
+  ctx.data_type = &data_type;
+  data_type = 0;
+
+  // read the version from the buffer
+  result = parquet_read_data_type(&ctx, THRIFT_TYPE_I64, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
+  assert(data_type == 0, "should not change data_type");
+}
+
+static void can_detect_data_type_invalid_value() {
+  struct parquet_parse_context ctx;
+  i32 data_type;
+
+  i64 result;
+  const char buffer[] = {0x01};
+
+  // defaults
+  ctx.data_type = &data_type;
+  data_type = 0;
+
+  // read the version from the buffer
+  result = parquet_read_data_type(&ctx, THRIFT_TYPE_I32, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == PARQUET_ERROR_INVALID_VALUE, "should fail with PARQUET_ERROR_INVALID_VALUE");
+  assert(data_type == 0, "should not change data_type");
+}
+
+static void can_propagate_data_type_buffer_overflow() {
+  struct parquet_parse_context ctx;
+  i32 data_type;
+
+  i64 result;
+  const char buffer[] = {};
+
+  // defaults
+  ctx.data_type = &data_type;
+  data_type = 0;
+
+  // read the version from the buffer
+  result = parquet_read_data_type(&ctx, THRIFT_TYPE_I32, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
+  assert(data_type == 0, "should not change data_type");
+}
+
 void parquet_test_cases(struct runner_context *ctx) {
   // opening and closing cases
   test_case(ctx, "can open and close parquet file", can_open_and_close_parquet_file);
@@ -934,6 +1020,11 @@ void parquet_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can detect created by buffer overflow", can_detect_created_by_buffer_overflow);
   test_case(ctx, "can propagate created by buffer overflow 1", can_propagate_created_by_buffer_overflow_01);
   test_case(ctx, "can propagate created by buffer overflow 2", can_propagate_created_by_buffer_overflow_02);
+
+  test_case(ctx, "can read data type", can_read_data_type);
+  test_case(ctx, "can detect data type invalid type", can_detect_data_type_invalid_type);
+  test_case(ctx, "can detect data type invalid value", can_detect_data_type_invalid_value);
+  test_case(ctx, "can propagate data type buffer overflow", can_propagate_data_type_buffer_overflow);
 }
 
 #endif
