@@ -133,7 +133,7 @@ static i64 thrift_ignore_field_struct(const char *buffer, u64 buffer_size) {
     }
 
     // call the ignore function
-    result = thrift_ignore_field(NULL, header.type, buffer, buffer_size);
+    result = thrift_ignore_field(NULL, header.field, header.type, buffer, buffer_size);
     if (result < 0) return result;
 
     // move the buffer pointer and size
@@ -185,7 +185,7 @@ static i64 thrift_ignore_field_list(const char *buffer, u64 buffer_size) {
   return read;
 }
 
-i64 thrift_ignore_field(void *, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
+i64 thrift_ignore_field(void *, i16, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
   // check if the field type is out of range
   if (field_type >= THRIFT_TYPE_SIZE) return THRIFT_ERROR_INVALID_VALUE;
 
@@ -271,9 +271,9 @@ i64 thrift_read_struct_content(
 
     // call the field callback or ignore function
     if (header.field >= field_size) {
-      result = thrift_ignore_field(NULL, header.type, buffer, buffer_size);
+      result = thrift_ignore_field(NULL, header.field, header.type, buffer, buffer_size);
     } else {
-      result = fields[header.field](target, header.type, buffer, buffer_size);
+      result = fields[header.field](target, header.field, header.type, buffer, buffer_size);
     }
 
     // perhaps callback failed
@@ -719,7 +719,7 @@ static void can_ignore_struct_content() {
   const char buffer[] = {0x35, 0x13, 0x44, 0x14, 0x00};
 
   // read the struct header from the buffer into nothing
-  result = thrift_ignore_field(NULL, THRIFT_TYPE_STRUCT, buffer, sizeof(buffer));
+  result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_STRUCT, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == 5, "should read five bytes");
@@ -777,7 +777,7 @@ static void can_ignore_binary_content() {
   const char buffer[] = {0x03, 0x01, 0x02, 0x03};
 
   // read the binary content from the buffer into nothing
-  i64 result = thrift_ignore_field(NULL, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
+  i64 result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == 4, "should read four bytes");
@@ -787,7 +787,7 @@ static void can_detect_binary_ignore_buffer_overflow_01() {
   const char buffer[] = {};
 
   // read the binary content from the buffer into nothing
-  i64 result = thrift_ignore_field(NULL, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
+  i64 result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
@@ -797,7 +797,7 @@ static void can_detect_binary_ignore_buffer_overflow_02() {
   const char buffer[] = {0x03, 0x01, 0x02};
 
   // read the binary content from the buffer into nothing
-  i64 result = thrift_ignore_field(NULL, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
+  i64 result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
@@ -827,13 +827,13 @@ static void can_ignore_bool_in_list() {
   const char buffer[] = {0x21, 0x01, 0x02, 0x22, 0x01, 0x02};
 
   // read the boolean value from the buffer
-  result = thrift_ignore_field(NULL, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
+  result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == 3, "should read three bytes");
 
   // read the boolean value from the buffer
-  result = thrift_ignore_field(NULL, THRIFT_TYPE_LIST, buffer + 3, sizeof(buffer) - 3);
+  result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_LIST, buffer + 3, sizeof(buffer) - 3);
 
   // assert the result
   assert(result == 3, "should read three bytes");
@@ -843,7 +843,7 @@ static void can_ignore_bool_true() {
   const char buffer[] = {};
 
   // read the boolean value from the buffer into nothing
-  i64 result = thrift_ignore_field(NULL, THRIFT_TYPE_BOOL_TRUE, buffer, sizeof(buffer));
+  i64 result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_BOOL_TRUE, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == 0, "shouldn't read any bytes");
@@ -853,7 +853,7 @@ static void can_ignore_bool_false() {
   const char buffer[] = {};
 
   // read the boolean value from the buffer into nothing
-  i64 result = thrift_ignore_field(NULL, THRIFT_TYPE_BOOL_FALSE, buffer, sizeof(buffer));
+  i64 result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_BOOL_FALSE, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == 0, "shouldn't read any bytes");
@@ -886,7 +886,7 @@ static void can_detect_bool_invalid_value_in_list() {
   const char buffer[] = {0x11, 0x03};
 
   // read the boolean value from the buffer
-  result = thrift_ignore_field(NULL, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
+  result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == THRIFT_ERROR_INVALID_VALUE, "should fail with THRIFT_ERROR_INVALID_VALUE");
@@ -945,7 +945,7 @@ static void can_ignore_list_content() {
   const char buffer[] = {0x35, 0x13, 0x44, 0x14};
 
   // read the list header from the buffer into nothing
-  result = thrift_ignore_field(NULL, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
+  result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == 4, "should read four bytes");
@@ -956,7 +956,7 @@ static void can_detect_list_ignore_buffer_overflow_01() {
   const char buffer[] = {};
 
   // read the list header from the buffer into nothing
-  result = thrift_ignore_field(NULL, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
+  result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
@@ -967,7 +967,7 @@ static void can_detect_list_ignore_buffer_overflow_02() {
   const char buffer[] = {0x35, 0x13, 0x44};
 
   // read the list header from the buffer into nothing
-  result = thrift_ignore_field(NULL, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
+  result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
@@ -978,7 +978,7 @@ static void can_detect_list_ignore_invalid_type_01() {
   const char buffer[] = {0x3f};
 
   // read the list header from the buffer into nothing
-  result = thrift_ignore_field(NULL, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
+  result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == THRIFT_ERROR_INVALID_VALUE, "should fail with THRIFT_ERROR_INVALID_VALUE");
@@ -989,7 +989,7 @@ static void can_detect_list_ignore_invalid_type_02() {
   const char buffer[] = {0x30};
 
   // read the list header from the buffer into nothing
-  result = thrift_ignore_field(NULL, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
+  result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == THRIFT_ERROR_INVALID_VALUE, "should fail with THRIFT_ERROR_INVALID_VALUE");
@@ -1023,7 +1023,7 @@ static void can_ignore_i8_value() {
   const char buffer[] = {0xfe, 0xff, 0x01};
 
   // read the i8 value from the buffer
-  i64 result = thrift_ignore_field(NULL, THRIFT_TYPE_I8, buffer, sizeof(buffer));
+  i64 result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_I8, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == 1, "should read one byte");
@@ -1116,7 +1116,7 @@ static void can_ignore_i16_value() {
   const char buffer[] = {0xfe, 0xff, 0x01};
 
   // read the i16 value from the buffer
-  i64 result = thrift_ignore_field(NULL, THRIFT_TYPE_I16, buffer, sizeof(buffer));
+  i64 result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_I16, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == 3, "should read three bytes");
@@ -1278,7 +1278,7 @@ static void can_ignore_i32_value() {
   const char buffer[] = {0xfe, 0xff, 0x0f};
 
   // read the i32 value from the buffer
-  i64 result = thrift_ignore_field(NULL, THRIFT_TYPE_I32, buffer, sizeof(buffer));
+  i64 result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_I32, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == 3, "should read three bytes");
@@ -1440,7 +1440,7 @@ static void can_ignore_i64_value() {
   const char buffer[] = {0xfe, 0xff, 0x0f};
 
   // read the i64 value from the buffer
-  i64 result = thrift_ignore_field(NULL, THRIFT_TYPE_I64, buffer, sizeof(buffer));
+  i64 result = thrift_ignore_field(NULL, 0, THRIFT_TYPE_I64, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == 3, "should read three bytes");

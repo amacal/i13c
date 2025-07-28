@@ -44,11 +44,13 @@ struct thrift_struct_header {
 
 /// @brief Thrift field type callback function type.
 /// @param target Pointer to the target struct.
+/// @param field_id ID of the field to read.
 /// @param field_type Type of the field to read.
 /// @param buffer Pointer to the buffer containing the data.
 /// @param buffer_size Size of the buffer.
 /// @return The number of bytes read from the buffer, or a negative error code.
-typedef i64 (*thrift_read_fn)(void *target, enum thrift_type field_type, const char *buffer, u64 buffer_size);
+typedef i64 (*thrift_read_fn)(
+  void *target, i16 field_id, enum thrift_type field_type, const char *buffer, u64 buffer_size);
 
 /// @brief Reads a struct header from the buffer.
 /// @param target Pointer to the target struct header.
@@ -69,11 +71,13 @@ thrift_read_struct_content(void *target, thrift_read_fn *fields, u32 field_size,
 
 /// @brief Ignores a field in the struct.
 /// @param target Pointer to the target struct (unused).
+/// @param field_id ID of the field to ignore.
 /// @param field_type Type of the field to ignore.
 /// @param buffer Pointer to the buffer containing the data.
 /// @param buffer_size Size of the buffer.
 /// @return The number of bytes read from the buffer, or a negative error code.
-extern i64 thrift_ignore_field(void *target, enum thrift_type field_type, const char *buffer, u64 buffer_size);
+extern i64
+thrift_ignore_field(void *target, i16 field_id, enum thrift_type field_type, const char *buffer, u64 buffer_size);
 
 /// @brief Reads a binary header from the buffer.
 /// @param target Pointer to the target u32 variable.
