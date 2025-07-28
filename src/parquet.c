@@ -252,63 +252,6 @@ cleanup:
   return result;
 }
 
-static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size) {
-  i64 result, read;
-  struct parquet_schema_element *schema;
-  struct parquet_parse_context context;
-
-  const u32 FIELDS_SLOTS = 7;
-  thrift_read_fn fields[FIELDS_SLOTS];
-
-  // prepare the mapping of fields
-  fields[1] = (thrift_read_fn)parquet_read_i32_positive; // data_type
-  fields[2] = (thrift_read_fn)thrift_ignore_field;       // ignored
-  fields[3] = (thrift_read_fn)parquet_read_i32_positive; // repetition_type
-  fields[4] = (thrift_read_fn)parquet_read_string;       // schema_name
-  fields[5] = (thrift_read_fn)parquet_read_i32_positive; // num_children
-  fields[6] = (thrift_read_fn)parquet_read_i32_positive; // converted_type
-
-  // schema
-  schema = (struct parquet_schema_element *)ctx->target;
-  schema->data_type = PARQUET_DATA_TYPE_NONE;
-  schema->type_length = -1;
-  schema->repetition_type = -1;
-  schema->name = NULL;
-  schema->num_children = -1;
-  schema->converted_type = -1;
-
-  // context
-  context.target = schema;
-  context.buffer = ctx->buffer;
-  context.buffer_size = ctx->buffer_size;
-  context.buffer_tail = ctx->buffer_tail;
-
-  // targets
-  context.ptrs[1] = &schema->data_type;
-  context.ptrs[3] = &schema->repetition_type;
-  context.ptrs[4] = &schema->name;
-  context.ptrs[5] = &schema->num_children;
-  context.ptrs[6] = &schema->converted_type;
-
-  // default
-  read = 0;
-
-  // delegate content reading to the thrift function
-  result = thrift_read_struct_content(&context, fields, FIELDS_SLOTS, buffer, buffer_size);
-  if (result < 0) return result;
-
-  // move the buffer pointer and size
-  read += result;
-  buffer += result;
-  buffer_size -= result;
-
-  // restore the context
-  ctx->buffer_tail = context.buffer_tail;
-
-  // success
-  return read;
-}
-
 static i64 parquet_read_list(
   struct parquet_parse_context *ctx, i16 field_id, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
   struct parquet_parse_context context;
@@ -391,11 +334,133 @@ cleanup:
   return result;
 }
 
-static i64 parquet_parse_schema(
+static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size) {
+  i64 result, read;
+  struct parquet_schema_element *schema;
+  struct parquet_parse_context context;
+
+  const u32 FIELDS_SLOTS = 7;
+  thrift_read_fn fields[FIELDS_SLOTS];
+
+  // prepare the mapping of fields
+  fields[1] = (thrift_read_fn)parquet_read_i32_positive; // data_type
+  fields[2] = (thrift_read_fn)parquet_read_i32_positive; // type_length
+  fields[3] = (thrift_read_fn)parquet_read_i32_positive; // repetition_type
+  fields[4] = (thrift_read_fn)parquet_read_string;       // schema_name
+  fields[5] = (thrift_read_fn)parquet_read_i32_positive; // num_children
+  fields[6] = (thrift_read_fn)parquet_read_i32_positive; // converted_type
+
+  // schema
+  schema = (struct parquet_schema_element *)ctx->target;
+  schema->data_type = PARQUET_DATA_TYPE_NONE;
+  schema->type_length = -1;
+  schema->repetition_type = -1;
+  schema->name = NULL;
+  schema->num_children = -1;
+  schema->converted_type = -1;
+
+  // context
+  context.target = schema;
+  context.buffer = ctx->buffer;
+  context.buffer_size = ctx->buffer_size;
+  context.buffer_tail = ctx->buffer_tail;
+
+  // targets
+  context.ptrs[1] = &schema->data_type;
+  context.ptrs[2] = &schema->type_length;
+  context.ptrs[3] = &schema->repetition_type;
+  context.ptrs[4] = &schema->name;
+  context.ptrs[5] = &schema->num_children;
+  context.ptrs[6] = &schema->converted_type;
+
+  // default
+  read = 0;
+
+  // delegate content reading to the thrift function
+  result = thrift_read_struct_content(&context, fields, FIELDS_SLOTS, buffer, buffer_size);
+  if (result < 0) return result;
+
+  // move the buffer pointer and size
+  read += result;
+  buffer += result;
+  buffer_size -= result;
+
+  // restore the context
+  ctx->buffer_tail = context.buffer_tail;
+
+  // success
+  return read;
+}
+
+static i64 parquet_parse_row_group_element(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size) {
+  i64 result, read;
+  struct parquet_row_group *row_group;
+  struct parquet_parse_context context;
+
+  const u32 FIELDS_SLOTS = 8;
+  thrift_read_fn fields[FIELDS_SLOTS];
+
+  // prepare the mapping of fields
+  fields[1] = (thrift_read_fn)thrift_ignore_field;       // columns
+  fields[2] = (thrift_read_fn)parquet_read_i64_positive; // total_byte_size
+  fields[3] = (thrift_read_fn)parquet_read_i64_positive; // num_rows
+  fields[4] = (thrift_read_fn)parquet_read_string;       // sorting_columns
+  fields[5] = (thrift_read_fn)parquet_read_i64_positive; // file_offset
+  fields[6] = (thrift_read_fn)parquet_read_i64_positive; // total_compressed_size
+  fields[7] = (thrift_read_fn)thrift_ignore_field;       // ordinal
+
+  // row_group
+  row_group = (struct parquet_row_group *)ctx->target;
+  row_group->total_byte_size = -1;
+  row_group->num_rows = -1;
+  row_group->file_offset = -1;
+  row_group->total_compressed_size = -1;
+
+  // context
+  context.target = row_group;
+  context.buffer = ctx->buffer;
+  context.buffer_size = ctx->buffer_size;
+  context.buffer_tail = ctx->buffer_tail;
+
+  // targets
+  context.ptrs[2] = &row_group->total_byte_size;
+  context.ptrs[3] = &row_group->num_rows;
+  context.ptrs[5] = &row_group->file_offset;
+  context.ptrs[6] = &row_group->total_compressed_size;
+
+  // default
+  read = 0;
+
+  // delegate content reading to the thrift function
+  result = thrift_read_struct_content(&context, fields, FIELDS_SLOTS, buffer, buffer_size);
+  if (result < 0) return result;
+
+  // move the buffer pointer and size
+  read += result;
+  buffer += result;
+  buffer_size -= result;
+
+  // restore the context
+  ctx->buffer_tail = context.buffer_tail;
+
+  // success
+  return read;
+}
+
+static i64 parquet_parse_schemas(
   struct parquet_parse_context *ctx, i16 field_id, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
 
   ctx->target_size = sizeof(struct parquet_schema_element);
   ctx->target_fn = (parquet_read_fn)parquet_parse_schema_element;
+
+  return parquet_read_list(ctx, field_id, field_type, buffer, buffer_size);
+}
+
+static i64 parquet_parse_row_groups(
+  struct parquet_parse_context *ctx, i16 field_id, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
+
+  ctx->target_size = sizeof(struct parquet_row_group);
+  ctx->target_fn = (parquet_read_fn)parquet_parse_row_group_element;
 
   return parquet_read_list(ctx, field_id, field_type, buffer, buffer_size);
 }
@@ -409,9 +474,9 @@ static i64 parquet_parse_footer(struct parquet_parse_context *ctx, const char *b
 
   // prepare the mapping of fields
   fields[1] = (thrift_read_fn)parquet_read_i32_positive; // version
-  fields[2] = (thrift_read_fn)parquet_parse_schema;      // schema
+  fields[2] = (thrift_read_fn)parquet_parse_schemas;     // schemas
   fields[3] = (thrift_read_fn)parquet_read_i64_positive; // num_rows
-  fields[4] = (thrift_read_fn)thrift_ignore_field;       // ignored
+  fields[4] = (thrift_read_fn)parquet_parse_row_groups;  // row_groups
   fields[5] = (thrift_read_fn)thrift_ignore_field;       // ignored
   fields[6] = (thrift_read_fn)parquet_read_string;       // created_by
 
@@ -422,6 +487,7 @@ static i64 parquet_parse_footer(struct parquet_parse_context *ctx, const char *b
   ctx->ptrs[1] = (void *)&metadata->version;
   ctx->ptrs[2] = (void *)&metadata->schemas;
   ctx->ptrs[3] = (void *)&metadata->num_rows;
+  ctx->ptrs[4] = (void *)&metadata->row_groups;
   ctx->ptrs[6] = (void *)&metadata->created_by;
 
   // default

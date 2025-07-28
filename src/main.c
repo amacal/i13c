@@ -11,30 +11,47 @@ i32 main() {
   struct malloc_pool pool;
   struct parquet_metadata metadata;
   struct parquet_schema_element *schema;
+  struct parquet_row_group *row_group;
 
   malloc_init(&pool);
   parquet_init(&file, &pool);
 
   result = parquet_open(&file, "data/test01.parquet");
-  writef("opening parquet file ... %d, %d\n", result, file.fd);
+  if (result < 0) return result;
 
   result = parquet_parse(&file, &metadata);
-  writef("parsing parquet file ... %d\n", result);
+  if (result < 0) return result;
 
-  writef("Parquet file version: %d, number of rows: %d\n", metadata.version, metadata.num_rows);
+  writef("File Version: %d\n", metadata.version);
+  writef("Number of Rows: %d\n", metadata.num_rows);
 
   if (metadata.created_by) {
     writef("Created by: %s\n", metadata.created_by);
   }
 
   if (metadata.schemas) {
+    writef("\nSchemas:\n");
+
     index = 0;
     schema = metadata.schemas[index];
 
     while (schema) {
-      writef("Schema element, name=%s, data_type=%d, converted_type=%d, repetition_type=%d\n", schema->name,
-             (i64)schema->data_type, (i64)schema->converted_type, (i64)schema->repetition_type);
+      writef("- name=%s, data_type=%d, converted_type=%d, repetition_type=%d\n", schema->name, (i64)schema->data_type,
+             (i64)schema->converted_type, (i64)schema->repetition_type);
       schema = metadata.schemas[++index];
+    }
+  }
+
+  if (metadata.row_groups) {
+    writef("\nRow Groups:\n");
+
+    index = 0;
+    row_group = metadata.row_groups[index];
+
+    while (row_group) {
+      writef("- num_rows=%d, total_byte_size=%d, total_compressed_size=%d\n", row_group->num_rows,
+             row_group->total_byte_size, row_group->total_compressed_size);
+      row_group = metadata.row_groups[++index];
     }
   }
 
