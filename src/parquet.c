@@ -11,6 +11,10 @@ struct parquet_parse_context {
   char *buffer;    // the buffer behind metadata storage
   u64 buffer_size; // the size of the buffer
   u64 buffer_tail; // the tail of the buffer
+
+  i32 *version;      // ptr to the version
+  i64 *num_rows;     // ptr to the num_rows
+  char **created_by; // ptr to the created_by
 };
 
 void parquet_init(struct parquet_file *file, struct malloc_pool *pool) {
@@ -125,18 +129,17 @@ void parquet_close(struct parquet_file *file) {
   }
 }
 
-static i64 parquet_metadata_alloc(struct parquet_parse_context *ctx, u64 size) {
+static i64 parquet_metadata_acquire(struct parquet_parse_context *ctx, u64 size) {
   u64 offset;
 
   // align to next 8 bytes
-  size = (size + 7) & ~7;
+  offset = (ctx->buffer_tail + 7) & ~7;
 
   // check if there is enough space
-  if (ctx->buffer_tail + size > ctx->buffer_size) return -1;
+  if (offset + size > ctx->buffer_size) return -1;
 
   // move tail
-  offset = ctx->buffer_tail;
-  ctx->buffer_tail += size;
+  ctx->buffer_tail = offset + size;
 
   // allocated space
   return (i64)(ctx->buffer + offset);
@@ -148,10 +151,6 @@ static i64 parquet_read_version(struct parquet_parse_context *ctx,
                                 u64 buffer_size) {
   i32 value;
   i64 result;
-  struct parquet_metadata *metadata;
-
-  // target points at the metadata structure
-  metadata = (struct parquet_metadata *)ctx->target;
 
   // check if the field type is correct
   if (field_type != THRIFT_TYPE_I32) {
@@ -166,7 +165,7 @@ static i64 parquet_read_version(struct parquet_parse_context *ctx,
   if (value <= 0) return PARQUET_ERROR_INVALID_VALUE;
 
   // version is OK
-  metadata->version = value;
+  *(ctx->version) = value;
 
   // success
   return result;
@@ -177,10 +176,6 @@ static i64 parquet_read_num_rows(struct parquet_parse_context *ctx,
                                  const char *buffer,
                                  u64 buffer_size) {
   i64 value, result;
-  struct parquet_metadata *metadata;
-
-  // target points at the metadata structure
-  metadata = (struct parquet_metadata *)ctx->target;
 
   // check if the field type is correct
   if (field_type != THRIFT_TYPE_I64) {
@@ -195,7 +190,7 @@ static i64 parquet_read_num_rows(struct parquet_parse_context *ctx,
   if (value < 0) return PARQUET_ERROR_INVALID_VALUE;
 
   // value is OK
-  metadata->num_rows = value;
+  *(ctx->num_rows) = value;
 
   // success
   return result;
@@ -205,13 +200,13 @@ static i64 parquet_read_created_by(struct parquet_parse_context *ctx,
                                    enum thrift_type field_type,
                                    const char *buffer,
                                    u64 buffer_size) {
-  struct parquet_metadata *metadata;
+  char *created_by;
   i64 result, read;
   u32 size;
 
   // check if the field type is correct
   if (field_type != THRIFT_TYPE_BINARY) {
-    return -1;
+    return PARQUET_ERROR_INVALID_TYPE;
   }
 
   // read the size of the created_by string
@@ -223,17 +218,19 @@ static i64 parquet_read_created_by(struct parquet_parse_context *ctx,
   buffer += result;
   buffer_size -= result;
 
-  // allocate the space for the copy
-  result = parquet_metadata_alloc(ctx, size + 1);
+  // allocate the space for the copy + EOS
+  result = parquet_metadata_acquire(ctx, size + 1);
   if (result < 0) return result;
 
   // remember allocated memory slice
-  metadata = (struct parquet_metadata *)ctx->target;
-  metadata->created_by = (char *)result;
+  created_by = (char *)result;
 
   // copy binary content
-  result = thrift_read_binary_content(metadata->created_by, size, buffer, buffer_size);
+  result = thrift_read_binary_content(created_by, size, buffer, buffer_size);
   if (result < 0) return result;
+
+  // value is OK
+  *(ctx->created_by) = created_by;
 
   // successs
   return read + result;
@@ -322,7 +319,7 @@ static i64 parquet_read_schema_name(struct parquet_parse_context *ctx,
   buffer_size -= result;
 
   // allocate the space for the copy
-  result = parquet_metadata_alloc(ctx, size + 1);
+  result = parquet_metadata_acquire(ctx, size + 1);
   if (result < 0) return result;
 
   // remember allocated memory slice
@@ -466,7 +463,7 @@ static i64 parquet_parse_schema(struct parquet_parse_context *ctx,
   }
 
   // allocate memory for the pointers
-  result = parquet_metadata_alloc(ctx, (1 + header.size) * sizeof(struct parquet_schema_element *));
+  result = parquet_metadata_acquire(ctx, (1 + header.size) * sizeof(struct parquet_schema_element *));
   if (result < 0) return result;
 
   // remember allocated memory slice
@@ -477,7 +474,7 @@ static i64 parquet_parse_schema(struct parquet_parse_context *ctx,
   metadata->schemas[header.size] = NULL;
 
   // allocate memory for the array
-  result = parquet_metadata_alloc(ctx, header.size * sizeof(struct parquet_schema_element));
+  result = parquet_metadata_acquire(ctx, header.size * sizeof(struct parquet_schema_element));
   if (result < 0) return result;
 
   // fill out the array of schema elements
@@ -515,6 +512,7 @@ static i64 parquet_parse_schema(struct parquet_parse_context *ctx,
 
 static i64 parquet_parse_footer(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size) {
   i64 result, read;
+  struct parquet_metadata *metadata;
 
   const u32 FIELDS_SLOTS = 7;
   thrift_read_fn fields[FIELDS_SLOTS];
@@ -526,6 +524,14 @@ static i64 parquet_parse_footer(struct parquet_parse_context *ctx, const char *b
   fields[4] = (thrift_read_fn)thrift_ignore_field;     // ignored
   fields[5] = (thrift_read_fn)thrift_ignore_field;     // ignored
   fields[6] = (thrift_read_fn)parquet_read_created_by; // created_by
+
+  // behind target we have metadata
+  metadata = (struct parquet_metadata *)ctx->target;
+
+  // targets
+  ctx->version = &metadata->version;
+  ctx->num_rows = &metadata->num_rows;
+  ctx->created_by = &metadata->created_by;
 
   // default
   read = 0;
@@ -621,112 +627,166 @@ static void can_detect_non_existing_parquet_file() {
 
 static void can_read_parquet_version() {
   struct parquet_parse_context ctx;
-  struct parquet_metadata metadata;
+  i32 version;
 
   i64 result;
   const char buffer[] = {0x02}; // zig-zag encoding of version 1
 
   // defaults
-  ctx.target = &metadata;
-  metadata.version = 0;
+  version = 0;
+  ctx.version = &version;
 
   // read the version from the buffer
   result = parquet_read_version(&ctx, THRIFT_TYPE_I32, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == 1, "should read one byte");
-  assert(metadata.version == 1, "should read version 1");
+  assert(version == 1, "should read version 1");
 }
 
 static void can_detected_parquet_version_invalid_type() {
   struct parquet_parse_context ctx;
-  struct parquet_metadata metadata;
+  i32 version;
 
   i64 result;
   const char buffer[] = {0x02}; // zig-zag encoding of version 1
 
   // defaults
-  ctx.target = &metadata;
-  metadata.version = 0;
+  ctx.version = &version;
+  version = 0;
 
   // read the version from the buffer
   result = parquet_read_version(&ctx, THRIFT_TYPE_I16, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
+  assert(version == 0, "should not change version");
 }
 
 static void can_detected_parquet_version_invalid_value() {
   struct parquet_parse_context ctx;
-  struct parquet_metadata metadata;
+  i32 version;
 
   i64 result;
   const char buffer[] = {0x01}; // zig-zag encoding of version -1
 
   // defaults
-  ctx.target = &metadata;
-  metadata.version = 0;
+  ctx.version = &version;
+  version = 0;
 
   // read the version from the buffer
   result = parquet_read_version(&ctx, THRIFT_TYPE_I32, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == PARQUET_ERROR_INVALID_VALUE, "should fail with PARQUET_ERROR_INVALID_VALUE");
+  assert(version == 0, "should not change version");
 }
 
 static void can_read_num_rows() {
   struct parquet_parse_context ctx;
-  struct parquet_metadata metadata;
+  i64 num_rows;
 
   i64 result;
   const char buffer[] = {0xf2, 0x94, 0x12};
 
   // defaults
-  ctx.target = &metadata;
-  metadata.num_rows = 0;
+  ctx.num_rows = &num_rows;
+  num_rows = 0;
 
   // read the version from the buffer
   result = parquet_read_num_rows(&ctx, THRIFT_TYPE_I64, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == 3, "should read three bytes");
-  assert(metadata.num_rows == 148793, "should read num_rows 148793");
+  assert(num_rows == 148793, "should read num_rows 148793");
 }
 
 static void can_detect_num_rows_invalid_type() {
   struct parquet_parse_context ctx;
-  struct parquet_metadata metadata;
+  i64 num_rows;
 
   i64 result;
   const char buffer[] = {0xf2, 0x94, 0x12};
 
   // defaults
-  ctx.target = &metadata;
-  metadata.num_rows = 0;
+  ctx.num_rows = &num_rows;
+  num_rows = 0;
 
   // read the version from the buffer
   result = parquet_read_num_rows(&ctx, THRIFT_TYPE_I32, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
+  assert(num_rows == 0, "should not change num_rows");
 }
 
 static void can_detect_num_rows_invalid_value() {
   struct parquet_parse_context ctx;
-  struct parquet_metadata metadata;
+  i64 num_rows;
 
   i64 result;
   const char buffer[] = {0x01};
 
   // defaults
-  ctx.target = &metadata;
-  metadata.num_rows = 0;
+  ctx.num_rows = &num_rows;
+  num_rows = 0;
 
   // read the version from the buffer
   result = parquet_read_num_rows(&ctx, THRIFT_TYPE_I64, buffer, sizeof(buffer));
 
   // assert the result
   assert(result == PARQUET_ERROR_INVALID_VALUE, "should fail with PARQUET_ERROR_INVALID_VALUE");
+  assert(num_rows == 0, "should not change num_rows");
+}
+
+static void can_read_created_by() {
+  struct parquet_parse_context ctx;
+  char *created_by;
+
+  i64 result;
+  u64 output[32];
+  const char buffer[] = {0x04, 'i', '1', '3', 'c'};
+
+  // defaults
+  ctx.created_by = &created_by;
+  ctx.buffer = (char *)output;
+  ctx.buffer_size = 256;
+  ctx.buffer_tail = 1;
+  created_by = NULL;
+
+  // read the created_by from the buffer
+  result = parquet_read_created_by(&ctx, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 5, "should read five bytes");
+  assert(created_by != NULL, "should allocate created_by");
+  assert((u64)created_by % 8 == 0, "should be aligned to 8 bytes");
+  assert(ctx.buffer_tail == 13, "should update buffer tail to 13");
+  assert_eq_str(created_by, "i13c", "should read created_by 'i13c'");
+}
+
+static void can_detect_created_by_invalid_type() {
+  struct parquet_parse_context ctx;
+  char *created_by;
+
+  i64 result;
+  u64 output[32];
+  const char buffer[] = {0x05, 'i', '1', '3', 'c'};
+
+  // defaults
+  ctx.created_by = &created_by;
+  ctx.buffer = (char *)output;
+  ctx.buffer_size = 256;
+  ctx.buffer_tail = 1;
+  created_by = NULL;
+
+  // read the created_by from the buffer
+  result = parquet_read_created_by(&ctx, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
+  assert(created_by == NULL, "should not allocate created_by");
+  assert(ctx.buffer_tail == 1, "should not change buffer tail");
 }
 
 void parquet_test_cases(struct runner_context *ctx) {
@@ -742,6 +802,9 @@ void parquet_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can read num rows", can_read_num_rows);
   test_case(ctx, "can detect num rows invalid type", can_detect_num_rows_invalid_type);
   test_case(ctx, "can detect num rows invalid value", can_detect_num_rows_invalid_value);
+
+  test_case(ctx, "can read created by", can_read_created_by);
+  test_case(ctx, "can detect created by invalid type", can_detect_created_by_invalid_type);
 }
 
 #endif

@@ -45,7 +45,7 @@ make test
 # checks formatting
 make lint
 
-# auto-formats sources
+# reformats sources
 make fix
 
 # runs i13c-thrift
