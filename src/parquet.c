@@ -136,13 +136,20 @@ static i64 parquet_metadata_acquire(struct parquet_parse_context *ctx, u64 size)
   offset = (ctx->buffer_tail + 7) & ~7;
 
   // check if there is enough space
-  if (offset + size > ctx->buffer_size) return -1;
+  if (offset + size > ctx->buffer_size) {
+    return PARQUET_ERROR_BUFFER_OVERFLOW;
+  };
 
   // move tail
   ctx->buffer_tail = offset + size;
 
   // allocated space
   return (i64)(ctx->buffer + offset);
+}
+
+static void parquet_metadata_release(struct parquet_parse_context *ctx, u64 size) {
+  ctx->buffer_tail -= size;
+  ctx->buffer_size += size;
 }
 
 static i64 parquet_read_version(struct parquet_parse_context *ctx,
@@ -211,7 +218,7 @@ static i64 parquet_read_created_by(struct parquet_parse_context *ctx,
 
   // read the size of the created_by string
   result = thrift_read_binary_header(&size, buffer, buffer_size);
-  if (result < 0) return result;
+  if (result < 0) goto cleanup;
 
   // move the buffer pointer and size
   read = result;
@@ -220,20 +227,26 @@ static i64 parquet_read_created_by(struct parquet_parse_context *ctx,
 
   // allocate the space for the copy + EOS
   result = parquet_metadata_acquire(ctx, size + 1);
-  if (result < 0) return result;
+  if (result < 0) goto cleanup;
 
   // remember allocated memory slice
   created_by = (char *)result;
 
   // copy binary content
   result = thrift_read_binary_content(created_by, size, buffer, buffer_size);
-  if (result < 0) return result;
+  if (result < 0) goto cleanup_buffer;
 
   // value is OK
   *(ctx->created_by) = created_by;
 
   // successs
   return read + result;
+
+cleanup_buffer:
+  parquet_metadata_release(ctx, size + 1);
+
+cleanup:
+  return result;
 }
 
 static i64 parquet_read_data_type(struct parquet_parse_context *ctx,
@@ -682,6 +695,25 @@ static void can_detected_parquet_version_invalid_value() {
   assert(version == 0, "should not change version");
 }
 
+static void can_propagate_parquet_version_buffer_overflow() {
+  struct parquet_parse_context ctx;
+  i32 version;
+
+  i64 result;
+  const char buffer[] = {};
+
+  // defaults
+  ctx.version = &version;
+  version = 0;
+
+  // read the version from the buffer
+  result = parquet_read_version(&ctx, THRIFT_TYPE_I32, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
+  assert(version == 0, "should not change version");
+}
+
 static void can_read_num_rows() {
   struct parquet_parse_context ctx;
   i64 num_rows;
@@ -739,6 +771,25 @@ static void can_detect_num_rows_invalid_value() {
   assert(num_rows == 0, "should not change num_rows");
 }
 
+static void can_propagate_num_rows_buffer_overflow() {
+  struct parquet_parse_context ctx;
+  i64 num_rows;
+
+  i64 result;
+  const char buffer[] = {0xf1};
+
+  // defaults
+  ctx.num_rows = &num_rows;
+  num_rows = 0;
+
+  // read the version from the buffer
+  result = parquet_read_num_rows(&ctx, THRIFT_TYPE_I64, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
+  assert(num_rows == 0, "should not change num_rows");
+}
+
 static void can_read_created_by() {
   struct parquet_parse_context ctx;
   char *created_by;
@@ -789,6 +840,79 @@ static void can_detect_created_by_invalid_type() {
   assert(ctx.buffer_tail == 1, "should not change buffer tail");
 }
 
+static void can_detect_created_by_buffer_overflow() {
+  struct parquet_parse_context ctx;
+  char *created_by;
+
+  i64 result;
+  u64 output[32];
+  const char buffer[] = {0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+  // defaults
+  ctx.created_by = &created_by;
+  ctx.buffer = (char *)output;
+  ctx.buffer_size = 8;
+  ctx.buffer_tail = 0;
+  created_by = NULL;
+
+  // read the created_by from the buffer
+  result = parquet_read_created_by(&ctx, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == PARQUET_ERROR_BUFFER_OVERFLOW, "should fail with PARQUET_ERROR_BUFFER_OVERFLOW");
+  assert(created_by == NULL, "should not allocate created_by");
+  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+}
+
+static void can_propagate_created_by_buffer_overflow_01() {
+  struct parquet_parse_context ctx;
+  char *created_by;
+
+  i64 result;
+  u64 output[32];
+  const char buffer[] = {0xf0};
+
+  // defaults
+  ctx.created_by = &created_by;
+  ctx.buffer = (char *)output;
+  ctx.buffer_size = 256;
+  ctx.buffer_tail = 0;
+  created_by = NULL;
+
+  // read the created_by from the buffer
+  result = parquet_read_created_by(&ctx, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
+  assert(created_by == NULL, "should not allocate created_by");
+  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+}
+
+static void can_propagate_created_by_buffer_overflow_02() {
+  struct parquet_parse_context ctx;
+  char *created_by;
+
+  i64 result;
+  u64 output[32];
+  const char buffer[] = {0x04, 'i', '1', '3'};
+
+  // defaults
+  ctx.created_by = &created_by;
+  ctx.buffer = (char *)output;
+  ctx.buffer_size = 256;
+  ctx.buffer_tail = 0;
+  created_by = NULL;
+
+  // read the created_by from the buffer
+  result = parquet_read_created_by(&ctx, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
+  assert(created_by == NULL, "should not allocate created_by");
+  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+}
+
 void parquet_test_cases(struct runner_context *ctx) {
   // opening and closing cases
   test_case(ctx, "can open and close parquet file", can_open_and_close_parquet_file);
@@ -798,13 +922,18 @@ void parquet_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can read parquet version", can_read_parquet_version);
   test_case(ctx, "can detect parquet version invalid type", can_detected_parquet_version_invalid_type);
   test_case(ctx, "can detect parquet version invalid value", can_detected_parquet_version_invalid_value);
+  test_case(ctx, "can propagate parquet version buffer overflow", can_propagate_parquet_version_buffer_overflow);
 
   test_case(ctx, "can read num rows", can_read_num_rows);
   test_case(ctx, "can detect num rows invalid type", can_detect_num_rows_invalid_type);
   test_case(ctx, "can detect num rows invalid value", can_detect_num_rows_invalid_value);
+  test_case(ctx, "can propagate num rows buffer overflow", can_propagate_num_rows_buffer_overflow);
 
   test_case(ctx, "can read created by", can_read_created_by);
   test_case(ctx, "can detect created by invalid type", can_detect_created_by_invalid_type);
+  test_case(ctx, "can detect created by buffer overflow", can_detect_created_by_buffer_overflow);
+  test_case(ctx, "can propagate created by buffer overflow 1", can_propagate_created_by_buffer_overflow_01);
+  test_case(ctx, "can propagate created by buffer overflow 2", can_propagate_created_by_buffer_overflow_02);
 }
 
 #endif
