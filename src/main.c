@@ -16,10 +16,10 @@ i32 main() {
   parquet_init(&file, &pool);
 
   result = parquet_open(&file, "data/test01.parquet");
-  writef("opening parquet file ... %x, %x\n", result, file.fd);
+  writef("opening parquet file ... %d, %d\n", result, file.fd);
 
   result = parquet_parse(&file, &metadata);
-  writef("parsing parquet file ... %x\n", result);
+  writef("parsing parquet file ... %d\n", result);
 
   writef("Parquet file version: %d, number of rows: %d\n", metadata.version, metadata.num_rows);
 
