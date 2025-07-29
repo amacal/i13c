@@ -24,7 +24,10 @@ struct parquet_parse_context {
   char *buffer;    // the buffer behind metadata storage
   u64 buffer_size; // the size of the buffer
   u64 buffer_tail; // the tail of the buffer
-  void *ptrs[16];  // pointers to the fields in the target structure
+
+  void *ptrs[16];         // pointers to the fields in the target structure
+  thrift_read_fn *fields; // array of thrift read functions for the fields
+  u64 fields_size;        // number of fields in the target structure
 };
 
 void parquet_init(struct parquet_file *file, struct malloc_pool *pool) {
@@ -178,7 +181,7 @@ static i64 parquet_read_i32_positive(
   // check if the value is within the valid range
   if (value < 0) return PARQUET_ERROR_INVALID_VALUE;
 
-  // value is OK
+  // value is OK, field will be found
   *(i32 *)ctx->ptrs[field_id] = value;
 
   // success
@@ -201,7 +204,7 @@ static i64 parquet_read_i64_positive(
   // check if the value is within the valid range
   if (value < 0) return PARQUET_ERROR_INVALID_VALUE;
 
-  // value is OK
+  // value is OK, field will be found
   *(i64 *)ctx->ptrs[field_id] = value;
 
   // success
@@ -235,11 +238,11 @@ static i64 parquet_read_string(
   // remember allocated memory slice
   value = (char *)result;
 
-  // copy binary content
+  // copy binary content, it also includes null terminator EOS
   result = thrift_read_binary_content(value, size, buffer, buffer_size);
   if (result < 0) goto cleanup_buffer;
 
-  // value is OK
+  // value is OK, field will be found
   *(char **)ctx->ptrs[field_id] = value;
 
   // successs
@@ -318,7 +321,7 @@ static i64 parquet_read_list(
     ctx->buffer_tail = context.buffer_tail;
   }
 
-  // value is OK
+  // value is OK, field will be found
   *(void **)ctx->ptrs[field_id] = ptrs;
 
   // success
@@ -329,6 +332,55 @@ cleanup_data:
 
 cleanup_ptrs:
   parquet_metadata_release(ctx, (1 + header.size) * ctx->target_size);
+
+cleanup:
+  return result;
+}
+
+static i64 parquet_read_struct(
+  struct parquet_parse_context *ctx, i16 field_id, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
+  struct parquet_parse_context context;
+  i64 result, read;
+  void *data;
+
+  // check if the field type is correct
+  if (field_type != THRIFT_TYPE_STRUCT) {
+    return PARQUET_ERROR_INVALID_TYPE;
+  }
+
+  // allocate memory for the struct
+  result = parquet_metadata_acquire(ctx, ctx->target_size);
+  if (result < 0) goto cleanup;
+
+  // remember allocated array
+  data = (void *)result;
+
+  // context
+  context.target = data;
+  context.buffer = ctx->buffer;
+  context.buffer_size = ctx->buffer_size;
+  context.buffer_tail = ctx->buffer_tail;
+
+  // read the next schema element
+  result = ctx->target_fn(&context, buffer, buffer_size);
+  if (result < 0) goto cleanup_data;
+
+  // move the buffer pointer and size
+  read = result;
+  buffer += result;
+  buffer_size -= result;
+
+  // restore the context
+  ctx->buffer_tail = context.buffer_tail;
+
+  // value is OK, field will be found
+  *(void **)ctx->ptrs[field_id] = data;
+
+  // success
+  return read;
+
+cleanup_data:
+  parquet_metadata_release(ctx, ctx->target_size);
 
 cleanup:
   return result;
@@ -392,6 +444,186 @@ static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const
   return read;
 }
 
+static i64 parquet_read_string_element(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size) {
+
+  // ptr 0 is the target for the string
+  ctx->ptrs[0] = ctx->target;
+
+  // call the string reader at ptr 0
+  return parquet_read_string(ctx, 0, THRIFT_TYPE_BINARY, buffer, buffer_size);
+}
+
+static i64 parquet_read_list_string(
+  struct parquet_parse_context *ctx, i16 field_id, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
+
+  // fill up the context
+  ctx->target_size = sizeof(char **);
+  ctx->target_fn = (parquet_read_fn)parquet_read_string_element;
+
+  // call generic list reader
+  return parquet_read_list(ctx, field_id, field_type, buffer, buffer_size);
+}
+
+static i64 parquet_read_i32_positive_element(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size) {
+
+  // ptr 0 is the target for the i32
+  ctx->ptrs[0] = ctx->target;
+
+  // call the i32 reader at ptr 0
+  return parquet_read_i32_positive(ctx, 0, THRIFT_TYPE_I32, buffer, buffer_size);
+}
+
+static i64 parquet_read_list_i32_positive(
+  struct parquet_parse_context *ctx, i16 field_id, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
+
+  // fill up the context
+  ctx->target_size = sizeof(char **);
+  ctx->target_fn = (parquet_read_fn)parquet_read_i32_positive_element;
+
+  // call generic list reader
+  return parquet_read_list(ctx, field_id, field_type, buffer, buffer_size);
+}
+
+static i64 parquet_parse_schemas(
+  struct parquet_parse_context *ctx, i16 field_id, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
+
+  // fill up the context
+  ctx->target_size = sizeof(struct parquet_schema_element);
+  ctx->target_fn = (parquet_read_fn)parquet_parse_schema_element;
+
+  // call generic list reader
+  return parquet_read_list(ctx, field_id, field_type, buffer, buffer_size);
+}
+
+static i64 parquet_parse_column_meta_element(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size) {
+  i64 result, read;
+  struct parquet_column_meta *meta;
+  struct parquet_parse_context context;
+
+  const u32 FIELDS_SLOTS = 4;
+  thrift_read_fn fields[FIELDS_SLOTS];
+
+  // prepare the mapping of fields
+  fields[1] = (thrift_read_fn)parquet_read_i32_positive;      // data_type
+  fields[2] = (thrift_read_fn)parquet_read_list_i32_positive; // encodings
+  fields[3] = (thrift_read_fn)parquet_read_list_string;       // path_in_schema
+
+  // meta
+  meta = (struct parquet_column_meta *)ctx->target;
+  meta->data_type = PARQUET_DATA_TYPE_NONE;
+  meta->encodings = NULL;
+  meta->path_in_schema = NULL;
+  meta->compression_codec = PARQUET_COMPRESSION_NONE;
+  meta->num_values = -1;
+  meta->total_uncompressed_size = -1;
+  meta->total_compressed_size = -1;
+  meta->data_page_offset = -1;
+  meta->index_page_offset = -1;
+  meta->dictionary_page_offset = -1;
+  meta->statistics = NULL;
+  meta->encoding_stats = NULL;
+
+  // context
+  context.target = meta;
+  context.buffer = ctx->buffer;
+  context.buffer_size = ctx->buffer_size;
+  context.buffer_tail = ctx->buffer_tail;
+
+  // targets
+  context.ptrs[1] = &meta->data_type;
+  context.ptrs[2] = &meta->encodings;
+  context.ptrs[3] = &meta->path_in_schema;
+
+  // default
+  read = 0;
+
+  // delegate content reading to the thrift function
+  result = thrift_read_struct_content(&context, fields, FIELDS_SLOTS, buffer, buffer_size);
+  if (result < 0) return result;
+
+  // move the buffer pointer and size
+  read += result;
+  buffer += result;
+  buffer_size -= result;
+
+  // restore the context
+  ctx->buffer_tail = context.buffer_tail;
+
+  // success
+  return read;
+}
+
+static i64 parquet_parse_column_meta(
+  struct parquet_parse_context *ctx, i16 field_id, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
+
+  // fill up the context
+  ctx->target_size = sizeof(struct parquet_column_meta);
+  ctx->target_fn = (parquet_read_fn)parquet_parse_column_meta_element;
+
+  // call generic struct reader
+  return parquet_read_struct(ctx, field_id, field_type, buffer, buffer_size);
+}
+
+static i64 parquet_parse_column_chunk_element(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size) {
+  i64 result, read;
+  struct parquet_column_chunk *column_chunk;
+  struct parquet_parse_context context;
+
+  const u32 FIELDS_SLOTS = 4;
+  thrift_read_fn fields[FIELDS_SLOTS];
+
+  // prepare the mapping of fields
+  fields[1] = (thrift_read_fn)parquet_read_string;       // file_path
+  fields[2] = (thrift_read_fn)parquet_read_i64_positive; // file_offset
+  fields[3] = (thrift_read_fn)parquet_parse_column_meta; // meta
+
+  // column_chunk
+  column_chunk = (struct parquet_column_chunk *)ctx->target;
+  column_chunk->file_path = NULL;
+  column_chunk->file_offset = -1;
+  column_chunk->meta = NULL;
+
+  // context
+  context.target = column_chunk;
+  context.buffer = ctx->buffer;
+  context.buffer_size = ctx->buffer_size;
+  context.buffer_tail = ctx->buffer_tail;
+
+  // targets
+  context.ptrs[1] = &column_chunk->file_path;
+  context.ptrs[2] = &column_chunk->file_offset;
+  context.ptrs[3] = &column_chunk->meta;
+
+  // default
+  read = 0;
+
+  // delegate content reading to the thrift function
+  result = thrift_read_struct_content(&context, fields, FIELDS_SLOTS, buffer, buffer_size);
+  if (result < 0) return result;
+
+  // move the buffer pointer and size
+  read += result;
+  buffer += result;
+  buffer_size -= result;
+
+  // restore the context
+  ctx->buffer_tail = context.buffer_tail;
+
+  // success
+  return read;
+}
+
+static i64 parquet_parse_column_chunks(
+  struct parquet_parse_context *ctx, i16 field_id, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
+
+  // fill up the context
+  ctx->target_size = sizeof(struct parquet_column_chunk);
+  ctx->target_fn = (parquet_read_fn)parquet_parse_column_chunk_element;
+
+  // call generic list reader
+  return parquet_read_list(ctx, field_id, field_type, buffer, buffer_size);
+}
+
 static i64 parquet_parse_row_group_element(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size) {
   i64 result, read;
   struct parquet_row_group *row_group;
@@ -401,16 +633,17 @@ static i64 parquet_parse_row_group_element(struct parquet_parse_context *ctx, co
   thrift_read_fn fields[FIELDS_SLOTS];
 
   // prepare the mapping of fields
-  fields[1] = (thrift_read_fn)thrift_ignore_field;       // columns
-  fields[2] = (thrift_read_fn)parquet_read_i64_positive; // total_byte_size
-  fields[3] = (thrift_read_fn)parquet_read_i64_positive; // num_rows
-  fields[4] = (thrift_read_fn)parquet_read_string;       // sorting_columns
-  fields[5] = (thrift_read_fn)parquet_read_i64_positive; // file_offset
-  fields[6] = (thrift_read_fn)parquet_read_i64_positive; // total_compressed_size
-  fields[7] = (thrift_read_fn)thrift_ignore_field;       // ordinal
+  fields[1] = (thrift_read_fn)parquet_parse_column_chunks; // columns
+  fields[2] = (thrift_read_fn)parquet_read_i64_positive;   // total_byte_size
+  fields[3] = (thrift_read_fn)parquet_read_i64_positive;   // num_rows
+  fields[4] = (thrift_read_fn)parquet_read_string;         // sorting_columns
+  fields[5] = (thrift_read_fn)parquet_read_i64_positive;   // file_offset
+  fields[6] = (thrift_read_fn)parquet_read_i64_positive;   // total_compressed_size
+  fields[7] = (thrift_read_fn)thrift_ignore_field;         // ordinal
 
   // row_group
   row_group = (struct parquet_row_group *)ctx->target;
+  row_group->columns = NULL;
   row_group->total_byte_size = -1;
   row_group->num_rows = -1;
   row_group->file_offset = -1;
@@ -423,6 +656,7 @@ static i64 parquet_parse_row_group_element(struct parquet_parse_context *ctx, co
   context.buffer_tail = ctx->buffer_tail;
 
   // targets
+  context.ptrs[1] = &row_group->columns;
   context.ptrs[2] = &row_group->total_byte_size;
   context.ptrs[3] = &row_group->num_rows;
   context.ptrs[5] = &row_group->file_offset;
@@ -447,21 +681,14 @@ static i64 parquet_parse_row_group_element(struct parquet_parse_context *ctx, co
   return read;
 }
 
-static i64 parquet_parse_schemas(
-  struct parquet_parse_context *ctx, i16 field_id, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
-
-  ctx->target_size = sizeof(struct parquet_schema_element);
-  ctx->target_fn = (parquet_read_fn)parquet_parse_schema_element;
-
-  return parquet_read_list(ctx, field_id, field_type, buffer, buffer_size);
-}
-
 static i64 parquet_parse_row_groups(
   struct parquet_parse_context *ctx, i16 field_id, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
 
+  // fill up the context
   ctx->target_size = sizeof(struct parquet_row_group);
   ctx->target_fn = (parquet_read_fn)parquet_parse_row_group_element;
 
+  // call generic list reader
   return parquet_read_list(ctx, field_id, field_type, buffer, buffer_size);
 }
 
@@ -898,7 +1125,6 @@ static void can_read_list() {
 
   // read the value from the buffer
   result = parquet_read_list(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
-  writef("result: %d\n", result);
 
   // assert the result
   assert(result == 6, "should read six bytes");
@@ -1046,6 +1272,172 @@ static void can_propagate_list_buffer_overflow_02() {
   assert(ctx.buffer_tail == 0, "should not change buffer tail");
 }
 
+static i64 can_read_struct_item(struct parquet_parse_context *, const char *, u64 buffer_size) {
+  return buffer_size ? 1 : THRIFT_ERROR_BUFFER_OVERFLOW;
+}
+
+static void can_read_struct() {
+  struct sample {
+    i32 len;
+    char **name;
+  };
+
+  struct parquet_parse_context ctx;
+  struct sample *value;
+
+  i64 result;
+  u64 output[32];
+  const char buffer[] = {0x01};
+
+  // defaults
+  value = NULL;
+
+  // buffer
+  ctx.buffer = (char *)output;
+  ctx.buffer_size = 256;
+  ctx.buffer_tail = 0;
+
+  // context
+  ctx.ptrs[0] = &value;
+  ctx.target_size = sizeof(value);
+  ctx.target_fn = (parquet_read_fn)can_read_struct_item;
+
+  // read the value from the buffer
+  result = parquet_read_struct(&ctx, 0, THRIFT_TYPE_STRUCT, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 1, "should read one byte");
+  assert(value != NULL, "should allocate value");
+  assert(ctx.buffer_tail == 8, "should update buffer tail to 8");
+}
+
+static void can_detect_struct_invalid_type() {
+  struct parquet_parse_context ctx;
+  struct sample *value;
+
+  i64 result;
+  u64 output[32];
+  const char buffer[] = {0x01};
+
+  // defaults
+  value = NULL;
+
+  // buffer
+  ctx.buffer = (char *)output;
+  ctx.buffer_size = 256;
+  ctx.buffer_tail = 0;
+
+  // context
+  ctx.ptrs[0] = &value;
+  ctx.target_size = sizeof(value);
+  ctx.target_fn = (parquet_read_fn)can_read_struct_item;
+
+  // read the value from the buffer
+  result = parquet_read_struct(&ctx, 0, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
+  assert(value == NULL, "should not allocate value");
+  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+}
+
+static void can_detect_struct_buffer_overflow() {
+  struct parquet_parse_context ctx;
+  struct sample *value;
+
+  i64 result;
+  u64 output[32];
+  const char buffer[] = {0x01};
+
+  // defaults
+  value = NULL;
+
+  // buffer
+  ctx.buffer = (char *)output;
+  ctx.buffer_size = 6;
+  ctx.buffer_tail = 0;
+
+  // context
+  ctx.ptrs[0] = &value;
+  ctx.target_size = sizeof(value);
+  ctx.target_fn = (parquet_read_fn)can_read_struct_item;
+
+  // read the value from the buffer
+  result = parquet_read_struct(&ctx, 0, THRIFT_TYPE_STRUCT, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == PARQUET_ERROR_BUFFER_OVERFLOW, "should fail with PARQUET_ERROR_BUFFER_OVERFLOW");
+  assert(value == NULL, "should not allocate value");
+  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+}
+
+static void can_propagate_struct_buffer_overflow() {
+  struct parquet_parse_context ctx;
+  struct sample *value;
+
+  i64 result;
+  u64 output[32];
+  const char buffer[] = {};
+
+  // defaults
+  value = NULL;
+
+  // buffer
+  ctx.buffer = (char *)output;
+  ctx.buffer_size = 256;
+  ctx.buffer_tail = 0;
+
+  // context
+  ctx.ptrs[0] = &value;
+  ctx.target_size = sizeof(value);
+  ctx.target_fn = (parquet_read_fn)can_read_struct_item;
+
+  // read the value from the buffer
+  result = parquet_read_struct(&ctx, 0, THRIFT_TYPE_STRUCT, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
+  assert(value == NULL, "should not allocate value");
+  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+}
+
+static void can_read_list_strings() {
+  struct parquet_parse_context ctx;
+  char ***values;
+
+  i64 result;
+  u64 output[32];
+  const char buffer[] = {0x28, 0x03, 'a', 'b', 'c', 0x04, 'i', '1', '3', 'c'};
+
+  // defaults
+  ctx.ptrs[1] = &values;
+  values = NULL;
+
+  // buffer
+  ctx.buffer = (char *)output;
+  ctx.buffer_size = 256;
+  ctx.buffer_tail = 0;
+
+  // read the value from the buffer
+  result = parquet_read_list_string(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 10, "should read ten bytes");
+  assert(values != NULL, "should allocate values");
+  assert((u64)values % 8 == 0, "container should be aligned to 8 bytes");
+
+  assert((u64)values[0] % 8 == 0, "entry should be aligned to 8 bytes");
+  assert((u64) * (values[0]) % 8 == 0, "value should be aligned to 8 bytes");
+  assert_eq_str(*(values[0]), "abc", "value should be 'abc'");
+
+  assert((u64)values[1] % 8 == 0, "entry should be aligned to 8 bytes");
+  assert((u64) * (values[1]) % 8 == 0, "value should be aligned to 8 bytes");
+  assert_eq_str(*(values[1]), "i13c", "value should be 'i13c'");
+
+  assert(values[2] == 0, "should be null-terminated");
+  assert(ctx.buffer_tail == 24 + 16 + 8 + 5, "should update buffer tail to 72");
+}
+
 void parquet_test_cases(struct runner_context *ctx) {
   // opening and closing cases
   test_case(ctx, "can open and close parquet file", can_open_and_close_parquet_file);
@@ -1077,6 +1469,15 @@ void parquet_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can detect list buffer overflow 2", can_detect_list_buffer_overflow_02);
   test_case(ctx, "can propagate list buffer overflow 1", can_propagate_list_buffer_overflow_01);
   test_case(ctx, "can propagate list buffer overflow 2", can_propagate_list_buffer_overflow_02);
+
+  // struct cases
+  test_case(ctx, "can read struct", can_read_struct);
+  test_case(ctx, "can detect struct invalid type", can_detect_struct_invalid_type);
+  test_case(ctx, "can detect struct buffer overflow", can_detect_struct_buffer_overflow);
+  test_case(ctx, "can propagate struct buffer overflow", can_propagate_struct_buffer_overflow);
+
+  // list of strings cases
+  test_case(ctx, "can read list strings", can_read_list_strings);
 }
 
 #endif

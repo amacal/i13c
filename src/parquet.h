@@ -75,6 +75,7 @@ enum parquet_encoding {
 };
 
 enum parquet_compression_codec {
+  PARQUET_COMPRESSION_NONE = -1,
   PARQUET_COMPRESSION_UNCOMPRESSED = 0,
   PARQUET_COMPRESSION_SNAPPY = 1,
   PARQUET_COMPRESSION_GZIP = 2,
@@ -122,8 +123,8 @@ struct parquet_page_encoding_stats {
 
 struct parquet_column_meta {
   i32 data_type;                                       // 1, data type of this column
-  i32 *parquet_encoding;                               // 2, null-terminated array of encodings used for this column
-  char **path_in_schema;                               // 3, path to the column in the schema, null-terminated
+  i32 **encodings;                                     // 2, null-terminated array of encodings used for this column
+  char ***path_in_schema;                              // 3, path to the column in the schema, null-terminated
   i32 compression_codec;                               // 4, compression codec used for this column
   i64 num_values;                                      // 5, number of values in the column
   i64 total_uncompressed_size;                         // 6, total uncompressed size of the column
