@@ -1516,6 +1516,125 @@ static void can_propagate_list_strings_buffer_overflow() {
   assert(ctx.buffer_tail == 0, "should not change buffer tail");
 }
 
+static void can_read_list_i32_positive() {
+  struct parquet_parse_context ctx;
+  i32 **values;
+
+  i64 result;
+  u64 output[32];
+  const char buffer[] = {0x46, 0x02, 0x04, 0x06, 0xf2, 0x14};
+
+  // defaults
+  ctx.ptrs[1] = &values;
+  values = NULL;
+
+  // buffer
+  ctx.buffer = (char *)output;
+  ctx.buffer_size = 256;
+  ctx.buffer_tail = 0;
+
+  // read the value from the buffer
+  result = parquet_read_list_i32_positive(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 6, "should read six bytes");
+  assert(values != NULL, "should allocate values");
+  assert((u64)values % 8 == 0, "container should be aligned to 8 bytes");
+
+  assert((u64)values[0] % 8 == 0, "entry should be aligned to 8 bytes");
+  assert(*values[0] == 1, "should read value 1");
+
+  assert((u64)values[1] % 8 == 0, "entry should be aligned to 8 bytes");
+  assert(*values[1] == 2, "should read value 2");
+
+  assert((u64)values[2] % 8 == 0, "entry should be aligned to 8 bytes");
+  assert(*values[2] == 3, "should read value 3");
+
+  assert((u64)values[3] % 8 == 0, "entry should be aligned to 8 bytes");
+  assert(*values[3] == 1337, "should read value 1337");
+
+  assert(values[4] == NULL, "should be null-terminated");
+  assert(ctx.buffer_tail == 40 + 32, "should update buffer tail to 72");
+}
+
+static void can_detect_list_i32_positive_invalid_type() {
+  struct parquet_parse_context ctx;
+  i32 **values;
+
+  i64 result;
+  u64 output[32];
+  const char buffer[] = {0x46, 0x02, 0x04, 0x06, 0xf2, 0x14};
+
+  // defaults
+  ctx.ptrs[1] = &values;
+  values = NULL;
+
+  // buffer
+  ctx.buffer = (char *)output;
+  ctx.buffer_size = 256;
+  ctx.buffer_tail = 1;
+
+  // read the value from the buffer
+  result = parquet_read_list_i32_positive(&ctx, 1, THRIFT_TYPE_I32, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
+  assert(values == NULL, "should not allocate values");
+  assert(ctx.buffer_tail == 1, "should not change buffer tail");
+}
+
+static void can_detect_list_i32_positive_buffer_overflow() {
+  struct parquet_parse_context ctx;
+  i32 **values;
+
+  i64 result;
+  u64 output[32];
+  const char buffer[] = {0x46, 0x02, 0x04, 0x06, 0xf2, 0x14};
+
+  // defaults
+  ctx.ptrs[1] = &values;
+  values = NULL;
+
+  // buffer
+  ctx.buffer = (char *)output;
+  ctx.buffer_size = 64;
+  ctx.buffer_tail = 0;
+
+  // read the value from the buffer
+  result = parquet_read_list_i32_positive(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == PARQUET_ERROR_BUFFER_OVERFLOW, "should fail with PARQUET_ERROR_BUFFER_OVERFLOW");
+  assert(values == NULL, "should not allocate values");
+  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+}
+
+static void can_propagate_list_i32_positive_buffer_overflow() {
+  struct parquet_parse_context ctx;
+  i32 **values;
+
+  i64 result;
+  u64 output[32];
+  const char buffer[] = {0x46, 0x02, 0x04, 0x06, 0xf2};
+
+  // defaults
+  ctx.ptrs[1] = &values;
+  values = NULL;
+
+  // buffer
+  ctx.buffer = (char *)output;
+  ctx.buffer_size = 256;
+  ctx.buffer_tail = 0;
+
+  // read the value from the buffer
+  result = parquet_read_list_i32_positive(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
+  assert(values == NULL, "should not allocate values");
+  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+}
+
 void parquet_test_cases(struct runner_context *ctx) {
   // opening and closing cases
   test_case(ctx, "can open and close parquet file", can_open_and_close_parquet_file);
@@ -1559,6 +1678,12 @@ void parquet_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can detect list strings invalid type", can_detect_list_strings_invalid_type);
   test_case(ctx, "can detect list strings buffer overflow", can_detect_list_strings_buffer_overflow);
   test_case(ctx, "can propagate list strings buffer overflow", can_propagate_list_strings_buffer_overflow);
+
+  // list of i32 cases
+  test_case(ctx, "can read list i32 positive", can_read_list_i32_positive);
+  test_case(ctx, "can detect list i32 positive invalid type", can_detect_list_i32_positive_invalid_type);
+  test_case(ctx, "can detect list i32 positive buffer overflow", can_detect_list_i32_positive_buffer_overflow);
+  test_case(ctx, "can propagate list i32 positive buffer overflow", can_propagate_list_i32_positive_buffer_overflow);
 }
 
 #endif
