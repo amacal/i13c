@@ -279,7 +279,7 @@ static i64 parquet_read_list(
   buffer_size -= result;
 
   // allocate memory for the pointers
-  result = parquet_metadata_acquire(ctx, (1 + header.size) * ctx->target_size);
+  result = parquet_metadata_acquire(ctx, 8 + header.size * 8);
   if (result < 0) goto cleanup;
 
   // remember allocated array
@@ -289,13 +289,15 @@ static i64 parquet_read_list(
   ptrs[header.size] = NULL;
 
   // allocate memory for the array
-  result = parquet_metadata_acquire(ctx, header.size * ctx->target_size);
-  if (result < 0) goto cleanup_ptrs;
+  if (ctx->target_size > 0) {
+    result = parquet_metadata_acquire(ctx, header.size * ctx->target_size);
+    if (result < 0) goto cleanup_ptrs;
 
-  // fill out the array of schema elements
-  for (index = 0; index < header.size; index++) {
-    ptrs[index] = (void *)(result);
-    result += ctx->target_size;
+    // fill out the array of schema elements
+    for (index = 0; index < header.size; index++) {
+      ptrs[index] = (void *)(result);
+      result += ctx->target_size;
+    }
   }
 
   // initialize nested context
@@ -306,7 +308,7 @@ static i64 parquet_read_list(
   // parse each schema element
   for (index = 0; index < header.size; index++) {
     // set the target for the nested context
-    context.target = ptrs[index];
+    context.target = ctx->target_size > 0 ? ptrs[index] : &ptrs[index];
 
     // read the next schema element
     result = ctx->target_fn(&context, buffer, buffer_size);
@@ -316,10 +318,10 @@ static i64 parquet_read_list(
     read += result;
     buffer += result;
     buffer_size -= result;
-
-    // apply buffer tail
-    ctx->buffer_tail = context.buffer_tail;
   }
+
+  // apply buffer tail
+  ctx->buffer_tail = context.buffer_tail;
 
   // value is OK, field will be found
   *(void **)ctx->ptrs[field_id] = ptrs;
@@ -331,7 +333,7 @@ cleanup_data:
   parquet_metadata_release(ctx, header.size * ctx->target_size);
 
 cleanup_ptrs:
-  parquet_metadata_release(ctx, (1 + header.size) * ctx->target_size);
+  parquet_metadata_release(ctx, 8 + header.size * 8);
 
 cleanup:
   return result;
@@ -457,7 +459,7 @@ static i64 parquet_read_list_string(
   struct parquet_parse_context *ctx, i16 field_id, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
 
   // fill up the context
-  ctx->target_size = sizeof(char **);
+  ctx->target_size = 0;
   ctx->target_fn = (parquet_read_fn)parquet_read_string_element;
 
   // call generic list reader
@@ -1403,7 +1405,7 @@ static void can_propagate_struct_buffer_overflow() {
 
 static void can_read_list_strings() {
   struct parquet_parse_context ctx;
-  char ***values;
+  char **values;
 
   i64 result;
   u64 output[32];
@@ -1427,15 +1429,91 @@ static void can_read_list_strings() {
   assert((u64)values % 8 == 0, "container should be aligned to 8 bytes");
 
   assert((u64)values[0] % 8 == 0, "entry should be aligned to 8 bytes");
-  assert((u64) * (values[0]) % 8 == 0, "value should be aligned to 8 bytes");
-  assert_eq_str(*(values[0]), "abc", "value should be 'abc'");
+  assert_eq_str(values[0], "abc", "value should be 'abc'");
 
   assert((u64)values[1] % 8 == 0, "entry should be aligned to 8 bytes");
-  assert((u64) * (values[1]) % 8 == 0, "value should be aligned to 8 bytes");
-  assert_eq_str(*(values[1]), "i13c", "value should be 'i13c'");
+  assert_eq_str(values[1], "i13c", "value should be 'i13c'");
 
   assert(values[2] == 0, "should be null-terminated");
-  assert(ctx.buffer_tail == 24 + 16 + 8 + 5, "should update buffer tail to 72");
+  assert(ctx.buffer_tail == 24 + 8 + 5, "should update buffer tail to 72");
+}
+
+static void can_detect_list_strings_invalid_type() {
+  struct parquet_parse_context ctx;
+  char **values;
+
+  i64 result;
+  u64 output[32];
+  const char buffer[] = {0x28, 0x03, 'a', 'b', 'c', 0x04, 'i', '1', '3', 'c'};
+
+  // defaults
+  ctx.ptrs[1] = &values;
+  values = NULL;
+
+  // buffer
+  ctx.buffer = (char *)output;
+  ctx.buffer_size = 256;
+  ctx.buffer_tail = 1;
+
+  // read the value from the buffer
+  result = parquet_read_list_string(&ctx, 1, THRIFT_TYPE_I32, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
+  assert(values == NULL, "should not allocate values");
+  assert(ctx.buffer_tail == 1, "should not change buffer tail");
+}
+
+static void can_detect_list_strings_buffer_overflow() {
+  struct parquet_parse_context ctx;
+  char **values;
+
+  i64 result;
+  u64 output[32];
+  const char buffer[] = {0x28, 0x03, 'a', 'b', 'c', 0x04, 'i', '1', '3', 'c'};
+
+  // defaults
+  ctx.ptrs[1] = &values;
+  values = NULL;
+
+  // buffer
+  ctx.buffer = (char *)output;
+  ctx.buffer_size = 8;
+  ctx.buffer_tail = 0;
+
+  // read the value from the buffer
+  result = parquet_read_list_string(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == PARQUET_ERROR_BUFFER_OVERFLOW, "should fail with PARQUET_ERROR_BUFFER_OVERFLOW");
+  assert(values == NULL, "should not allocate values");
+  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+}
+
+static void can_propagate_list_strings_buffer_overflow() {
+  struct parquet_parse_context ctx;
+  char **values;
+
+  i64 result;
+  u64 output[32];
+  const char buffer[] = {0x28, 0x03, 'a', 'b', 'c', 0x04, 'i', '1', '3'};
+
+  // defaults
+  ctx.ptrs[1] = &values;
+  values = NULL;
+
+  // buffer
+  ctx.buffer = (char *)output;
+  ctx.buffer_size = 256;
+  ctx.buffer_tail = 0;
+
+  // read the value from the buffer
+  result = parquet_read_list_string(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
+  assert(values == NULL, "should not allocate values");
+  assert(ctx.buffer_tail == 0, "should not change buffer tail");
 }
 
 void parquet_test_cases(struct runner_context *ctx) {
@@ -1478,6 +1556,9 @@ void parquet_test_cases(struct runner_context *ctx) {
 
   // list of strings cases
   test_case(ctx, "can read list strings", can_read_list_strings);
+  test_case(ctx, "can detect list strings invalid type", can_detect_list_strings_invalid_type);
+  test_case(ctx, "can detect list strings buffer overflow", can_detect_list_strings_buffer_overflow);
+  test_case(ctx, "can propagate list strings buffer overflow", can_propagate_list_strings_buffer_overflow);
 }
 
 #endif

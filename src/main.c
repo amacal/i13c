@@ -8,7 +8,7 @@ i32 main() {
   u32 index, column_index;
 
   i32 **encodings;
-  char ***path_in_schema;
+  char **path_in_schema;
 
   struct parquet_file file;
   struct malloc_pool pool;
@@ -73,7 +73,7 @@ i32 main() {
             if (column->meta->path_in_schema) {
               path_in_schema = column->meta->path_in_schema;
               while (*path_in_schema) {
-                writef("    path_in_schema=%s\n", **path_in_schema);
+                writef("    path_in_schema=%s\n", *path_in_schema);
                 path_in_schema++;
               }
             }
