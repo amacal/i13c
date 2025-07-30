@@ -143,25 +143,24 @@ void parquet_close(struct parquet_file *file) {
 }
 
 static i64 parquet_metadata_acquire(struct parquet_parse_context *ctx, u64 size) {
-  u64 offset;
-
-  // align to next 8 bytes
-  offset = (ctx->buffer_tail + 7) & ~7;
+  u32 offset;
 
   // check if there is enough space
-  if (offset + size > ctx->buffer_size) {
+  if (ctx->buffer_tail + size > ctx->buffer_size) {
     return PARQUET_ERROR_BUFFER_OVERFLOW;
-  };
+  }
 
-  // move tail
-  ctx->buffer_tail = offset + size;
+  // move tail aligned to 8 bytes
+  offset = ctx->buffer_tail;
+  ctx->buffer_tail = (offset + size + 7) & ~7;
 
   // allocated space
   return (i64)(ctx->buffer + offset);
 }
 
 static void parquet_metadata_release(struct parquet_parse_context *ctx, u64 size) {
-  ctx->buffer_tail -= size;
+  // move tail back aligned to 8 bytes
+  ctx->buffer_tail -= (size + 7) & ~7;
 }
 
 static i64 parquet_read_i32_positive(
@@ -502,13 +501,20 @@ static i64 parquet_parse_column_meta_element(struct parquet_parse_context *ctx, 
   struct parquet_column_meta *meta;
   struct parquet_parse_context context;
 
-  const u32 FIELDS_SLOTS = 4;
+  const u32 FIELDS_SLOTS = 11;
   thrift_read_fn fields[FIELDS_SLOTS];
 
   // prepare the mapping of fields
   fields[1] = (thrift_read_fn)parquet_read_i32_positive;      // data_type
   fields[2] = (thrift_read_fn)parquet_read_list_i32_positive; // encodings
   fields[3] = (thrift_read_fn)parquet_read_list_string;       // path_in_schema
+  fields[4] = (thrift_read_fn)parquet_read_i32_positive;      // compression_codec
+  fields[5] = (thrift_read_fn)parquet_read_i64_positive;      // num_values
+  fields[6] = (thrift_read_fn)parquet_read_i64_positive;      // total_uncompressed_size
+  fields[7] = (thrift_read_fn)parquet_read_i64_positive;      // total_compressed_size
+  fields[8] = (thrift_read_fn)parquet_read_i64_positive;      // data_page_offset
+  fields[9] = (thrift_read_fn)parquet_read_i64_positive;      // index_page_offset
+  fields[10] = (thrift_read_fn)parquet_read_i64_positive;     // dictionary_page_offset
 
   // meta
   meta = (struct parquet_column_meta *)ctx->target;
@@ -535,6 +541,13 @@ static i64 parquet_parse_column_meta_element(struct parquet_parse_context *ctx, 
   context.ptrs[1] = &meta->data_type;
   context.ptrs[2] = &meta->encodings;
   context.ptrs[3] = &meta->path_in_schema;
+  context.ptrs[4] = &meta->compression_codec;
+  context.ptrs[5] = &meta->num_values;
+  context.ptrs[6] = &meta->total_uncompressed_size;
+  context.ptrs[7] = &meta->total_compressed_size;
+  context.ptrs[8] = &meta->data_page_offset;
+  context.ptrs[9] = &meta->index_page_offset;
+  context.ptrs[10] = &meta->dictionary_page_offset;
 
   // default
   read = 0;
@@ -978,7 +991,7 @@ static void can_read_string() {
   // buffer
   ctx.buffer = (char *)output;
   ctx.buffer_size = 256;
-  ctx.buffer_tail = 1;
+  ctx.buffer_tail = 0;
 
   // read the value from the buffer
   result = parquet_read_string(&ctx, 1, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
@@ -987,8 +1000,9 @@ static void can_read_string() {
   assert(result == 5, "should read five bytes");
   assert(value != NULL, "should allocate value");
   assert((u64)value % 8 == 0, "should be aligned to 8 bytes");
-  assert(ctx.buffer_tail == 13, "should update buffer tail to 13");
   assert_eq_str(value, "i13c", "should read value 'i13c'");
+
+  assert(ctx.buffer_tail == 8, "should update buffer tail to 8");
 }
 
 static void can_detect_string_invalid_type() {
@@ -1006,7 +1020,7 @@ static void can_detect_string_invalid_type() {
   // buffer
   ctx.buffer = (char *)output;
   ctx.buffer_size = 256;
-  ctx.buffer_tail = 1;
+  ctx.buffer_tail = 0;
 
   // read the value from the buffer
   result = parquet_read_string(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
@@ -1014,7 +1028,7 @@ static void can_detect_string_invalid_type() {
   // assert the result
   assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
   assert(value == NULL, "should not allocate value");
-  assert(ctx.buffer_tail == 1, "should not change buffer tail");
+  assert(ctx.buffer_tail == 0, "should not change buffer tail");
 }
 
 static void can_detect_string_buffer_overflow() {
@@ -1159,7 +1173,7 @@ static void can_detect_list_invalid_type() {
   // buffer
   ctx.buffer = (char *)output;
   ctx.buffer_size = 256;
-  ctx.buffer_tail = 1;
+  ctx.buffer_tail = 0;
 
   // read the value from the buffer
   result = parquet_read_list(&ctx, 1, THRIFT_TYPE_I32, buffer, sizeof(buffer));
@@ -1167,7 +1181,7 @@ static void can_detect_list_invalid_type() {
   // assert the result
   assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
   assert(values == NULL, "should not allocate values");
-  assert(ctx.buffer_tail == 1, "should not change buffer tail");
+  assert(ctx.buffer_tail == 0, "should not change buffer tail");
 }
 
 static void can_detect_list_buffer_overflow_01() {
@@ -1435,7 +1449,7 @@ static void can_read_list_strings() {
   assert_eq_str(values[1], "i13c", "value should be 'i13c'");
 
   assert(values[2] == 0, "should be null-terminated");
-  assert(ctx.buffer_tail == 24 + 8 + 5, "should update buffer tail to 72");
+  assert(ctx.buffer_tail == 24 + 8 + 8, "should update buffer tail to 40");
 }
 
 static void can_detect_list_strings_invalid_type() {
@@ -1453,7 +1467,7 @@ static void can_detect_list_strings_invalid_type() {
   // buffer
   ctx.buffer = (char *)output;
   ctx.buffer_size = 256;
-  ctx.buffer_tail = 1;
+  ctx.buffer_tail = 0;
 
   // read the value from the buffer
   result = parquet_read_list_string(&ctx, 1, THRIFT_TYPE_I32, buffer, sizeof(buffer));
@@ -1461,7 +1475,7 @@ static void can_detect_list_strings_invalid_type() {
   // assert the result
   assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
   assert(values == NULL, "should not allocate values");
-  assert(ctx.buffer_tail == 1, "should not change buffer tail");
+  assert(ctx.buffer_tail == 0, "should not change buffer tail");
 }
 
 static void can_detect_list_strings_buffer_overflow() {
@@ -1572,7 +1586,7 @@ static void can_detect_list_i32_positive_invalid_type() {
   // buffer
   ctx.buffer = (char *)output;
   ctx.buffer_size = 256;
-  ctx.buffer_tail = 1;
+  ctx.buffer_tail = 0;
 
   // read the value from the buffer
   result = parquet_read_list_i32_positive(&ctx, 1, THRIFT_TYPE_I32, buffer, sizeof(buffer));
@@ -1580,7 +1594,7 @@ static void can_detect_list_i32_positive_invalid_type() {
   // assert the result
   assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
   assert(values == NULL, "should not allocate values");
-  assert(ctx.buffer_tail == 1, "should not change buffer tail");
+  assert(ctx.buffer_tail == 0, "should not change buffer tail");
 }
 
 static void can_detect_list_i32_positive_buffer_overflow() {
