@@ -1,5 +1,6 @@
 #pragma once
 
+#include "error.h"
 #include "runner.h"
 #include "typing.h"
 
@@ -7,7 +8,7 @@
 
 enum malloc_error {
   // indicates that the size is not acceptable, e.g., too small, too big or not a power of two
-  MALLOC_INVALID_SIZE = -272,
+  MALLOC_ERROR_INVALID_SIZE = MALLOC_ERROR_BASE | 0x01,
 };
 
 struct malloc_slot {

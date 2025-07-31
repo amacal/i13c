@@ -1,7 +1,19 @@
 #pragma once
 
+#include "error.h"
 #include "runner.h"
 #include "typing.h"
+
+enum thrift_error {
+  // indicates that the read would overflow the buffer
+  THRIFT_ERROR_BUFFER_OVERFLOW = THRIFT_ERROR_BASE | 0x01,
+
+  // indicates that the read would overflow integer bits
+  THRIFT_ERROR_BITS_OVERFLOW = THRIFT_ERROR_BASE | 0x02,
+
+  // indicates that the read value is invalid, e.g., zero delta
+  THRIFT_ERROR_INVALID_VALUE = THRIFT_ERROR_BASE | 0x03,
+};
 
 enum thrift_type {
   THRIFT_TYPE_STOP = 0,
@@ -19,17 +31,6 @@ enum thrift_type {
   THRIFT_TYPE_STRUCT = 12,
   THRIFT_TYPE_UUID = 13,
   THRIFT_TYPE_SIZE,
-};
-
-enum thrift_error {
-  // indicates that the read would overflow the buffer
-  THRIFT_ERROR_BUFFER_OVERFLOW = -256,
-
-  // indicates that the read would overflow integer bits
-  THRIFT_ERROR_BITS_OVERFLOW = -257,
-
-  // indicates that the read value is invalid, e.g., zero delta
-  THRIFT_ERROR_INVALID_VALUE = -258,
 };
 
 struct thrift_list_header {

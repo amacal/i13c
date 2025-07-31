@@ -1,17 +1,18 @@
 #pragma once
 
+#include "error.h"
 #include "malloc.h"
 #include "typing.h"
 
 enum parquet_error {
   // indicates that the read would overflow the buffer
-  PARQUET_ERROR_BUFFER_OVERFLOW = -288,
+  PARQUET_ERROR_BUFFER_OVERFLOW = PARQUET_ERROR_BASE | 0x01,
 
   // indicates that the read field type is invalid
-  PARQUET_ERROR_INVALID_TYPE = -289,
+  PARQUET_ERROR_INVALID_TYPE = PARQUET_ERROR_BASE | 0x02,
 
   // indicates that the read field value is invalid
-  PARQUET_ERROR_INVALID_VALUE = -290,
+  PARQUET_ERROR_INVALID_VALUE = PARQUET_ERROR_BASE | 0x03,
 };
 
 enum parquet_data_type {

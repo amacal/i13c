@@ -1,4 +1,5 @@
 #include "stdout.h"
+#include "error.h"
 #include "sys.h"
 #include "typing.h"
 #include "vargs.h"
@@ -9,6 +10,7 @@
 #define SUBSTITUTION_MARKER '%'
 #define SUBSTITUTION_STRING 's'
 #define SUBSTITUTION_INDENT 'i'
+#define SUBSTITUTION_RESULT 'r'
 
 #define SUBSTITUTION_ASCII 'a'
 #define SUBSTITUTION_ASCII_MIN 0x20
@@ -60,7 +62,7 @@ static void substitute_string(u64 *offset, struct stdout_context *ctx, const cha
   } while (*src != EOS);
 }
 
-static void substitute_unknown(u64 *offset, struct stdout_context *ctx, char symbol) {
+void substitute_unknown(u64 *offset, struct stdout_context *ctx, char symbol) {
   if (*offset < SUBSTITUTION_BUFFER_SIZE) {
     ctx->buffer[(*offset)++] = SUBSTITUTION_MARKER;
   }
@@ -132,6 +134,16 @@ static void substitute_decimal(u64 *offset, struct stdout_context *ctx, i64 valu
   // copy the decimal representation only if there's enough space
   while (index > 0 && *offset < SUBSTITUTION_BUFFER_SIZE) {
     ctx->buffer[(*offset)++] = tmp[--index];
+  }
+}
+
+static void substitute_result(u64 *offset, struct stdout_context *ctx, i64 result) {
+  if (result < 0 && result <= ERROR_BASE) {
+    substitute_string(offset, ctx, res2str(result));
+    substitute_string(offset, ctx, "#");
+    substitute_decimal(offset, ctx, res2off(result));
+  } else {
+    substitute_decimal(offset, ctx, result);
   }
 }
 
@@ -221,6 +233,9 @@ static u64 format(struct stdout_context *ctx) {
           break;
         case SUBSTITUTION_DECIMAL:
           substitute_decimal(&buffer_offset, ctx, (i64)ctx->vargs[vargs_offset++]);
+          break;
+        case SUBSTITUTION_RESULT:
+          substitute_result(&buffer_offset, ctx, (i64)ctx->vargs[vargs_offset++]);
           break;
         case SUBSTITUTION_MARKER:
           substitute_marker(&buffer_offset, ctx);
@@ -464,6 +479,29 @@ static void can_format_with_ascii_substitution() {
   assert_eq_str(buffer, "ASCII: Hello, ..limak!", "should format 'ASCII: Hello, ..limak!'");
 }
 
+static void can_format_with_result_substitution() {
+  char buffer[SUBSTITUTION_BUFFER_SIZE];
+  struct stdout_context ctx;
+  void *vargs[VARGS_MAX];
+  u64 offset = 0;
+
+  // initialize the context
+  ctx.fmt = "Result: %r";
+  ctx.vargs = vargs;
+  ctx.buffer = buffer;
+  ctx.flush = NULL;
+
+  // not initialize all vargs
+  vargs[0] = MALLOC_ERROR_BASE - 0x05;
+
+  // format a string with result substitution
+  offset = format(&ctx);
+
+  // assert the result
+  assert(offset == 16, "should write 16 bytes");
+  assert_eq_str(buffer, "Result: malloc#5", "should format 'Result: malloc#5'");
+}
+
 static void can_format_with_unknown_substitution() {
   char buffer[SUBSTITUTION_BUFFER_SIZE];
   struct stdout_context ctx;
@@ -511,6 +549,7 @@ void stdout_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can format with decimal int64 min", can_format_with_decimal_int64_min);
   test_case(ctx, "can format with indent substitution", can_format_with_indent_substitution);
   test_case(ctx, "can format with ascii substitution", can_format_with_ascii_substitution);
+  test_case(ctx, "can format with result substitution", can_format_with_result_substitution);
   test_case(ctx, "can format with unknown substitution", can_format_with_unknown_substitution);
   test_case(ctx, "can format with percent escape", can_format_with_percent_escape);
 }

@@ -33,17 +33,17 @@ i64 malloc_acquire(struct malloc_pool *pool, struct malloc_lease *lease) {
 
   // check if the size if too small
   if (lease->size < 4096) {
-    return MALLOC_INVALID_SIZE;
+    return MALLOC_ERROR_INVALID_SIZE;
   }
 
   // check if the size is a power of two
   if (__builtin_popcountll(lease->size) != 1) {
-    return MALLOC_INVALID_SIZE;
+    return MALLOC_ERROR_INVALID_SIZE;
   }
 
   // check if the size if too large
   if ((index = __builtin_ctzl(lease->size >> 12)) >= MALLOC_SLOTS) {
-    return MALLOC_INVALID_SIZE;
+    return MALLOC_ERROR_INVALID_SIZE;
   }
 
   // check if there's a free slot in the pool
@@ -179,7 +179,7 @@ static void cannot_allocate_too_small_lease() {
   lease.size = 1024;
 
   // try to acquire memory
-  assert(malloc_acquire(&pool, &lease) == MALLOC_INVALID_SIZE, "should not allocate too small lease");
+  assert(malloc_acquire(&pool, &lease) == MALLOC_ERROR_INVALID_SIZE, "should not allocate too small lease");
 
   // destroy the pool
   malloc_destroy(&pool);
@@ -196,7 +196,7 @@ static void cannot_allocate_too_large_lease() {
   lease.size = 1048576;
 
   // try to acquire memory
-  assert(malloc_acquire(&pool, &lease) == MALLOC_INVALID_SIZE, "should not allocate too large lease");
+  assert(malloc_acquire(&pool, &lease) == MALLOC_ERROR_INVALID_SIZE, "should not allocate too large lease");
 
   // destroy the pool
   malloc_destroy(&pool);
@@ -213,7 +213,7 @@ static void cannot_allocate_not_power_of_two() {
   lease.size = 5000;
 
   // try to acquire memory
-  assert(malloc_acquire(&pool, &lease) == MALLOC_INVALID_SIZE, "should not allocate not power of two");
+  assert(malloc_acquire(&pool, &lease) == MALLOC_ERROR_INVALID_SIZE, "should not allocate not power of two");
 
   // destroy the pool
   malloc_destroy(&pool);

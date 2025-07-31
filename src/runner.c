@@ -1,4 +1,5 @@
 #include "runner.h"
+#include "error.h"
 #include "malloc.h"
 #include "parquet.h"
 #include "stdout.h"
@@ -67,9 +68,10 @@ i32 runner_execute() {
 
   // register test cases
   ctx.offset = 0;
-  runner_test_cases(&ctx);
+  error_test_cases(&ctx);
   malloc_test_cases(&ctx);
   parquet_test_cases(&ctx);
+  runner_test_cases(&ctx);
   stdout_test_cases(&ctx);
   thrift_test_cases(&ctx);
 
