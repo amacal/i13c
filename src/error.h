@@ -5,6 +5,7 @@
 
 #define ERROR_BASE -256
 #define ERROR_BLOCK_SIZE 16
+#define ERROR_NAME_MAX_LENGTH 16
 
 #define THRIFT_ERROR_BASE (ERROR_BASE - 0 * ERROR_BLOCK_SIZE)
 #define THRIFT_ERROR_NAME "thrift"
@@ -17,6 +18,9 @@
 
 #define DOM_ERROR_BASE (ERROR_BASE - 3 * ERROR_BLOCK_SIZE)
 #define DOM_ERROR_NAME "dom"
+
+#define FORMAT_ERROR_BASE (ERROR_BASE - 4 * ERROR_BLOCK_SIZE)
+#define FORMAT_ERROR_NAME "format"
 
 /// @brief Converts a result to a string representation.
 /// @param result Result value to convert.

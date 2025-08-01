@@ -1,7 +1,13 @@
 #pragma once
 
+#include "error.h"
 #include "runner.h"
 #include "typing.h"
+
+enum stdout_error {
+  // indicates that the output buffer is too small
+  STDOUT_ERROR_BUFFER_TOO_SMALL = FORMAT_ERROR_BASE | 0x01,
+};
 
 /// @brief Prints a formatted string to stdout (like writef).
 /// @param fmt Format string.
