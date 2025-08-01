@@ -25,7 +25,7 @@
 #define SUBSTITUTION_HEX_ALPHABET_LEN 16
 #define SUBSTITUTION_HEX_ALPHABET "0123456789abcdef"
 
-static i64 substitute_string(struct stdout_context *ctx, const char **src) {
+static i64 substitute_string(struct format_context *ctx, const char **src) {
   u64 available;
 
   // calculate available space in the buffer
@@ -47,7 +47,7 @@ static i64 substitute_string(struct stdout_context *ctx, const char **src) {
   return 0;
 }
 
-static i64 substitute_unknown(struct stdout_context *ctx, char symbol) {
+static i64 substitute_unknown(struct format_context *ctx, char symbol) {
   // check if there's enough space for the substitution
   if (ctx->buffer_offset + 1 >= ctx->buffer_size) {
     return FORMAT_ERROR_BUFFER_TOO_SMALL;
@@ -61,7 +61,7 @@ static i64 substitute_unknown(struct stdout_context *ctx, char symbol) {
   return 0;
 }
 
-static i64 substitute_hex(struct stdout_context *ctx, u64 value) {
+static i64 substitute_hex(struct format_context *ctx, u64 value) {
   i32 index;
   const char *chars = SUBSTITUTION_HEX_ALPHABET;
 
@@ -83,7 +83,7 @@ static i64 substitute_hex(struct stdout_context *ctx, u64 value) {
   return 0;
 }
 
-static i64 substitute_indent(struct stdout_context *ctx, u64 indent) {
+static i64 substitute_indent(struct format_context *ctx, u64 indent) {
   // check if there's enough space for the substitution
   if (ctx->buffer_offset + indent >= ctx->buffer_size) {
     return FORMAT_ERROR_BUFFER_TOO_SMALL;
@@ -98,7 +98,7 @@ static i64 substitute_indent(struct stdout_context *ctx, u64 indent) {
   return 0;
 }
 
-static i64 substitute_marker(struct stdout_context *ctx) {
+static i64 substitute_marker(struct format_context *ctx) {
   // check if there's enough space for the substitution
   if (ctx->buffer_offset >= ctx->buffer_size) {
     return FORMAT_ERROR_BUFFER_TOO_SMALL;
@@ -111,7 +111,7 @@ static i64 substitute_marker(struct stdout_context *ctx) {
   return 0;
 }
 
-static i64 substitute_decimal(struct stdout_context *ctx, i64 value) {
+static i64 substitute_decimal(struct format_context *ctx, i64 value) {
   i32 index;
   u64 value_abs;
 
@@ -152,7 +152,7 @@ static i64 substitute_decimal(struct stdout_context *ctx, i64 value) {
   return 0;
 }
 
-static i64 substitute_result(struct stdout_context *ctx, i64 result) {
+static i64 substitute_result(struct format_context *ctx, i64 result) {
   const char *text;
 
   // check if there's enough space for the substitution
@@ -178,7 +178,7 @@ static i64 substitute_result(struct stdout_context *ctx, i64 result) {
   return 0;
 }
 
-static i64 substitute_ascii(struct stdout_context *ctx, const char **src, u64 *size) {
+static i64 substitute_ascii(struct format_context *ctx, const char **src, u64 *size) {
   char ch;
   u64 available;
 
@@ -209,7 +209,7 @@ static i64 substitute_ascii(struct stdout_context *ctx, const char **src, u64 *s
   return 0;
 }
 
-i64 format(struct stdout_context *ctx) {
+i64 format(struct format_context *ctx) {
   i64 result;
 
   // default values
@@ -308,7 +308,7 @@ result:
 
 static void can_format_without_substitutions() {
   char buffer[32];
-  struct stdout_context ctx;
+  struct format_context ctx;
   i64 offset = 0;
 
   // initialize the context
@@ -328,7 +328,7 @@ static void can_format_without_substitutions() {
 
 static void can_format_with_string_substitution() {
   char buffer[32];
-  struct stdout_context ctx;
+  struct format_context ctx;
   void *vargs[VARGS_MAX];
   i64 offset = 0;
 
@@ -353,7 +353,7 @@ static void can_format_with_string_substitution() {
 
 static void can_format_with_hex_substitution() {
   char buffer[32];
-  struct stdout_context ctx;
+  struct format_context ctx;
   void *vargs[VARGS_MAX];
   i64 offset = 0;
 
@@ -378,7 +378,7 @@ static void can_format_with_hex_substitution() {
 
 static void can_format_with_decimal_positive() {
   char buffer[32];
-  struct stdout_context ctx;
+  struct format_context ctx;
   void *vargs[VARGS_MAX];
   i64 offset = 0;
 
@@ -403,7 +403,7 @@ static void can_format_with_decimal_positive() {
 
 static void can_format_with_decimal_negative() {
   char buffer[32];
-  struct stdout_context ctx;
+  struct format_context ctx;
   void *vargs[VARGS_MAX];
   i64 offset = 0;
 
@@ -428,7 +428,7 @@ static void can_format_with_decimal_negative() {
 
 static void can_format_with_decimal_int64_min() {
   char buffer[32];
-  struct stdout_context ctx;
+  struct format_context ctx;
   void *vargs[VARGS_MAX];
   i64 offset = 0;
 
@@ -453,7 +453,7 @@ static void can_format_with_decimal_int64_min() {
 
 static void can_format_with_indent_substitution() {
   char buffer[32];
-  struct stdout_context ctx;
+  struct format_context ctx;
   void *vargs[VARGS_MAX];
   i64 offset = 0;
 
@@ -478,7 +478,7 @@ static void can_format_with_indent_substitution() {
 
 static void can_format_with_ascii_substitution() {
   char buffer[32];
-  struct stdout_context ctx;
+  struct format_context ctx;
   void *vargs[VARGS_MAX];
   i64 offset = 0;
 
@@ -504,7 +504,7 @@ static void can_format_with_ascii_substitution() {
 
 static void can_format_with_result_substitution() {
   char buffer[64];
-  struct stdout_context ctx;
+  struct format_context ctx;
   void *vargs[VARGS_MAX];
   i64 offset = 0;
 
@@ -529,7 +529,7 @@ static void can_format_with_result_substitution() {
 
 static void can_format_with_unknown_substitution() {
   char buffer[32];
-  struct stdout_context ctx;
+  struct format_context ctx;
   i64 offset = 0;
 
   // initialize the context
@@ -550,7 +550,7 @@ static void can_format_with_unknown_substitution() {
 
 static void can_format_with_percent_escape() {
   char buffer[32];
-  struct stdout_context ctx;
+  struct format_context ctx;
   i64 offset = 0;
 
   // initialize the context
@@ -571,7 +571,7 @@ static void can_format_with_percent_escape() {
 
 static void can_detect_overflow_in_plain_text() {
   char buffer[16];
-  struct stdout_context ctx;
+  struct format_context ctx;
   void *vargs[VARGS_MAX];
   i64 offset = 0;
 
@@ -605,7 +605,7 @@ static void can_detect_overflow_in_plain_text() {
 
 static void can_detect_overflow_in_string_substitution() {
   char buffer[16];
-  struct stdout_context ctx;
+  struct format_context ctx;
   void *vargs[VARGS_MAX];
   i64 offset = 0;
 
@@ -642,7 +642,7 @@ static void can_detect_overflow_in_string_substitution() {
 
 static void can_detect_overflow_in_hex_substitution() {
   char buffer[22];
-  struct stdout_context ctx;
+  struct format_context ctx;
   void *vargs[VARGS_MAX];
   i64 offset = 0;
 
@@ -679,7 +679,7 @@ static void can_detect_overflow_in_hex_substitution() {
 
 static void can_detect_overflow_with_two_vargs() {
   char buffer[16];
-  struct stdout_context ctx;
+  struct format_context ctx;
   void *vargs[VARGS_MAX];
   i64 offset = 0;
 
@@ -715,7 +715,104 @@ static void can_detect_overflow_with_two_vargs() {
   assert_eq_str(buffer, "d CDE.", "should format 'd CDE.'");
 }
 
-void stdout_test_cases(struct runner_context *ctx) {
+static void can_detect_overflow_in_long_substitution_1() {
+  char buffer[16];
+  struct format_context ctx;
+  void *vargs[VARGS_MAX];
+  i64 offset = 0;
+
+  // initialize the context
+  ctx.fmt = "Value: %s";
+  ctx.vargs = vargs;
+  ctx.vargs_offset = 0;
+  ctx.buffer = buffer;
+  ctx.buffer_offset = 0;
+  ctx.buffer_size = sizeof(buffer) - 2;
+
+  // not initialize all vargs
+  vargs[0] = "This is a very long string.";
+
+  // format a string with long substitution
+  offset = format(&ctx);
+
+  // assert the result
+  assert(offset == FORMAT_ERROR_BUFFER_TOO_SMALL, "should return an error for buffer too small");
+  assert(ctx.buffer_offset == sizeof(buffer) - 2, "should write up to the buffer size");
+  assert_eq_str(buffer, "Value: This is", "should format 'Value: This is'");
+
+  // clear the offset
+  ctx.buffer_offset = 0;
+
+  // second round should continue formatting
+  offset = format(&ctx);
+
+  // assert the result
+  assert(offset == FORMAT_ERROR_BUFFER_TOO_SMALL, "should return an error for buffer too small");
+  assert(ctx.buffer_offset == sizeof(buffer) - 2, "should write up to the buffer size");
+  assert_eq_str(buffer, " a very long s", "should format ' a very long s'");
+
+  // clear the offset
+  ctx.buffer_offset = 0;
+
+  // third round should continue formatting
+  offset = format(&ctx);
+
+  // assert the result
+  assert(offset == 6, "should write 6 bytes");
+  assert(ctx.buffer_offset == 6, "should write up to the buffer size");
+  assert_eq_str(buffer, "tring.", "should format 'tring.'");
+}
+
+static void can_detect_overflow_in_long_substitution_2() {
+  char buffer[16];
+  struct format_context ctx;
+  void *vargs[VARGS_MAX];
+  i64 offset = 0;
+
+  // initialize the context
+  ctx.fmt = "Value: %a";
+  ctx.vargs = vargs;
+  ctx.vargs_offset = 0;
+  ctx.buffer = buffer;
+  ctx.buffer_offset = 0;
+  ctx.buffer_size = sizeof(buffer) - 2;
+
+  // not initialize all vargs
+  vargs[0] = "This is a very long string.";
+  vargs[1] = (void *)(u64)26;
+
+  // format a string with long substitution
+  offset = format(&ctx);
+
+  // assert the result
+  assert(offset == FORMAT_ERROR_BUFFER_TOO_SMALL, "should return an error for buffer too small");
+  assert(ctx.buffer_offset == sizeof(buffer) - 2, "should write up to the buffer size");
+  assert_eq_str(buffer, "Value: This is", "should format 'Value: This is'");
+
+  // clear the offset
+  ctx.buffer_offset = 0;
+
+  // second round should continue formatting
+  offset = format(&ctx);
+
+  // assert the result
+  assert(offset == FORMAT_ERROR_BUFFER_TOO_SMALL, "should return an error for buffer too small");
+  assert(ctx.buffer_offset == sizeof(buffer) - 2, "should write up to the buffer size");
+  assert_eq_str(buffer, " a very long s", "should format ' a very long s'");
+
+  // clear the offset
+  ctx.buffer_offset = 0;
+
+  // third round should continue formatting
+  offset = format(&ctx);
+
+  // assert the result
+  assert(offset == 5, "should write 5 bytes");
+  assert(ctx.buffer_offset == 5, "should write up to the buffer size");
+  assert_eq_str(buffer, "tring", "should format 'tring'");
+}
+
+void format_test_cases(struct runner_context *ctx) {
   // formatting cases
   test_case(ctx, "can format without substitutions", can_format_without_substitutions);
   test_case(ctx, "can format with string substitution", can_format_with_string_substitution);
@@ -734,6 +831,8 @@ void stdout_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can detect overflow in string substitution", can_detect_overflow_in_string_substitution);
   test_case(ctx, "can detect overflow in hex substitution", can_detect_overflow_in_hex_substitution);
   test_case(ctx, "can detect overflow with two vargs", can_detect_overflow_with_two_vargs);
+  test_case(ctx, "can detect overflow in long substitution 1", can_detect_overflow_in_long_substitution_1);
+  test_case(ctx, "can detect overflow in long substitution 2", can_detect_overflow_in_long_substitution_2);
 }
 
 #endif

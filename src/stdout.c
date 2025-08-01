@@ -7,21 +7,33 @@
 #define BUFFER_SIZE 256
 #define BUFFER_TRIGGER 192
 
-static i64 flush_buffer(struct stdout_context *ctx) {
+static i64 flush_buffer(struct format_context *ctx) {
   i64 result;
+  u32 offset;
+  char *buffer;
 
-  while (ctx->buffer_offset > 0) {
+  // copy the buffer info
+  buffer = ctx->buffer;
+  offset = ctx->buffer_offset;
+
+  while (offset > 0) {
     // write the buffer to stdout
-    result = sys_write(1, ctx->buffer, ctx->buffer_offset);
-    if (result < 0) return result;
+    result = sys_write(1, buffer, offset);
+    if (result < 0) break;
 
     // adjust the length and buffer pointer
-    ctx->buffer_offset -= result;
-    ctx->buffer += result;
+    buffer += result;
+    offset -= result;
+
+    // forget last result
+    result = 0;
   }
 
+  // reset the buffer offset
+  ctx->buffer_offset = 0;
+
   // success
-  return 0;
+  return result;
 }
 
 void writef(const char *fmt, ...) {
@@ -29,7 +41,7 @@ void writef(const char *fmt, ...) {
   char buffer[BUFFER_SIZE];
 
   i64 result;
-  struct stdout_context ctx;
+  struct format_context ctx;
 
   // collect argument list
   vargs_init(vargs);
