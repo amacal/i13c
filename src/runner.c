@@ -1,4 +1,5 @@
 #include "runner.h"
+#include "dom.h"
 #include "error.h"
 #include "format.h"
 #include "malloc.h"
@@ -67,8 +68,11 @@ i32 runner_execute() {
   u64 index;
   struct runner_context ctx;
 
-  // register test cases
+  // initialize the context
   ctx.offset = 0;
+
+  // register test cases
+  dom_test_cases(&ctx);
   error_test_cases(&ctx);
   malloc_test_cases(&ctx);
   parquet_test_cases(&ctx);

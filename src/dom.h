@@ -1,7 +1,13 @@
 #pragma once
 
 #include "error.h"
+#include "format.h"
+#include "malloc.h"
 #include "typing.h"
+#include "vargs.h"
+
+#define DOM_TOKENS_MAX 32
+#define DOM_ENTRIES_MAX 16
 
 enum dom_error {
   // indicates that the token type is invalid
@@ -33,7 +39,7 @@ struct dom_token {
   union {
     struct {
       u64 size;
-      u32 item;
+      u32 type;
     } array;
 
     struct {
@@ -58,12 +64,44 @@ struct dom_state_entry {
 };
 
 struct dom_state {
-  u32 indent;                         // current level
-  struct dom_state_entry entries[16]; // stack of entries
+  u8 entries_indent; // entries depth level
+  u8 tokens_head;    // head of the ring
+  u8 tokens_tail;    // tail of the ring
+  u8 tokens_count;   // the count of tokens
+
+  void *vargs[VARGS_MAX];       // variable arguments for formatting
+  struct malloc_lease *buffer;  // allocated buffer for writing
+  struct format_context format; // format context for writing
+
+  struct dom_token tokens[DOM_TOKENS_MAX];         // ring of tokens tokens
+  struct dom_state_entry entries[DOM_ENTRIES_MAX]; // stack of entries
 };
+
+/// @brief Initializes the DOM state.
+/// @param state Pointer to the DOM state to initialize.
+/// @param buffer Pointer to the buffer to use for writing.
+extern void dom_init(struct dom_state *state, struct malloc_lease *buffer);
+
+/// @brief Determines the size and the place for new batch of tokens.
+/// @param state Pointer to the DOM state.
+/// @param ptr Pointer to the returned location of the next token batch.
+/// @param size Pointer to the size of the next token batch.
+extern void dom_next(struct dom_state *state, struct dom_token **ptr, u8 *size);
+
+/// @brief Advances the head of the tokens ring.
+/// @param state Pointer to the DOM state.
+/// @param size Number of tokens to advance the head by.
+extern void dom_move(struct dom_state *state, u8 size);
 
 /// @brief Write a DOM token stream to the stdout.
 /// @param state Pointer to the DOM state passed between calls.
-/// @param tokens Null-terminated array of tokens to write.
 /// @return The number of written tokens, or a negative error code.
-extern i64 dom_write(struct dom_state *state, struct dom_token *tokens);
+extern i64 dom_write(struct dom_state *state);
+
+#if defined(I13C_TESTS)
+
+/// @brief Registers dom test cases.
+/// @param ctx Pointer to the runner_context structure.
+extern void dom_test_cases(struct runner_context *ctx);
+
+#endif
