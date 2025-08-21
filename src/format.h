@@ -5,7 +5,7 @@
 
 enum format_error {
   // indicates that the output buffer is too small
-  FORMAT_ERROR_BUFFER_TOO_SMALL = FORMAT_ERROR_BASE | 0x01,
+  FORMAT_ERROR_BUFFER_TOO_SMALL = FORMAT_ERROR_BASE - 0x01,
 };
 
 struct format_context {

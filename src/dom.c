@@ -7,122 +7,256 @@
 /// @param token Pointer to the DOM token to write.
 typedef i64 (*dom_write_fn)(struct dom_state *state, struct dom_token *token);
 
-static inline bool is_primitive(enum dom_token_type type) {
-  return type >= DOM_TOKEN_TYPE_I8 && type <= DOM_TOKEN_TYPE_U64;
+// forward declarations
+static i64 write_null(struct dom_state *state, struct dom_token *token);
+static i64 write_unsigned(struct dom_state *state, struct dom_token *token);
+static i64 write_signed(struct dom_state *state, struct dom_token *token);
+static i64 write_text(struct dom_state *state, struct dom_token *token);
+static i64 write_invalid(struct dom_state *state, struct dom_token *token);
+
+// forward declarations
+static i64 write_value(struct dom_state *state, struct dom_token *token);
+static i64 write_array_start(struct dom_state *state, struct dom_token *token);
+static i64 write_array_end(struct dom_state *state, struct dom_token *token);
+static i64 write_index_start(struct dom_state *state, struct dom_token *token);
+static i64 write_index_end(struct dom_state *state, struct dom_token *token);
+static i64 write_struct_start(struct dom_state *state, struct dom_token *token);
+static i64 write_struct_end(struct dom_state *state, struct dom_token *token);
+static i64 write_key_start(struct dom_state *state, struct dom_token *token);
+static i64 write_key_end(struct dom_state *state, struct dom_token *token);
+static i64 write_value_start(struct dom_state *state, struct dom_token *token);
+static i64 write_value_end(struct dom_state *state, struct dom_token *token);
+
+// type to function mappings
+static const dom_write_fn DOM_WRITE_VALUE_FN[DOM_TYPE_SIZE] = {
+  [DOM_TYPE_NULL] = write_null,    [DOM_TYPE_I8] = write_signed,     [DOM_TYPE_I16] = write_signed,
+  [DOM_TYPE_I32] = write_signed,   [DOM_TYPE_I64] = write_signed,    [DOM_TYPE_U8] = write_unsigned,
+  [DOM_TYPE_U16] = write_unsigned, [DOM_TYPE_U32] = write_unsigned,  [DOM_TYPE_U64] = write_unsigned,
+  [DOM_TYPE_TEXT] = write_text,    [DOM_TYPE_ARRAY] = write_invalid, [DOM_TYPE_STRUCT] = write_invalid,
+};
+
+// op to function mappings
+static const dom_write_fn DOM_WRITE_OP_FN[DOM_OP_SIZE] = {
+  [DOM_OP_LITERAL] = write_value,         [DOM_OP_ARRAY_START] = write_array_start,
+  [DOM_OP_ARRAY_END] = write_array_end,   [DOM_OP_INDEX_START] = write_index_start,
+  [DOM_OP_INDEX_END] = write_index_end,   [DOM_OP_STRUCT_START] = write_struct_start,
+  [DOM_OP_STRUCT_END] = write_struct_end, [DOM_OP_KEY_START] = write_key_start,
+  [DOM_OP_KEY_END] = write_key_end,       [DOM_OP_VALUE_START] = write_value_start,
+  [DOM_OP_VALUE_END] = write_value_end,
+};
+
+static i64 write_null(struct dom_state *state, struct dom_token *token) {
+  // prepare the format string
+  state->format.fmt = "%inull\n";
+  state->format.vargs[0] = (void *)(u64)state->entries_indent;
+  state->format.vargs_offset = 0;
+
+  // format the null value
+  return format(&state->format);
 }
 
 static i64 write_unsigned(struct dom_state *state, struct dom_token *token) {
-  state->format.fmt = "%d";
-  state->format.vargs[0] = (void *)(u64)token->value.number.value;
+  state->format.fmt = "%i%d\n";
+  state->format.vargs[0] = (void *)(u64)(state->entries_indent + 1);
+  state->format.vargs[1] = token->data;
   state->format.vargs_offset = 0;
 
   return format(&state->format);
 }
 
 static i64 write_signed(struct dom_state *state, struct dom_token *token) {
-  state->format.fmt = "%d";
-  state->format.vargs[0] = (void *)(i64)token->value.number.value;
+  state->format.fmt = "%i%d\n";
+  state->format.vargs[0] = (void *)(u64)(state->entries_indent + 1);
+  state->format.vargs[1] = (u64)(i64)token->data;
   state->format.vargs_offset = 0;
 
   return format(&state->format);
 }
 
-static i64 write_text_or_binary(struct dom_state *state, struct dom_token *token) {
-  state->format.fmt = "%s";
-  state->format.vargs[0] = (void *)token->value.text_or_binary.buffer;
+static i64 write_text(struct dom_state *state, struct dom_token *token) {
+  u64 indent;
+  const char *newline;
+
+  // decide if indent it with a newline or to keep it as it is
+  if (state->entries[state->entries_indent].op == DOM_OP_KEY_START) {
+    indent = 0;
+    newline = "";
+  } else {
+    indent = (u64)(state->entries_indent + 1);
+    newline = "\n";
+  }
+
+  state->format.fmt = "%i%s%s";
+  state->format.vargs[0] = (void *)indent;
+  state->format.vargs[1] = (void *)token->data;
+  state->format.vargs[2] = (void *)newline;
   state->format.vargs_offset = 0;
 
   return format(&state->format);
+}
+
+static i64 write_invalid(struct dom_state *state, struct dom_token *token) {
+  // writting is not expected
+  return DOM_ERROR_INVALID_TYPE;
+}
+
+static i64 write_value(struct dom_state *state, struct dom_token *token) {
+  // check if the token type is valid
+  if (token->type >= DOM_TYPE_ARRAY) {
+    return DOM_ERROR_INVALID_TYPE;
+  }
+
+  // format the value
+  return DOM_WRITE_VALUE_FN[token->type](state, token);
 }
 
 static i64 write_array_start(struct dom_state *state, struct dom_token *token) {
-  // decide how to format each item
-  if (is_primitive(token->value.array.type)) {
-    state->format.fmt = "%iarray-start: [";
-    state->format.vargs[0] = (void *)(u64)state->entries_indent;
-    state->format.vargs_offset = 0;
-  } else {
-    state->format.fmt = "%iarray-start, size=%d\n";
-    state->format.vargs[0] = (void *)(u64)state->entries_indent;
-    state->format.vargs[1] = (void *)(u64)token->value.array.size;
-    state->format.vargs_offset = 0;
-  }
-
-  // fix up the next entry
-  state->entries[state->entries_indent].type = token->type;
-  state->entries[state->entries_indent].size = token->value.array.size;
-  state->entries[state->entries_indent].index = 0;
-
   // increase the indent
   state->entries_indent++;
+
+  // prepare the format string
+  state->format.fmt = "%iarray-start\n";
+  state->format.vargs[0] = (void *)(u64)state->entries_indent;
+  state->format.vargs_offset = 0;
+
+  // fix up the next entry
+  state->entries[state->entries_indent].op = DOM_OP_ARRAY_START;
+  state->entries[state->entries_indent].type = token->type;
+  state->entries[state->entries_indent].index = 0;
 
   // format the array start
   return format(&state->format);
 }
 
-static void write_array_end(struct dom_state *state, struct dom_token *token) {
+static i64 write_array_end(struct dom_state *state, struct dom_token *token) {
+  // prepare the format string
+  state->format.fmt = "%iarray-end\n";
+  state->format.vargs[0] = (void *)(u64)state->entries_indent;
+  state->format.vargs_offset = 0;
+
   // decrease the indent
   state->entries_indent--;
-
-  // decide how to format each item
-  if (is_primitive(token->value.array.type)) {
-    state->format.fmt = "]";
-    state->format.vargs_offset = 0;
-  } else {
-    state->format.fmt = "%iarray-end\n";
-    state->format.vargs[0] = (void *)(u64)state->entries_indent;
-    state->format.vargs_offset = 0;
-  }
 
   // format the array end
   return format(&state->format);
 }
 
-static void write_struct_start(struct dom_state *state, struct dom_token *token) {
-  // writef the representation
-  writef("%i%s-start\n", state->entries_indent, token->value.struct_or_key.buffer);
-
-  // fillup next entry
-  state->entries[state->entries_indent].type = token->type;
-
+static i64 write_index_start(struct dom_state *state, struct dom_token *token) {
   // increase the indent
   state->entries_indent++;
+
+  // prepare the format string
+  state->format.fmt = "%iindex-start, index=%d, type=%s\n";
+  state->format.vargs[0] = (void *)(u64)state->entries_indent;
+  state->format.vargs[1] = (void *)(u64)state->entries[state->entries_indent - 1].index;
+  state->format.vargs[2] = (void *)(const char *)token->data;
+  state->format.vargs_offset = 0;
+
+  // fix up the next entry
+  state->entries[state->entries_indent].op = DOM_OP_INDEX_START;
+  state->entries[state->entries_indent].type = token->type;
+
+  // update index counter
+  state->entries[state->entries_indent - 1].index++;
+
+  // format the array item
+  return format(&state->format);
 }
 
-static void write_struct_key(struct dom_state *state, struct dom_token *token) {
-  writef("%s: ", token->value.struct_or_key.buffer);
-}
+static i64 write_index_end(struct dom_state *state, struct dom_token *token) {
+  // prepare the format string
+  state->format.fmt = "%iindex-end\n";
+  state->format.vargs[0] = (void *)(u64)state->entries_indent;
+  state->format.vargs_offset = 0;
 
-static void write_struct_end(struct dom_state *state, struct dom_token *token) {
   // decrease the indent
   state->entries_indent--;
 
-  // writef the representation
-  writef("%i%s-end\n", state->entries_indent, token->value.struct_or_key.buffer);
+  // format the array item
+  return format(&state->format);
 }
 
-static const dom_write_fn DOM_WRITE_FN[DOM_TOKEN_TYPE_SIZE] = {
-  [DOM_TOKEN_TYPE_I8] = write_signed,
-  [DOM_TOKEN_TYPE_I16] = write_signed,
-  [DOM_TOKEN_TYPE_I32] = write_signed,
-  [DOM_TOKEN_TYPE_I64] = write_signed,
-  [DOM_TOKEN_TYPE_U8] = write_unsigned,
-  [DOM_TOKEN_TYPE_U16] = write_unsigned,
-  [DOM_TOKEN_TYPE_U32] = write_unsigned,
-  [DOM_TOKEN_TYPE_U64] = write_unsigned,
-  [DOM_TOKEN_TYPE_TEXT_OR_BINARY] = write_text_or_binary,
-  [DOM_TOKEN_TYPE_ARRAY_START] = write_array_start,
-  [DOM_TOKEN_TYPE_ARRAY_END] = write_array_end,
-  [DOM_TOKEN_TYPE_STRUCT_START] = write_struct_start,
-  [DOM_TOKEN_TYPE_STRUCT_KEY] = write_struct_key,
-  [DOM_TOKEN_TYPE_STRUCT_END] = write_struct_end,
-};
+static i64 write_struct_start(struct dom_state *state, struct dom_token *token) {
+  // increase the indent
+  state->entries_indent++;
+
+  // prepare the format string
+  state->format.fmt = "%istruct-start, type=%s\n";
+  state->format.vargs[0] = (void *)(u64)state->entries_indent;
+  state->format.vargs[1] = (void *)(u64)token->data;
+  state->format.vargs_offset = 0;
+
+  // fix up the next entry
+  state->entries[state->entries_indent].op = DOM_OP_STRUCT_START;
+  state->entries[state->entries_indent].index = 0;
+
+  // format the struct start
+  return format(&state->format);
+}
+
+static i64 write_struct_end(struct dom_state *state, struct dom_token *token) {
+  // prepare the format string
+  state->format.fmt = "%istruct-end\n";
+  state->format.vargs[0] = (void *)(u64)state->entries_indent;
+  state->format.vargs_offset = 0;
+
+  // decrease the indent
+  state->entries_indent--;
+
+  // format the struct end
+  return format(&state->format);
+}
+
+static i64 write_key_start(struct dom_state *state, struct dom_token *token) {
+  // increase the indent
+  state->entries_indent++;
+
+  // fix up the next entry
+  state->entries[state->entries_indent].op = DOM_OP_KEY_START;
+
+  // prepare the format string
+  state->format.fmt = "%i";
+  state->format.vargs[0] = (void *)state->entries_indent;
+  state->format.vargs_offset = 0;
+
+  // succeed
+  return format(&state->format);
+}
+
+static i64 write_key_end(struct dom_state *state, struct dom_token *token) {
+  // decrease the indent
+  state->entries_indent--;
+
+  // succeed
+  return 0;
+}
+
+static i64 write_value_start(struct dom_state *state, struct dom_token *token) {
+  // increase the indent
+  state->entries_indent++;
+
+  // fix up the next entry
+  state->entries[state->entries_indent].op = DOM_OP_VALUE_START;
+
+  // prepare the format string
+  state->format.fmt = ", type=%s\n";
+  state->format.vargs[0] = (void *)(u64)token->data;
+  state->format.vargs_offset = 0;
+
+  // succeed
+  return format(&state->format);
+}
+
+static i64 write_value_end(struct dom_state *state, struct dom_token *token) {
+  // decrease the indent
+  state->entries_indent--;
+
+  // succeed
+  return 0;
+}
 
 void dom_init(struct dom_state *state, struct malloc_lease *buffer) {
-  state->entries_indent = 0;
-  state->tokens_head = 0;
-  state->tokens_tail = 0;
-  state->tokens_count = 0;
+  state->entries_indent = -1;
   state->buffer = buffer;
   state->format.fmt = NULL;
   state->format.buffer = buffer->ptr;
@@ -132,697 +266,346 @@ void dom_init(struct dom_state *state, struct malloc_lease *buffer) {
   state->format.vargs_offset = 0;
 }
 
-void dom_next(struct dom_state *state, struct dom_token **ptr, u8 *size) {
-  // check if the ring is full
-  if (state->tokens_count == DOM_TOKENS_MAX) {
-    *ptr = NULL;
-    *size = 0;
-    return;
-  }
-
-  // we know the head points at the next free tokens
-  *ptr = state->tokens + state->tokens_head;
-
-  // decide which part of the ring to return
-  if (state->tokens_head >= state->tokens_tail) {
-    *size = DOM_TOKENS_MAX - state->tokens_head;
-  } else {
-    *size = state->tokens_tail - state->tokens_head;
-  }
-}
-
-void dom_move(struct dom_state *state, u8 size) {
-  state->tokens_head += size;
-  state->tokens_head %= DOM_TOKENS_MAX;
-  state->tokens_count += size;
-}
-
-i64 dom_write(struct dom_state *state) {
+i64 dom_write(struct dom_state *state, struct dom_token *tokens, u32 *count) {
+  u32 written;
   i64 result, size;
-  struct dom_token *current;
 
   // default
-  size = state->tokens_count;
-  current = state->tokens + state->tokens_tail;
+  written = 0;
 
-  // loop through the tokens until we reach the null terminator
-  while (state->tokens_count > 0) {
+  // loop through the tokens until we reach the end
+  while (written < *count) {
+    // check if the operation is valid
+    if (tokens->op >= DOM_OP_SIZE) {
+      return DOM_ERROR_INVALID_OP;
+    }
 
-    // check if the token type is valid
-    if (current->type >= DOM_TOKEN_TYPE_SIZE) return DOM_ERROR_INVALID_TYPE;
-
-    // delagate the writing to the appropriate function
-    result = DOM_WRITE_FN[current->type](state, current);
+    // delegate the call
+    result = DOM_WRITE_OP_FN[tokens->op](state, tokens);
     if (result < 0) return result;
 
-    // move tokens tail and count
-    state->tokens_tail += 1;
-    state->tokens_tail %= DOM_TOKENS_MAX;
-    state->tokens_count--;
-
-    // get newest current item
-    current = state->tokens + state->tokens_tail;
+    // next one
+    tokens++;
+    written++;
   }
 
+  // update the count
+  *count = written;
+
   // success
-  return size - state->tokens_count;
+  return 0;
 }
 
 #if defined(I13C_TESTS)
 
-static void can_return_entire_ring() {
+static void can_write_array_with_no_items() {
+  u32 size;
   i64 result;
   char buffer[256];
 
   struct dom_state state;
   struct malloc_lease lease;
-
-  u8 size;
-  struct dom_token *tokens;
+  struct dom_token tokens[2];
 
   // initialize the state
   lease.ptr = buffer;
   lease.size = sizeof(buffer);
 
-  // initialize the state
+  size = 2;
   dom_init(&state, &lease);
-  dom_next(&state, &tokens, &size);
-
-  // assert the size and the pointer
-  assert(size == DOM_TOKENS_MAX, "should return the size of the ring");
-  assert(tokens == state.tokens, "should return the entire ring");
-}
-
-static void can_return_right_half_ring() {
-  i64 result;
-  char buffer[256];
-
-  struct dom_state state;
-  struct malloc_lease lease;
-
-  u8 size;
-  struct dom_token *tokens;
-
-  // initialize the state
-  lease.ptr = buffer;
-  lease.size = sizeof(buffer);
-
-  // initialize the state
-  dom_init(&state, &lease);
-  dom_next(&state, &tokens, &size);
-
-  // fill the first half of the ring
-  dom_move(&state, 13);
-  dom_next(&state, &tokens, &size);
-
-  // assert the size and the pointer
-  assert(size == DOM_TOKENS_MAX - 13, "should return the size of the right half of the ring");
-  assert(tokens == state.tokens + 13, "should return the right half of the ring");
-}
-
-static void can_return_empty_ring() {
-  i64 result;
-  char buffer[256];
-
-  struct dom_state state;
-  struct malloc_lease lease;
-
-  u8 size;
-  struct dom_token *tokens;
-
-  // initialize the state
-  lease.ptr = buffer;
-  lease.size = sizeof(buffer);
-
-  // initialize the state
-  dom_init(&state, &lease);
-
-  // fill the entire ring
-  dom_move(&state, DOM_TOKENS_MAX);
-  dom_next(&state, &tokens, &size);
-
-  // assert the size and the pointer
-  assert(size == 0, "should return the size of the empty ring");
-  assert(tokens == NULL, "should return NULL for the empty ring");
-}
-
-static void can_return_left_half_ring() {
-  i64 result;
-  char buffer[256];
-
-  struct dom_state state;
-  struct malloc_lease lease;
-
-  u8 size;
-  struct dom_token *tokens;
-
-  // initialize the state
-  lease.ptr = buffer;
-  lease.size = sizeof(buffer);
-
-  // initialize the state
-  dom_init(&state, &lease);
-
-  // fill the entire ring
-  dom_move(&state, DOM_TOKENS_MAX);
-
-  // consume 5 tokens
-  state.tokens_tail += 5;
-  state.tokens_count -= 5;
-
-  // request next batch
-  dom_next(&state, &tokens, &size);
-
-  // assert the size and the pointer
-  assert(size == 5, "should return the left half of the ring");
-  assert(tokens == state.tokens, "should return the left half of the ring");
-}
-
-static void can_return_medium_part_ring() {
-  i64 result;
-  char buffer[256];
-
-  struct dom_state state;
-  struct malloc_lease lease;
-
-  u8 size;
-  struct dom_token *tokens;
-
-  // initialize the state
-  lease.ptr = buffer;
-  lease.size = sizeof(buffer);
-
-  // initialize the state
-  dom_init(&state, &lease);
-
-  // fill the entire ring
-  dom_move(&state, DOM_TOKENS_MAX);
-
-  // consume 10 tokens
-  state.tokens_tail += 10;
-  state.tokens_count -= 10;
-
-  // fill next 5 tokens
-  dom_move(&state, 5);
-
-  // request next batch
-  dom_next(&state, &tokens, &size);
-
-  // assert the size and the pointer
-  assert(size == 5, "should return the medium part of the ring");
-  assert(tokens == state.tokens + 5, "should return the medium part of the ring");
-}
-
-static void can_write_unsigned_integer() {
-  i64 result;
-  char buffer[256];
-
-  struct dom_state state;
-  struct malloc_lease lease;
-
-  u8 size;
-  struct dom_token *tokens;
-
-  // initialize the state
-  lease.ptr = buffer;
-  lease.size = sizeof(buffer);
-
-  dom_init(&state, &lease);
-  dom_next(&state, &tokens, &size);
-
-  // assert the size
-  assert(size == DOM_TOKENS_MAX, "should return the size of the ring");
-  assert(tokens != NULL, "should return a valid pointer to the tokens");
 
   // set up the tokens
-  tokens[0].type = DOM_TOKEN_TYPE_U32;
-  tokens[0].value.number.value = 42;
+  tokens[0].op = DOM_OP_ARRAY_START;
+  tokens[0].data = (u64)1;
+  tokens[0].type = DOM_TYPE_U32;
 
-  // move the head
-  dom_move(&state, 1);
+  tokens[1].op = DOM_OP_ARRAY_END;
 
   // write the tokens
-  result = dom_write(&state);
+  result = dom_write(&state, tokens, &size);
 
   // assert the result
-  assert(result == 1, "should write exactly one token");
-  assert(state.format.buffer_offset == 2, "should write two bytes to the buffer");
-  assert_eq_str(buffer, "42", "should write '42'");
+  assert(result == 0, "should succeed");
+  assert(size == 2, "should consume all tokens");
+  assert(state.format.buffer_offset == 22, "should write 22 bytes to the buffer");
+
+  const char *expected = "array-start\n"
+                         "array-end\n";
+
+  assert_eq_str(buffer, expected, "should write exact text");
 }
 
-static void can_postpone_unsigned_integer() {
+static void can_write_array_with_one_item() {
+  u32 size;
   i64 result;
   char buffer[256];
 
   struct dom_state state;
   struct malloc_lease lease;
-
-  u8 size;
-  struct dom_token *tokens;
+  struct dom_token tokens[5];
 
   // initialize the state
   lease.ptr = buffer;
   lease.size = sizeof(buffer);
 
+  size = 5;
   dom_init(&state, &lease);
-  dom_next(&state, &tokens, &size);
-
-  // simulate a buffer overflow
-  state.format.buffer_offset = 250;
-
-  // assert the size
-  assert(size == DOM_TOKENS_MAX, "should return the size of the ring");
-  assert(tokens != NULL, "should return a valid pointer to the tokens");
 
   // set up the tokens
-  tokens[0].type = DOM_TOKEN_TYPE_U32;
-  tokens[0].value.number.value = 42;
+  tokens[0].op = DOM_OP_ARRAY_START;
+  tokens[0].data = (u64)1;
+  tokens[0].type = DOM_TYPE_U32;
 
-  // move the head
-  dom_move(&state, 1);
+  tokens[1].op = DOM_OP_INDEX_START;
+  tokens[1].data = "u32";
+
+  tokens[2].op = DOM_OP_LITERAL;
+  tokens[2].type = DOM_TYPE_U32;
+  tokens[2].data = (u64)1;
+
+  tokens[3].op = DOM_OP_INDEX_END;
+  tokens[4].op = DOM_OP_ARRAY_END;
 
   // write the tokens
-  result = dom_write(&state);
+  result = dom_write(&state, tokens, &size);
 
   // assert the result
-  assert(result == FORMAT_ERROR_BUFFER_TOO_SMALL, "should return buffer too small error");
-  assert(state.format.buffer_offset == 250, "should not write to the buffer");
+  assert(result == 0, "should succeed");
+  assert(size == 5, "should consume all tokens");
+  assert(state.format.buffer_offset == 69, "should write 69 bytes to the buffer");
+
+  const char *expected = "array-start\n"
+                         " index-start, index=0, type=u32\n"
+                         "  1\n"
+                         " index-end\n"
+                         "array-end\n";
+
+  assert_eq_str(buffer, expected, "should write exact text");
 }
 
-static void can_write_text_or_binary() {
+static void can_write_array_with_two_items() {
+  u32 size;
   i64 result;
   char buffer[256];
 
   struct dom_state state;
   struct malloc_lease lease;
-
-  u8 size;
-  struct dom_token *tokens;
+  struct dom_token tokens[8];
 
   // initialize the state
   lease.ptr = buffer;
   lease.size = sizeof(buffer);
 
+  size = 8;
   dom_init(&state, &lease);
-  dom_next(&state, &tokens, &size);
-
-  // assert the size
-  assert(size == DOM_TOKENS_MAX, "should return the size of the ring");
-  assert(tokens != NULL, "should return a valid pointer to the tokens");
 
   // set up the tokens
-  tokens[0].type = DOM_TOKEN_TYPE_TEXT_OR_BINARY;
-  tokens[0].value.text_or_binary.buffer = "Hello, world!";
+  tokens[0].op = DOM_OP_ARRAY_START;
+  tokens[0].data = (u64)2;
+  tokens[0].type = DOM_TYPE_U32;
 
-  // move the head
-  dom_move(&state, 1);
+  tokens[1].op = DOM_OP_INDEX_START;
+  tokens[1].data = "u16";
+
+  tokens[2].op = DOM_OP_LITERAL;
+  tokens[2].type = DOM_TYPE_U16;
+  tokens[2].data = (u64)1;
+
+  tokens[3].op = DOM_OP_INDEX_END;
+  tokens[4].op = DOM_OP_INDEX_START;
+  tokens[4].data = "u16";
+
+  tokens[5].op = DOM_OP_LITERAL;
+  tokens[5].type = DOM_TYPE_U16;
+  tokens[5].data = (u64)2;
+
+  tokens[6].op = DOM_OP_INDEX_END;
+  tokens[7].op = DOM_OP_ARRAY_END;
 
   // write the tokens
-  result = dom_write(&state);
+  result = dom_write(&state, tokens, &size);
 
   // assert the result
-  assert(result == 1, "should write exactly one token");
-  assert(state.format.buffer_offset == 13, "should write 13 bytes to the buffer");
-  assert_eq_str(buffer, "Hello, world!", "should write 'Hello, world!'");
+  assert(result == 0, "should succeed");
+  assert(size == 8, "should consume all tokens");
+  assert(state.format.buffer_offset == 116, "should write 116 bytes to the buffer");
+
+  const char *expected = "array-start\n"
+                         " index-start, index=0, type=u16\n"
+                         "  1\n"
+                         " index-end\n"
+                         " index-start, index=1, type=u16\n"
+                         "  2\n"
+                         " index-end\n"
+                         "array-end\n";
+
+  assert_eq_str(buffer, expected, "should write exact text");
 }
 
-static void can_postpone_text_or_binary() {
+static void can_write_struct_with_no_fields() {
+  u32 size;
   i64 result;
   char buffer[256];
 
   struct dom_state state;
   struct malloc_lease lease;
-
-  u8 size;
-  struct dom_token *tokens;
+  struct dom_token tokens[2];
 
   // initialize the state
   lease.ptr = buffer;
   lease.size = sizeof(buffer);
 
+  size = 2;
   dom_init(&state, &lease);
-  dom_next(&state, &tokens, &size);
-
-  // assert the size
-  assert(size == DOM_TOKENS_MAX, "should return the size of the ring");
-  assert(tokens != NULL, "should return a valid pointer to the tokens");
 
   // set up the tokens
-  tokens[0].type = DOM_TOKEN_TYPE_TEXT_OR_BINARY;
-  tokens[0].value.text_or_binary.buffer = "Hello, world!";
+  tokens[0].op = DOM_OP_STRUCT_START;
+  tokens[0].data = "abc";
 
-  // move the head
-  dom_move(&state, 1);
-
-  // simulate a buffer overflow
-  state.format.buffer_offset = 250;
+  tokens[1].op = DOM_OP_STRUCT_END;
 
   // write the tokens
-  result = dom_write(&state);
+  result = dom_write(&state, tokens, &size);
 
   // assert the result
-  assert(result == FORMAT_ERROR_BUFFER_TOO_SMALL, "should return buffer too small error");
-  assert(state.format.buffer_offset == 250, "should not write to the buffer");
+  assert(result == 0, "should succeed");
+  assert(size == 2, "should consume all tokens");
+  assert(state.format.buffer_offset == 34, "should write 34 bytes to the buffer");
+
+  const char *expected = "struct-start, type=abc\n"
+                         "struct-end\n";
+
+  assert_eq_str(buffer, expected, "should write exact text");
 }
 
-static void can_write_array_start_primitive() {
+static void can_write_struct_with_one_field() {
   i64 result;
+  u32 size;
   char buffer[256];
 
   struct dom_state state;
   struct malloc_lease lease;
-
-  u8 size;
-  struct dom_token *tokens;
+  struct dom_token tokens[8];
 
   // initialize the state
   lease.ptr = buffer;
   lease.size = sizeof(buffer);
 
+  size = 8;
   dom_init(&state, &lease);
-  dom_next(&state, &tokens, &size);
-
-  // assert the size
-  assert(size == DOM_TOKENS_MAX, "should return the size of the ring");
-  assert(tokens != NULL, "should return a valid pointer to the tokens");
 
   // set up the tokens
-  tokens[0].type = DOM_TOKEN_TYPE_ARRAY_START;
-  tokens[0].value.array.size = 1;
-  tokens[0].value.array.type = DOM_TOKEN_TYPE_I32;
+  tokens[0].op = DOM_OP_STRUCT_START;
+  tokens[0].data = "abc";
 
-  // move the head
-  dom_move(&state, 1);
+  tokens[1].op = DOM_OP_KEY_START;
+  tokens[1].data = "text";
+  tokens[2].op = DOM_OP_LITERAL;
+  tokens[2].type = DOM_TYPE_TEXT;
+  tokens[2].data = "key";
+  tokens[3].op = DOM_OP_KEY_END;
+
+  tokens[4].op = DOM_OP_VALUE_START;
+  tokens[4].data = "i64";
+  tokens[5].op = DOM_OP_LITERAL;
+  tokens[5].type = DOM_TYPE_I64;
+  tokens[5].data = (i64)-42;
+  tokens[6].op = DOM_OP_VALUE_END;
+
+  tokens[7].op = DOM_OP_STRUCT_END;
 
   // write the tokens
-  result = dom_write(&state);
+  result = dom_write(&state, tokens, &size);
 
   // assert the result
-  assert(result == 1, "should write exactly one token");
-  assert(state.format.buffer_offset == 14, "should write 14 bytes to the buffer");
-  assert_eq_str(buffer, "array-start: [", "should write 'array-start: ['");
+  assert(result == 0, "should succeed");
+  assert(size == 8, "should consume all tokens");
+  assert(state.format.buffer_offset == 55, "should write 55 bytes to the buffer");
+
+  const char *expected = "struct-start, type=abc\n"
+                         " key, type=i64\n"
+                         "  -42\n"
+                         "struct-end\n";
+
+  assert_eq_str(buffer, expected, "should write exact text");
 }
 
-static void can_postpone_array_start_primitive() {
+static void can_write_struct_with_two_fields() {
   i64 result;
+  u32 size;
   char buffer[256];
 
   struct dom_state state;
   struct malloc_lease lease;
-
-  u8 size;
-  struct dom_token *tokens;
+  struct dom_token tokens[14];
 
   // initialize the state
   lease.ptr = buffer;
   lease.size = sizeof(buffer);
 
+  size = 14;
   dom_init(&state, &lease);
-  dom_next(&state, &tokens, &size);
-
-  // assert the size
-  assert(size == DOM_TOKENS_MAX, "should return the size of the ring");
-  assert(tokens != NULL, "should return a valid pointer to the tokens");
 
   // set up the tokens
-  tokens[0].type = DOM_TOKEN_TYPE_ARRAY_START;
-  tokens[0].value.array.size = 1;
-  tokens[0].value.array.type = DOM_TOKEN_TYPE_I32;
+  tokens[0].op = DOM_OP_STRUCT_START;
+  tokens[0].data = (u64) "abc";
 
-  // move the head
-  dom_move(&state, 1);
+  tokens[1].op = DOM_OP_KEY_START;
+  tokens[1].data = (u64) "text";
+  tokens[2].op = DOM_OP_LITERAL;
+  tokens[2].type = DOM_TYPE_TEXT;
+  tokens[2].data = (u64) "key1";
+  tokens[3].op = DOM_OP_KEY_END;
 
-  // simulate a buffer overflow
-  state.format.buffer_offset = 250;
+  tokens[4].op = DOM_OP_VALUE_START;
+  tokens[4].data = (u64) "i64";
+  tokens[5].op = DOM_OP_LITERAL;
+  tokens[5].type = DOM_TYPE_I64;
+  tokens[5].data = (u64)(i64)-42;
+  tokens[6].op = DOM_OP_VALUE_END;
 
-  // write the tokens
-  result = dom_write(&state);
+  tokens[7].op = DOM_OP_KEY_START;
+  tokens[7].data = (u64) "text";
+  tokens[8].op = DOM_OP_LITERAL;
+  tokens[8].type = DOM_TYPE_TEXT;
+  tokens[8].data = (u64) "key2";
+  tokens[9].op = DOM_OP_KEY_END;
 
-  // assert the result
-  assert(result == FORMAT_ERROR_BUFFER_TOO_SMALL, "should return buffer too small error");
-  assert(state.format.buffer_offset == 250, "should not write to the buffer");
-}
+  tokens[10].op = DOM_OP_VALUE_START;
+  tokens[10].data = (u64) "text";
+  tokens[11].op = DOM_OP_LITERAL;
+  tokens[11].type = DOM_TYPE_TEXT;
+  tokens[11].data = (u64) "abc";
+  tokens[12].op = DOM_OP_VALUE_END;
 
-static void can_write_array_start_complex() {
-  i64 result;
-  char buffer[256];
-
-  struct dom_state state;
-  struct malloc_lease lease;
-
-  u8 size;
-  struct dom_token *tokens;
-
-  // initialize the state
-  lease.ptr = buffer;
-  lease.size = sizeof(buffer);
-
-  dom_init(&state, &lease);
-  dom_next(&state, &tokens, &size);
-
-  // assert the size
-  assert(size == DOM_TOKENS_MAX, "should return the size of the ring");
-  assert(tokens != NULL, "should return a valid pointer to the tokens");
-
-  // set up the tokens
-  tokens[0].type = DOM_TOKEN_TYPE_ARRAY_START;
-  tokens[0].value.array.size = 1;
-  tokens[0].value.array.type = DOM_TOKEN_TYPE_STRUCT_START;
-
-  // move the head
-  dom_move(&state, 1);
+  tokens[13].op = DOM_OP_STRUCT_END;
 
   // write the tokens
-  result = dom_write(&state);
+  result = dom_write(&state, tokens, &size);
 
   // assert the result
-  assert(result == 1, "should write exactly one token");
-  assert(state.format.buffer_offset == 20, "should write 20 bytes to the buffer");
-  assert_eq_str(buffer, "array-start, size=1\n", "should write 'array-start, size=1\\n'");
-}
+  assert(result == 0, "should succeed");
+  assert(size == 14, "should consume all tokens");
+  assert(state.format.buffer_offset == 79, "should write 76 bytes to the buffer");
 
-static void can_postpone_array_start_complex() {
-  i64 result;
-  char buffer[256];
+  const char *expected = "struct-start, type=abc\n"
+                         " key1, type=i64\n"
+                         "  -42\n"
+                         " key2, type=text\n"
+                         "  abc\n"
+                         "struct-end\n";
 
-  struct dom_state state;
-  struct malloc_lease lease;
-
-  u8 size;
-  struct dom_token *tokens;
-
-  // initialize the state
-  lease.ptr = buffer;
-  lease.size = sizeof(buffer);
-
-  dom_init(&state, &lease);
-  dom_next(&state, &tokens, &size);
-
-  // assert the size
-  assert(size == DOM_TOKENS_MAX, "should return the size of the ring");
-  assert(tokens != NULL, "should return a valid pointer to the tokens");
-
-  // set up the tokens
-  tokens[0].type = DOM_TOKEN_TYPE_ARRAY_START;
-  tokens[0].value.array.size = 1;
-  tokens[0].value.array.type = DOM_TOKEN_TYPE_STRUCT_START;
-
-  // move the head
-  dom_move(&state, 1);
-
-  // simulate a buffer overflow
-  state.format.buffer_offset = 250;
-
-  // write the tokens
-  result = dom_write(&state);
-
-  // assert the result
-  assert(result == FORMAT_ERROR_BUFFER_TOO_SMALL, "should return buffer too small error");
-  assert(state.format.buffer_offset == 250, "should not write to the buffer");
-}
-
-static void can_write_array_end_primitive() {
-  i64 result;
-  char buffer[256];
-
-  struct dom_state state;
-  struct malloc_lease lease;
-
-  u8 size;
-  struct dom_token *tokens;
-
-  // initialize the state
-  lease.ptr = buffer;
-  lease.size = sizeof(buffer);
-
-  dom_init(&state, &lease);
-  dom_next(&state, &tokens, &size);
-
-  // assert the size
-  assert(size == DOM_TOKENS_MAX, "should return the size of the ring");
-  assert(tokens != NULL, "should return a valid pointer to the tokens");
-
-  // set up the tokens
-  tokens[0].type = DOM_TOKEN_TYPE_ARRAY_END;
-  tokens[0].value.array.size = 1;
-  tokens[0].value.array.type = DOM_TOKEN_TYPE_I32;
-
-  // move the head
-  dom_move(&state, 1);
-
-  // write the tokens
-  result = dom_write(&state);
-
-  // assert the result
-  assert(result == 1, "should write exactly one token");
-  assert(state.format.buffer_offset == 1, "should write 1 byte to the buffer");
-  assert_eq_str(buffer, "]", "should write 'array-end: ['");
-}
-
-static void can_postpone_array_end_primitive() {
-  i64 result;
-  char buffer[256];
-
-  struct dom_state state;
-  struct malloc_lease lease;
-
-  u8 size;
-  struct dom_token *tokens;
-
-  // initialize the state
-  lease.ptr = buffer;
-  lease.size = sizeof(buffer);
-
-  dom_init(&state, &lease);
-  dom_next(&state, &tokens, &size);
-
-  // assert the size
-  assert(size == DOM_TOKENS_MAX, "should return the size of the ring");
-  assert(tokens != NULL, "should return a valid pointer to the tokens");
-
-  // set up the tokens
-  tokens[0].type = DOM_TOKEN_TYPE_ARRAY_END;
-  tokens[0].value.array.size = 1;
-  tokens[0].value.array.type = DOM_TOKEN_TYPE_I32;
-
-  // move the head
-  dom_move(&state, 1);
-
-  // simulate a buffer overflow
-  state.format.buffer_offset = 250;
-
-  // write the tokens
-  result = dom_write(&state);
-
-  // assert the result
-  assert(result == FORMAT_ERROR_BUFFER_TOO_SMALL, "should return buffer too small error");
-  assert(state.format.buffer_offset == 250, "should not write to the buffer");
-}
-
-static void can_write_array_end_complex() {
-  i64 result;
-  char buffer[256];
-
-  struct dom_state state;
-  struct malloc_lease lease;
-
-  u8 size;
-  struct dom_token *tokens;
-
-  // initialize the state
-  lease.ptr = buffer;
-  lease.size = sizeof(buffer);
-
-  dom_init(&state, &lease);
-  dom_next(&state, &tokens, &size);
-
-  // assert the size
-  assert(size == DOM_TOKENS_MAX, "should return the size of the ring");
-  assert(tokens != NULL, "should return a valid pointer to the tokens");
-
-  // set up the tokens
-  tokens[0].type = DOM_TOKEN_TYPE_ARRAY_END;
-  tokens[0].value.array.size = 1;
-  tokens[0].value.array.type = DOM_TOKEN_TYPE_STRUCT_START;
-
-  // move the head
-  dom_move(&state, 1);
-
-  // simulate intendation
-  state.entries_indent = 1;
-
-  // write the tokens
-  result = dom_write(&state);
-
-  // assert the result
-  assert(result == 1, "should write exactly one token");
-  assert(state.format.buffer_offset == 10, "should write 10 bytes to the buffer");
-  assert_eq_str(buffer, "array-end\n", "should write 'array-end\\n'");
-}
-
-static void can_postpone_array_end_complex() {
-  i64 result;
-  char buffer[256];
-
-  struct dom_state state;
-  struct malloc_lease lease;
-
-  u8 size;
-  struct dom_token *tokens;
-
-  // initialize the state
-  lease.ptr = buffer;
-  lease.size = sizeof(buffer);
-
-  dom_init(&state, &lease);
-  dom_next(&state, &tokens, &size);
-
-  // assert the size
-  assert(size == DOM_TOKENS_MAX, "should return the size of the ring");
-  assert(tokens != NULL, "should return a valid pointer to the tokens");
-
-  // set up the tokens
-  tokens[0].type = DOM_TOKEN_TYPE_ARRAY_END;
-  tokens[0].value.array.size = 1;
-  tokens[0].value.array.type = DOM_TOKEN_TYPE_STRUCT_START;
-
-  // move the head
-  dom_move(&state, 1);
-
-  // simulate a buffer overflow
-  state.entries_indent = 1;
-  state.format.buffer_offset = 250;
-
-  // write the tokens
-  result = dom_write(&state);
-
-  // assert the result
-  assert(result == FORMAT_ERROR_BUFFER_TOO_SMALL, "should return buffer too small error");
-  assert(state.format.buffer_offset == 250, "should not write to the buffer");
+  assert_eq_str(buffer, expected, "should write exact text");
 }
 
 void dom_test_cases(struct runner_context *ctx) {
-  test_case(ctx, "can return entire ring", can_return_entire_ring);
-  test_case(ctx, "can return right half of the ring", can_return_right_half_ring);
-  test_case(ctx, "can return empty ring", can_return_empty_ring);
-  test_case(ctx, "can return left half the ring", can_return_left_half_ring);
-  test_case(ctx, "can return medium part the ring", can_return_medium_part_ring);
+  test_case(ctx, "can write array with no items", can_write_array_with_no_items);
+  test_case(ctx, "can write array with one item", can_write_array_with_one_item);
+  test_case(ctx, "can write array with two items", can_write_array_with_two_items);
 
-  test_case(ctx, "can write unsigned integer", can_write_unsigned_integer);
-  test_case(ctx, "can postpone unsigned integer", can_postpone_unsigned_integer);
-
-  test_case(ctx, "can write text or binary", can_write_text_or_binary);
-  test_case(ctx, "can postpone text or binary", can_postpone_text_or_binary);
-
-  test_case(ctx, "can write array start primitive", can_write_array_start_primitive);
-  test_case(ctx, "can postpone array start primitive", can_postpone_array_start_primitive);
-  test_case(ctx, "can write array start complex", can_write_array_start_complex);
-  test_case(ctx, "can postpone array start complex", can_postpone_array_start_complex);
-
-  test_case(ctx, "can write array end primitive", can_write_array_end_primitive);
-  test_case(ctx, "can postpone array end primitive", can_postpone_array_end_primitive);
-  test_case(ctx, "can write array end complex", can_write_array_end_complex);
-  test_case(ctx, "can postpone array end complex", can_postpone_array_end_complex);
+  test_case(ctx, "can write struct with no fields", can_write_struct_with_no_fields);
+  test_case(ctx, "can write struct with one field", can_write_struct_with_one_field);
+  test_case(ctx, "can write struct with two fields", can_write_struct_with_two_fields);
 }
 
 #endif
