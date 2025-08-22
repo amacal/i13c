@@ -81,6 +81,11 @@ extern void dom_init(struct dom_state *state, struct malloc_lease *buffer);
 /// @return Zero on success, or a negative error code.
 extern i64 dom_write(struct dom_state *state, struct dom_token *tokens, u32 *count);
 
+/// @brief Flushes the DOM state.
+/// @param state Pointer to the DOM state to flush.
+/// @return Zero on success, or a negative error code.
+extern i64 dom_flush(struct dom_state *state);
+
 #if defined(I13C_TESTS)
 
 /// @brief Registers dom test cases.
