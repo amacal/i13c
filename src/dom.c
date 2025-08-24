@@ -48,7 +48,7 @@ static const dom_write_fn DOM_WRITE_OP_FN[DOM_OP_SIZE] = {
 static i64 write_null(struct dom_state *state, struct dom_token *) {
   // prepare the format string
   state->format.fmt = "%inull\n";
-  state->format.vargs[0] = (void *)(u64)state->entries_indent;
+  state->format.vargs[0] = (void *)(u64)(state->entries_indent + 1);
   state->format.vargs_offset = 0;
 
   // format the null value
@@ -594,8 +594,7 @@ static void can_write_struct_with_two_fields() {
   tokens[10].op = DOM_OP_VALUE_START;
   tokens[10].data = (u64) "text";
   tokens[11].op = DOM_OP_LITERAL;
-  tokens[11].type = DOM_TYPE_TEXT;
-  tokens[11].data = (u64) "abc";
+  tokens[11].type = DOM_TYPE_NULL;
   tokens[12].op = DOM_OP_VALUE_END;
 
   tokens[13].op = DOM_OP_STRUCT_END;
@@ -606,13 +605,13 @@ static void can_write_struct_with_two_fields() {
   // assert the result
   assert(result == 0, "should succeed");
   assert(size == 14, "should consume all tokens");
-  assert(state.format.buffer_offset == 79, "should write 76 bytes to the buffer");
+  assert(state.format.buffer_offset == 80, "should write 80 bytes to the buffer");
 
   const char *expected = "struct-start, type=abc\n"
                          " key1, type=i64\n"
                          "  -42\n"
                          " key2, type=text\n"
-                         "  abc\n"
+                         "  null\n"
                          "struct-end\n";
 
   assert_eq_str(buffer, expected, "should write exact text");
