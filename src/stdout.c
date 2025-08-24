@@ -7,7 +7,7 @@
 #define BUFFER_SIZE 256
 #define BUFFER_TRIGGER 192
 
-static i64 flush_buffer(struct format_context *ctx) {
+i64 stdout_flush(struct format_context *ctx) {
   i64 result;
   u32 offset;
   char *buffer;
@@ -59,6 +59,6 @@ void writef(const char *fmt, ...) {
     result = format(&ctx);
 
     // ignore the result
-    flush_buffer(&ctx);
+    stdout_flush(&ctx);
   } while (result == FORMAT_ERROR_BUFFER_TOO_SMALL);
 }

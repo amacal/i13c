@@ -16,20 +16,23 @@ CFLAGS_COMMON=-Wall -Wextra -ffreestanding -march=native \
 	   -Wno-maybe-uninitialized -Wno-builtin-declaration-mismatch -MMD -MP \
 		 -ffunction-sections -fdata-sections
 
-CFLAGS_MAIN   = $(CFLAGS_COMMON)
-CFLAGS_TEST   = $(CFLAGS_COMMON) -DI13C_TESTS
-CFLAGS_THRIFT = $(CFLAGS_COMMON) -DI13C_THRIFT
+CFLAGS_MAIN    = $(CFLAGS_COMMON)
+CFLAGS_TEST    = $(CFLAGS_COMMON) -DI13C_TESTS
+CFLAGS_THRIFT  = $(CFLAGS_COMMON) -DI13C_THRIFT
+CFLAGS_PARQUET = $(CFLAGS_COMMON) -DI13C_PARQUET
 
 LDFLAGS=-static -no-pie -z noexecstack -nostdlib --gc-sections
 NASMFLAGS_COMMON=-f elf64
 
-NASMFLAGS_MAIN   = $(NASMFLAGS_COMMON)
-NASMFLAGS_TEST   = $(NASMFLAGS_COMMON) -D I13C_TESTS
-NASMFLAGS_THRIFT = $(NASMFLAGS_COMMON) -D I13C_THRIFT
+NASMFLAGS_MAIN    = $(NASMFLAGS_COMMON)
+NASMFLAGS_TEST    = $(NASMFLAGS_COMMON) -D I13C_TESTS
+NASMFLAGS_THRIFT  = $(NASMFLAGS_COMMON) -D I13C_THRIFT
+NASMFLAGS_PARQUET = $(NASMFLAGS_COMMON) -D I13C_PARQUET
 
 BINOUTPUT=bin/i13c
 TESTOUTPUT=bin/i13c-tests
 THRIFTOUTPUT=bin/i13c-thrift
+PARQUETOUTPUT=bin/i13c-parquet
 
 BINDIR=bin
 SRCDIR=src
@@ -38,6 +41,7 @@ TMPDIR=tmp
 OBJDIR_MAIN   = obj/i13c-main
 OBJDIR_TESTS  = obj/i13c-tests
 OBJDIR_THRIFT = obj/i13c-thrift
+OBJDIR_PARQUET = obj/i13c-parquet
 
 SRCS_C=$(wildcard $(SRCDIR)/*.c)
 SRCS_ASM=$(wildcard $(SRCDIR)/*.s)
@@ -51,9 +55,13 @@ OBJS_TEST   := $(patsubst $(SRCDIR)/%.c, $(OBJDIR_TESTS)/%.c.o, $(SRCS_C)) \
 OBJS_THRIFT := $(patsubst $(SRCDIR)/%.c, $(OBJDIR_THRIFT)/%.c.o, $(SRCS_C)) \
                $(patsubst $(SRCDIR)/%.s, $(OBJDIR_THRIFT)/%.s.o, $(SRCS_ASM))
 
+OBJS_PARQUET := $(patsubst $(SRCDIR)/%.c, $(OBJDIR_PARQUET)/%.c.o, $(SRCS_C)) \
+							 $(patsubst $(SRCDIR)/%.s, $(OBJDIR_PARQUET)/%.s.o, $(SRCS_ASM))
+
 -include $(OBJS_MAIN:.o=.d)
 -include $(OBJS_TEST:.o=.d)
 -include $(OBJS_THRIFT:.o=.d)
+-include $(OBJS_PARQUET:.o=.d)
 
 $(BINOUTPUT): $(OBJDIR_MAIN)/main.s.o $(OBJS_MAIN)
 	@mkdir -p bin
@@ -69,6 +77,11 @@ $(THRIFTOUTPUT): $(OBJDIR_THRIFT)/thrift.s.o $(OBJS_THRIFT)
 	@$(LD) -T src/thrift.ld $(LDFLAGS) -o $@ $^
 	@strip --strip-all $(THRIFTOUTPUT)
 
+$(PARQUETOUTPUT): $(OBJDIR_PARQUET)/parquet.s.o $(OBJS_PARQUET)
+	@mkdir -p bin
+	@$(LD) -T src/parquet.ld $(LDFLAGS) -o $@ $^
+	@strip --strip-all $(PARQUETOUTPUT)
+
 $(OBJDIR_MAIN)/%.c.o: $(SRCDIR)/%.c
 	@mkdir -p $(dir $@)
 	@$(CC) $(CFLAGS_MAIN) -c $< -o $@
@@ -80,6 +93,10 @@ $(OBJDIR_TESTS)/%.c.o: $(SRCDIR)/%.c
 $(OBJDIR_THRIFT)/%.c.o: $(SRCDIR)/%.c
 	@mkdir -p $(dir $@)
 	@$(CC) $(CFLAGS_THRIFT) -c $< -o $@
+
+$(OBJDIR_PARQUET)/%.c.o: $(SRCDIR)/%.c
+	@mkdir -p $(dir $@)
+	@$(CC) $(CFLAGS_PARQUET) -c $< -o $@
 
 $(OBJDIR_MAIN)/%.s.o: $(SRCDIR)/%.s
 	@mkdir -p $(dir $@)
@@ -93,12 +110,16 @@ $(OBJDIR_THRIFT)/%.s.o: $(SRCDIR)/%.s
 	@mkdir -p $(dir $@)
 	@$(NASM) $(NASMFLAGS_THRIFT) $< -o $@
 
+$(OBJDIR_PARQUET)/%.s.o: $(SRCDIR)/%.s
+	@mkdir -p $(dir $@)
+	@$(NASM) $(NASMFLAGS_PARQUET) $< -o $@
+
 .PHONY: clean
 clean:
-	@rm -rf $(OBJDIR_MAIN) $(OBJDIR_TESTS) $(OBJDIR_THRIFT) $(TMPDIR) $(BINDIR) $(RELEASE_DIR)
+	@rm -rf $(OBJDIR_MAIN) $(OBJDIR_TESTS) $(OBJDIR_THRIFT) $(OBJDIR_PARQUET) $(TMPDIR) $(BINDIR) $(RELEASE_DIR)
 
 .PHONY: build
-build: $(BINOUTPUT) $(TESTOUTPUT) $(THRIFTOUTPUT)
+build: $(BINOUTPUT) $(TESTOUTPUT) $(THRIFTOUTPUT) $(PARQUETOUTPUT)
 
 .PHONY: release
 release: $(RELEASE_DIR)/$(TARBALL_NAME) $(RELEASE_DIR)/$(DEB_NAME)
@@ -152,6 +173,9 @@ test: $(TESTOUTPUT)
 .PHONY: thrift
 thrift: $(THRIFTOUTPUT)
 	@$(THRIFTOUTPUT)
+
+parquet: $(PARQUETOUTPUT)
+	@$(PARQUETOUTPUT)
 
 .PHONY: debug
 debug: $(BINOUTPUT)

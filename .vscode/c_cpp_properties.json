@@ -4,6 +4,7 @@
       "name": "Linux",
       "defines": [
         "I13C_THRIFT",
+        "I13C_PARQUET",
         "I13C_TESTS"
       ],
       "includePath": [

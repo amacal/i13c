@@ -1,4 +1,5 @@
 #include "parquet.h"
+#include "dom.h"
 #include "malloc.h"
 #include "runner.h"
 #include "stdout.h"
@@ -1649,6 +1650,319 @@ static void can_propagate_list_i32_positive_buffer_overflow() {
   assert(ctx.buffer_tail == 0, "should not change buffer tail");
 }
 
+#endif
+
+#if defined(I13C_PARQUET) || defined(I13C_TESTS)
+
+#define PARQUET_METADATA_TOKENS_SIZE 32
+#define PARQUET_METADATA_ITERATOR_SIZE 32
+
+struct parquet_metadata_iterator;
+
+typedef void *parquet_metadata_iterator_ctx;
+typedef const char *parquet_metadata_iterator_name;
+typedef i64 (*parquet_metadata_iterator_fn)(struct parquet_metadata_iterator *iterator, u32 index);
+
+struct parquet_metadata_iterator {
+  u32 tokens_count;
+  u32 context_count;
+
+  struct parquet_metadata *metadata;
+  struct dom_token tokens[PARQUET_METADATA_TOKENS_SIZE];
+
+  parquet_metadata_iterator_fn fns[PARQUET_METADATA_ITERATOR_SIZE];
+  parquet_metadata_iterator_ctx ctxs[PARQUET_METADATA_ITERATOR_SIZE];
+  parquet_metadata_iterator_name names[PARQUET_METADATA_ITERATOR_SIZE];
+};
+
+static i64 parquet_dump_i32(struct parquet_metadata_iterator *iterator, u32 index) {
+  i32 *value;
+  const char *name;
+
+  // check for available space
+  if (iterator->tokens_count >= PARQUET_METADATA_TOKENS_SIZE - 6) {
+    return PARQUET_ERROR_BUFFER_TOO_SMALL;
+  }
+
+  // key start
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_KEY_START;
+  iterator->tokens[iterator->tokens_count].type = DOM_TYPE_TEXT;
+  iterator->tokens[iterator->tokens_count++].data = (u64) "text";
+
+  // extract the name
+  name = (const char *)iterator->names[index];
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
+  iterator->tokens[iterator->tokens_count].data = (u64)name;
+  iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
+
+  // key end
+  iterator->tokens[iterator->tokens_count++].op = DOM_OP_KEY_END;
+
+  // value start
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_VALUE_START;
+  iterator->tokens[iterator->tokens_count++].data = (u64) "i32";
+
+  // extract the value
+  value = (i32 *)iterator->ctxs[index];
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
+  iterator->tokens[iterator->tokens_count].data = (u64)*value;
+
+  if (value == NULL) {
+    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_NULL;
+  } else {
+    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_I32;
+  }
+
+  // value end
+  iterator->tokens[iterator->tokens_count++].op = DOM_OP_VALUE_END;
+
+  return 0;
+}
+
+static i64 parquet_dump_i64(struct parquet_metadata_iterator *iterator, u32 index) {
+  i64 *value;
+  const char *name;
+
+  // check for available space
+  if (iterator->tokens_count >= PARQUET_METADATA_TOKENS_SIZE - 6) {
+    return PARQUET_ERROR_BUFFER_TOO_SMALL;
+  }
+
+  // key start
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_KEY_START;
+  iterator->tokens[iterator->tokens_count].type = DOM_TYPE_TEXT;
+  iterator->tokens[iterator->tokens_count++].data = (u64) "text";
+
+  // extract the name
+  name = (const char *)iterator->names[index];
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
+  iterator->tokens[iterator->tokens_count].data = (u64)name;
+  iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
+
+  // key end
+  iterator->tokens[iterator->tokens_count++].op = DOM_OP_KEY_END;
+
+  // value start
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_VALUE_START;
+  iterator->tokens[iterator->tokens_count++].data = (u64) "i64";
+
+  // extract the value
+  value = (i64 *)iterator->ctxs[index];
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
+  iterator->tokens[iterator->tokens_count].data = (u64)*value;
+
+  if (value == NULL) {
+    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_NULL;
+  } else {
+    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_I64;
+  }
+
+  // value end
+  iterator->tokens[iterator->tokens_count++].op = DOM_OP_VALUE_END;
+
+  return 0;
+}
+
+static i64 parquet_dump_text(struct parquet_metadata_iterator *iterator, u32 index) {
+  const char **text;
+  const char *name;
+
+  // check for available space
+  if (iterator->tokens_count >= PARQUET_METADATA_TOKENS_SIZE - 6) {
+    return PARQUET_ERROR_BUFFER_TOO_SMALL;
+  }
+
+  // key start
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_KEY_START;
+  iterator->tokens[iterator->tokens_count].type = DOM_TYPE_TEXT;
+  iterator->tokens[iterator->tokens_count++].data = (u64) "text";
+
+  // extract the name
+  name = (const char *)iterator->names[index];
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
+  iterator->tokens[iterator->tokens_count].data = (u64)name;
+  iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
+
+  // key end
+  iterator->tokens[iterator->tokens_count++].op = DOM_OP_KEY_END;
+
+  // value start
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_VALUE_START;
+  iterator->tokens[iterator->tokens_count++].data = (u64) "text";
+
+  // extract the value
+  text = (const char **)iterator->ctxs[index];
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
+  iterator->tokens[iterator->tokens_count].data = (u64)*text;
+
+  if (*text == NULL) {
+    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_NULL;
+  } else {
+    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
+  }
+
+  // value end
+  iterator->tokens[iterator->tokens_count++].op = DOM_OP_VALUE_END;
+
+  return 0;
+}
+
+static i64 parquet_dump_struct_open(struct parquet_metadata_iterator *iterator, u32 index) {
+  // check for available space
+  if (iterator->tokens_count >= PARQUET_METADATA_TOKENS_SIZE) {
+    return PARQUET_ERROR_BUFFER_TOO_SMALL;
+  }
+
+  // struct start
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_STRUCT_START;
+  iterator->tokens[iterator->tokens_count++].data = (u64)iterator->names[index];
+
+  return 0;
+}
+
+static i64 parquet_dump_struct_close(struct parquet_metadata_iterator *iterator, u32 index) {
+  // check for available space
+  if (iterator->tokens_count >= PARQUET_METADATA_TOKENS_SIZE) {
+    return PARQUET_ERROR_BUFFER_TOO_SMALL;
+  }
+
+  // struct end
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_STRUCT_END;
+  iterator->tokens[iterator->tokens_count++].data = (u64)iterator->names[index];
+
+  return 0;
+}
+
+static i64 parquet_dump_metadata(struct parquet_metadata_iterator *iterator, u32 index) {
+  struct parquet_metadata *metadata;
+
+  // get the value
+  metadata = (struct parquet_metadata *)iterator->ctxs[index];
+
+  // close-struct
+  iterator->names[iterator->context_count] = "metadata";
+  iterator->fns[iterator->context_count] = parquet_dump_struct_close;
+  iterator->ctxs[iterator->context_count++] = metadata;
+
+  // created-by
+  iterator->names[iterator->context_count] = "created_by";
+  iterator->fns[iterator->context_count] = parquet_dump_text;
+  iterator->ctxs[iterator->context_count++] = &metadata->created_by;
+
+  // num_rows
+  iterator->names[iterator->context_count] = "num_rows";
+  iterator->fns[iterator->context_count] = parquet_dump_i64;
+  iterator->ctxs[iterator->context_count++] = &metadata->num_rows;
+
+  // version
+  iterator->names[iterator->context_count] = "version";
+  iterator->fns[iterator->context_count] = parquet_dump_i32;
+  iterator->ctxs[iterator->context_count++] = &metadata->version;
+
+  // open-struct
+  iterator->names[iterator->context_count] = "metadata";
+  iterator->fns[iterator->context_count] = parquet_dump_struct_open;
+  iterator->ctxs[iterator->context_count++] = metadata;
+
+  return 0;
+}
+
+static void parquet_metadata_iter(struct parquet_metadata_iterator *iterator, struct parquet_metadata *metadata) {
+  iterator->tokens_count = 0;
+  iterator->context_count = 0;
+  iterator->metadata = metadata;
+
+  iterator->names[iterator->context_count] = "metadata";
+  iterator->fns[iterator->context_count] = parquet_dump_metadata;
+  iterator->ctxs[iterator->context_count++] = metadata;
+}
+
+static i64 parquet_metadata_next(struct parquet_metadata_iterator *iterator) {
+  u32 index;
+  i64 result;
+  parquet_metadata_iterator_fn fn;
+
+  // iterator over the LIFO stack
+  while (iterator->context_count > 0) {
+    index = --iterator->context_count;
+    fn = iterator->fns[index];
+
+    // call next function
+    result = fn(iterator, index);
+    if (result == PARQUET_ERROR_BUFFER_TOO_SMALL) break;
+    if (result < 0) return result;
+  }
+
+  // success
+  return 0;
+}
+
+#endif
+
+#if defined(I13C_PARQUET)
+
+i32 parquet_main() {
+  i64 result;
+  u32 tokens;
+
+  struct parquet_file file;
+  struct malloc_pool pool;
+  struct malloc_lease output;
+  struct dom_state dom;
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  malloc_init(&pool);
+  parquet_init(&file, &pool);
+
+  result = parquet_open(&file, "data/test01.parquet");
+  if (result < 0) return result;
+
+  result = parquet_parse(&file, &metadata);
+  if (result < 0) return result;
+
+  parquet_metadata_iter(&iterator, &metadata);
+  result = parquet_metadata_next(&iterator);
+  if (result < 0) return result;
+
+  output.size = 4096;
+  result = malloc_acquire(&pool, &output);
+  if (result < 0) return result;
+
+  dom_init(&dom, &output);
+
+  tokens = iterator.tokens_count;
+  result = dom_write(&dom, iterator.tokens, &tokens);
+  if (result < 0) return result;
+
+  stdout_flush(&dom.format);
+
+  // success
+  return 0;
+}
+
+#endif
+
+#if defined(I13C_TESTS)
+
+static void can_iterate_through_metadata() {
+  i64 result;
+
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  // initialize metadata
+  metadata.created_by = "test_user";
+
+  // initialize iterator
+  parquet_metadata_iter(&iterator, &metadata);
+
+  // iterate one batch
+  result = parquet_metadata_next(&iterator);
+  assert(result == 0, "should succeed");
+  assert(iterator.tokens_count == 8, "should have eight tokens");
+}
+
 void parquet_test_cases(struct runner_context *ctx) {
   // opening and closing cases
   test_case(ctx, "can open and close parquet file", can_open_and_close_parquet_file);
@@ -1698,6 +2012,9 @@ void parquet_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can detect list i32 positive invalid type", can_detect_list_i32_positive_invalid_type);
   test_case(ctx, "can detect list i32 positive buffer overflow", can_detect_list_i32_positive_buffer_overflow);
   test_case(ctx, "can propagate list i32 positive buffer overflow", can_propagate_list_i32_positive_buffer_overflow);
+
+  // dump cases
+  test_case(ctx, "can iterate through metadata", can_iterate_through_metadata);
 }
 
 #endif

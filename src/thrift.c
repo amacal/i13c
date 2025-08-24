@@ -1860,7 +1860,7 @@ static i64 thrift_dump_struct(struct thrift_dump_context *ctx, const char *buffe
   return read;
 }
 
-int thrift_main() {
+i32 thrift_main() {
   i64 result, read;
   const u64 SIZE = 4 * 4096;
 

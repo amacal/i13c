@@ -8,6 +8,7 @@
     "stdout.h": "c",
     "hello.h": "c",
     "malloc.h": "c",
-    "parquet.h": "c"
+    "parquet.h": "c",
+    "vargs.h": "c"
   }
 }
