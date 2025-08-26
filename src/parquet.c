@@ -408,7 +408,7 @@ static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const
   schema = (struct parquet_schema_element *)ctx->target;
   schema->data_type = PARQUET_DATA_TYPE_NONE;
   schema->type_length = -1;
-  schema->repetition_type = -1;
+  schema->repetition_type = PARQUET_REPETITION_TYPE_NONE;
   schema->name = NULL;
   schema->num_children = -1;
   schema->converted_type = -1;
@@ -1676,11 +1676,208 @@ struct parquet_metadata_iterator {
   parquet_metadata_iterator_fn items[PARQUET_METADATA_ITERATOR_SIZE];
 };
 
+static const char *PARQUET_COMPRESSION_NAMES[PARQUET_COMPRESSION_SIZE] = {
+  [PARQUET_COMPRESSION_UNCOMPRESSED] = "UNCOMPRESSED",
+  [PARQUET_COMPRESSION_SNAPPY] = "SNAPPY",
+  [PARQUET_COMPRESSION_GZIP] = "GZIP",
+  [PARQUET_COMPRESSION_LZO] = "LZO",
+  [PARQUET_COMPRESSION_BROTLI] = "BROTLI",
+  [PARQUET_COMPRESSION_LZ4] = "LZ4",
+  [PARQUET_COMPRESSION_ZSTD] = "ZSTD",
+  [PARQUET_COMPRESSION_LZ4_RAW] = "LZ4_RAW",
+};
+
+static const char *PARQUET_DATA_TYPE_NAMES[PARQUET_DATA_TYPE_SIZE] = {
+  [PARQUET_DATA_TYPE_BOOLEAN] = "BOOLEAN",
+  [PARQUET_DATA_TYPE_INT32] = "INT32",
+  [PARQUET_DATA_TYPE_INT64] = "INT64",
+  [PARQUET_DATA_TYPE_INT96] = "INT96",
+  [PARQUET_DATA_TYPE_FLOAT] = "FLOAT",
+  [PARQUET_DATA_TYPE_DOUBLE] = "DOUBLE",
+  [PARQUET_DATA_TYPE_BYTE_ARRAY] = "BYTE_ARRAY",
+  [PARQUET_DATA_TYPE_BYTE_ARRAY_FIXED] = "PARQUET_DATA_TYPE_BYTE_ARRAY_FIXED",
+};
+
+static const char *PARQUET_ENCODING_NAMES[PARQUET_ENCODING_SIZE] = {
+  [PARQUET_ENCODING_PLAIN] = "PLAIN",
+  [PARQUET_ENCODING_GROUP_VAR_INT] = "GROUP_VAR_INT",
+  [PARQUET_ENCODING_PLAIN_DICTIONARY] = "PLAIN_DICTIONARY",
+  [PARQUET_ENCODING_RLE] = "RLE",
+  [PARQUET_ENCODING_BIT_PACKED] = "BIT_PACKED",
+  [PARQUET_ENCODING_DELTA_BINARY_PACKED] = "DELTA_BINARY_PACKED",
+  [PARQUET_ENCODING_DELTA_LENGTH_BYTE_ARRAY] = "DELTA_LENGTH_BYTE_ARRAY",
+  [PARQUET_ENCODING_DELTA_BYTE_ARRAY] = "DELTA_BYTE_ARRAY",
+  [PARQUET_ENCODING_RLE_DICTIONARY] = "RLE_DICTIONARY",
+  [PARQUET_ENCODING_BYTE_STREAM_SPLIT] = "BYTE_STREAM_SPLIT",
+};
+
+static i64 parquet_dump_compression_codec(struct parquet_metadata_iterator *iterator, u32 index) {
+  i32 *value;
+  const char *name;
+
+  // check for available space, we need 6 tokens
+  if (iterator->tokens_count >= PARQUET_METADATA_TOKENS_SIZE - 6) {
+    return PARQUET_ERROR_BUFFER_TOO_SMALL;
+  }
+
+  // key start
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_KEY_START;
+  iterator->tokens[iterator->tokens_count].type = DOM_TYPE_TEXT;
+  iterator->tokens[iterator->tokens_count++].data = (u64) "text";
+
+  // extract the name
+  name = (const char *)iterator->names[index];
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
+  iterator->tokens[iterator->tokens_count].data = (u64)name;
+  iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
+
+  // key end
+  iterator->tokens[iterator->tokens_count++].op = DOM_OP_KEY_END;
+
+  // value start
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_VALUE_START;
+  iterator->tokens[iterator->tokens_count++].data = (u64) "i32";
+
+  // extract the value and the name
+  value = (i32 *)iterator->ctxs[index];
+  name = NULL;
+
+  // find mapping if available
+  if (*value < PARQUET_COMPRESSION_SIZE) {
+    name = PARQUET_COMPRESSION_NAMES[*value];
+  }
+
+  // output either raw i32 or mapped name
+  if (name == NULL) {
+    iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
+    iterator->tokens[iterator->tokens_count].data = (u64)*value;
+    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_I32;
+  } else {
+    iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
+    iterator->tokens[iterator->tokens_count].data = (u64)name;
+    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
+  }
+
+  // value end
+  iterator->tokens[iterator->tokens_count++].op = DOM_OP_VALUE_END;
+
+  // success
+  return 0;
+}
+
+static i64 parquet_dump_data_type(struct parquet_metadata_iterator *iterator, u32 index) {
+  i32 *value;
+  const char *name;
+
+  // check for available space, we need 6 tokens
+  if (iterator->tokens_count >= PARQUET_METADATA_TOKENS_SIZE - 6) {
+    return PARQUET_ERROR_BUFFER_TOO_SMALL;
+  }
+
+  // key start
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_KEY_START;
+  iterator->tokens[iterator->tokens_count].type = DOM_TYPE_TEXT;
+  iterator->tokens[iterator->tokens_count++].data = (u64) "text";
+
+  // extract the name
+  name = (const char *)iterator->names[index];
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
+  iterator->tokens[iterator->tokens_count].data = (u64)name;
+  iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
+
+  // key end
+  iterator->tokens[iterator->tokens_count++].op = DOM_OP_KEY_END;
+
+  // value start
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_VALUE_START;
+  iterator->tokens[iterator->tokens_count++].data = (u64) "i32";
+
+  // extract the value and the name
+  value = (i32 *)iterator->ctxs[index];
+  name = NULL;
+
+  // find mapping if available
+  if (*value < PARQUET_DATA_TYPE_SIZE) {
+    name = PARQUET_DATA_TYPE_NAMES[*value];
+  }
+
+  // output either raw i32 or mapped name
+  if (name == NULL) {
+    iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
+    iterator->tokens[iterator->tokens_count].data = (u64)*value;
+    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_I32;
+  } else {
+    iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
+    iterator->tokens[iterator->tokens_count].data = (u64)name;
+    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
+  }
+
+  // value end
+  iterator->tokens[iterator->tokens_count++].op = DOM_OP_VALUE_END;
+
+  // success
+  return 0;
+}
+
+static i64 parquet_dump_encoding(struct parquet_metadata_iterator *iterator, u32 index) {
+  i32 *value;
+  const char *name;
+
+  // check for available space, we need 6 tokens
+  if (iterator->tokens_count >= PARQUET_METADATA_TOKENS_SIZE - 6) {
+    return PARQUET_ERROR_BUFFER_TOO_SMALL;
+  }
+
+  // key start
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_KEY_START;
+  iterator->tokens[iterator->tokens_count].type = DOM_TYPE_TEXT;
+  iterator->tokens[iterator->tokens_count++].data = (u64) "text";
+
+  // extract the name
+  name = (const char *)iterator->names[index];
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
+  iterator->tokens[iterator->tokens_count].data = (u64)name;
+  iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
+
+  // key end
+  iterator->tokens[iterator->tokens_count++].op = DOM_OP_KEY_END;
+
+  // value start
+  iterator->tokens[iterator->tokens_count].op = DOM_OP_VALUE_START;
+  iterator->tokens[iterator->tokens_count++].data = (u64) "i32";
+
+  // extract the value and the name
+  value = (i32 *)iterator->ctxs[index];
+  name = NULL;
+
+  // find mapping if available
+  if (*value < PARQUET_ENCODING_SIZE) {
+    name = PARQUET_ENCODING_NAMES[*value];
+  }
+
+  // output either raw i32 or mapped name
+  if (name == NULL) {
+    iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
+    iterator->tokens[iterator->tokens_count].data = (u64)*value;
+    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_I32;
+  } else {
+    iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
+    iterator->tokens[iterator->tokens_count].data = (u64)name;
+    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
+  }
+
+  // value end
+  iterator->tokens[iterator->tokens_count++].op = DOM_OP_VALUE_END;
+
+  // success
+  return 0;
+}
+
 static i64 parquet_dump_i32(struct parquet_metadata_iterator *iterator, u32 index) {
   i32 *value;
   const char *name;
 
-  // check for available space
+  // check for available space, we need 6 tokens
   if (iterator->tokens_count >= PARQUET_METADATA_TOKENS_SIZE - 6) {
     return PARQUET_ERROR_BUFFER_TOO_SMALL;
   }
@@ -1707,12 +1904,7 @@ static i64 parquet_dump_i32(struct parquet_metadata_iterator *iterator, u32 inde
   value = (i32 *)iterator->ctxs[index];
   iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
   iterator->tokens[iterator->tokens_count].data = (u64)*value;
-
-  if (value == NULL) {
-    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_NULL;
-  } else {
-    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_I32;
-  }
+  iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_I32;
 
   // value end
   iterator->tokens[iterator->tokens_count++].op = DOM_OP_VALUE_END;
@@ -1766,7 +1958,7 @@ static i64 parquet_dump_i64(struct parquet_metadata_iterator *iterator, u32 inde
 }
 
 static i64 parquet_dump_text(struct parquet_metadata_iterator *iterator, u32 index) {
-  const char **text;
+  const char *text;
   const char *name;
 
   // check for available space
@@ -1793,19 +1985,15 @@ static i64 parquet_dump_text(struct parquet_metadata_iterator *iterator, u32 ind
   iterator->tokens[iterator->tokens_count++].data = (u64) "text";
 
   // extract the value
-  text = (const char **)iterator->ctxs[index];
+  text = (const char *)iterator->ctxs[index];
   iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
-  iterator->tokens[iterator->tokens_count].data = (u64)*text;
-
-  if (*text == NULL) {
-    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_NULL;
-  } else {
-    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
-  }
+  iterator->tokens[iterator->tokens_count].data = (u64)text;
+  iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
 
   // value end
   iterator->tokens[iterator->tokens_count++].op = DOM_OP_VALUE_END;
 
+  // success
   return 0;
 }
 
@@ -2010,58 +2198,74 @@ static i64 parquet_dump_column_meta(struct parquet_metadata_iterator *iterator, 
   iterator->ctxs[iterator->context_count++] = column_meta;
 
   // dictionary_page_offset
-  if (column_meta->dictionary_page_offset >= 0) {
+  if (column_meta->dictionary_page_offset > -1) {
     iterator->names[iterator->context_count] = "dictionary_page_offset";
     iterator->fns[iterator->context_count] = parquet_dump_i64;
     iterator->ctxs[iterator->context_count++] = &column_meta->dictionary_page_offset;
   }
 
   // index_page_offset
-  if (column_meta->index_page_offset >= 0) {
+  if (column_meta->index_page_offset > -1) {
     iterator->names[iterator->context_count] = "index_page_offset";
     iterator->fns[iterator->context_count] = parquet_dump_i64;
     iterator->ctxs[iterator->context_count++] = &column_meta->index_page_offset;
   }
 
   // data_page_offset
-  if (column_meta->data_page_offset >= 0) {
+  if (column_meta->data_page_offset > -1) {
     iterator->names[iterator->context_count] = "data_page_offset";
     iterator->fns[iterator->context_count] = parquet_dump_i64;
     iterator->ctxs[iterator->context_count++] = &column_meta->data_page_offset;
   }
 
   // total_compressed_size
-  if (column_meta->total_compressed_size >= 0) {
+  if (column_meta->total_compressed_size > -1) {
     iterator->names[iterator->context_count] = "total_compressed_size";
     iterator->fns[iterator->context_count] = parquet_dump_i64;
     iterator->ctxs[iterator->context_count++] = &column_meta->total_compressed_size;
   }
 
   // total_uncompressed_size
-  if (column_meta->total_uncompressed_size >= 0) {
+  if (column_meta->total_uncompressed_size > -1) {
     iterator->names[iterator->context_count] = "total_uncompressed_size";
     iterator->fns[iterator->context_count] = parquet_dump_i64;
     iterator->ctxs[iterator->context_count++] = &column_meta->total_uncompressed_size;
   }
 
   // num_values
-  if (column_meta->num_values >= 0) {
+  if (column_meta->num_values > -1) {
     iterator->names[iterator->context_count] = "num_values";
     iterator->fns[iterator->context_count] = parquet_dump_i64;
     iterator->ctxs[iterator->context_count++] = &column_meta->num_values;
   }
 
   // compression_codec
-  if (column_meta->compression_codec >= 0) {
+  if (column_meta->compression_codec > PARQUET_COMPRESSION_NONE) {
     iterator->names[iterator->context_count] = "compression_codec";
-    iterator->fns[iterator->context_count] = parquet_dump_i32;
+    iterator->fns[iterator->context_count] = parquet_dump_compression_codec;
     iterator->ctxs[iterator->context_count++] = &column_meta->compression_codec;
   }
 
+  // path_in_schema
+  if (column_meta->path_in_schema) {
+    iterator->names[iterator->context_count] = "path_in_schema";
+    iterator->fns[iterator->context_count] = parquet_dump_array;
+    iterator->items[iterator->context_count] = parquet_dump_text;
+    iterator->ctxs[iterator->context_count++] = column_meta->path_in_schema;
+  }
+
+  // encodings
+  if (column_meta->encodings) {
+    iterator->names[iterator->context_count] = "encodings";
+    iterator->fns[iterator->context_count] = parquet_dump_array;
+    iterator->items[iterator->context_count] = parquet_dump_encoding;
+    iterator->ctxs[iterator->context_count++] = column_meta->encodings;
+  }
+
   // data_type
-  if (column_meta->data_type >= 0) {
+  if (column_meta->data_type > PARQUET_DATA_TYPE_NONE) {
     iterator->names[iterator->context_count] = "data_type";
-    iterator->fns[iterator->context_count] = parquet_dump_i32;
+    iterator->fns[iterator->context_count] = parquet_dump_data_type;
     iterator->ctxs[iterator->context_count++] = &column_meta->data_type;
   }
 
@@ -2096,10 +2300,10 @@ static i64 parquet_dump_column_chunk(struct parquet_metadata_iterator *iterator,
   if (column_chunk->file_path) {
     iterator->names[iterator->context_count] = "file_path";
     iterator->fns[iterator->context_count] = parquet_dump_text;
-    iterator->ctxs[iterator->context_count++] = &column_chunk->file_path;
+    iterator->ctxs[iterator->context_count++] = column_chunk->file_path;
   }
 
-  // file_offset
+  // file_offset, not -1
   if (column_chunk->file_offset > 0) {
     iterator->names[iterator->context_count] = "file_offset";
     iterator->fns[iterator->context_count] = parquet_dump_i64;
@@ -2127,13 +2331,13 @@ static i64 parquet_dump_row_group(struct parquet_metadata_iterator *iterator, u3
   iterator->ctxs[iterator->context_count++] = row_group;
 
   // total_compressed_size
-  if (row_group->total_compressed_size >= 0) {
+  if (row_group->total_compressed_size > -1) {
     iterator->names[iterator->context_count] = "total_compressed_size";
     iterator->fns[iterator->context_count] = parquet_dump_i64;
     iterator->ctxs[iterator->context_count++] = &row_group->total_compressed_size;
   }
 
-  // file_offset
+  // file_offset, not -1
   if (row_group->file_offset > 0) {
     iterator->names[iterator->context_count] = "file_offset";
     iterator->fns[iterator->context_count] = parquet_dump_i64;
@@ -2141,14 +2345,14 @@ static i64 parquet_dump_row_group(struct parquet_metadata_iterator *iterator, u3
   }
 
   // num_rows
-  if (row_group->num_rows >= 0) {
+  if (row_group->num_rows > -1) {
     iterator->names[iterator->context_count] = "num_rows";
     iterator->fns[iterator->context_count] = parquet_dump_i64;
     iterator->ctxs[iterator->context_count++] = &row_group->num_rows;
   }
 
   // total_byte_size
-  if (row_group->total_byte_size >= 0) {
+  if (row_group->total_byte_size > -1) {
     iterator->names[iterator->context_count] = "total_byte_size";
     iterator->fns[iterator->context_count] = parquet_dump_i64;
     iterator->ctxs[iterator->context_count++] = &row_group->total_byte_size;
@@ -2185,11 +2389,11 @@ static i64 parquet_dump_metadata(struct parquet_metadata_iterator *iterator, u32
   if (metadata->created_by) {
     iterator->names[iterator->context_count] = "created_by";
     iterator->fns[iterator->context_count] = parquet_dump_text;
-    iterator->ctxs[iterator->context_count++] = &metadata->created_by;
+    iterator->ctxs[iterator->context_count++] = metadata->created_by;
   }
 
   // num_rows
-  if (metadata->num_rows >= 0) {
+  if (metadata->num_rows > -1) {
     iterator->names[iterator->context_count] = "num_rows";
     iterator->fns[iterator->context_count] = parquet_dump_i64;
     iterator->ctxs[iterator->context_count++] = &metadata->num_rows;
@@ -2204,7 +2408,7 @@ static i64 parquet_dump_metadata(struct parquet_metadata_iterator *iterator, u32
   }
 
   // version
-  if (metadata->version >= 0) {
+  if (metadata->version > -1) {
     iterator->names[iterator->context_count] = "version";
     iterator->fns[iterator->context_count] = parquet_dump_i32;
     iterator->ctxs[iterator->context_count++] = &metadata->version;
