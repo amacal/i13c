@@ -40,6 +40,7 @@ enum parquet_repetition_type {
 };
 
 enum parquet_converted_type {
+  PARQUET_CONVERTED_TYPE_NONE = -1,
   PARQUET_CONVERTED_TYPE_UTF8 = 0,
   PARQUET_CONVERTED_TYPE_MAP = 1,
   PARQUET_CONVERTED_TYPE_MAP_KEY_VALUE = 2,
