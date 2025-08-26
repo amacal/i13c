@@ -1816,8 +1816,9 @@ static i64 parquet_dump_repetition_type(struct parquet_metadata_iterator *iterat
   return parquet_dump_enum(iterator, index, PARQUET_REPETITION_TYPE_SIZE, PARQUET_REPETITION_TYPE_NAMES);
 }
 
-static i64 parquet_dump_i32(struct parquet_metadata_iterator *iterator, u32 index) {
-  i32 *value;
+static i64
+parquet_dump_literal(struct parquet_metadata_iterator *iterator, u32 index, u8 width, u8 type, const char *type_name) {
+  u64 value;
   const char *name;
 
   // check for available space, we need 6 tokens
@@ -1841,13 +1842,22 @@ static i64 parquet_dump_i32(struct parquet_metadata_iterator *iterator, u32 inde
 
   // value start
   iterator->tokens[iterator->tokens_count].op = DOM_OP_VALUE_START;
-  iterator->tokens[iterator->tokens_count++].data = (u64) "i32";
+  iterator->tokens[iterator->tokens_count++].data = (u64)type_name;
 
   // extract the value
-  value = (i32 *)iterator->ctxs[index];
+  switch (width) {
+    case 32:
+      value = (u64) * (i32 *)iterator->ctxs[index];
+      break;
+    case 64:
+      value = (u64) * (i64 *)iterator->ctxs[index];
+      break;
+  }
+
+  // value literal
   iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
-  iterator->tokens[iterator->tokens_count].data = (u64)*value;
-  iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_I32;
+  iterator->tokens[iterator->tokens_count].data = value;
+  iterator->tokens[iterator->tokens_count++].type = type;
 
   // value end
   iterator->tokens[iterator->tokens_count++].op = DOM_OP_VALUE_END;
@@ -1856,43 +1866,12 @@ static i64 parquet_dump_i32(struct parquet_metadata_iterator *iterator, u32 inde
   return 0;
 }
 
+static i64 parquet_dump_i32(struct parquet_metadata_iterator *iterator, u32 index) {
+  return parquet_dump_literal(iterator, index, 32, DOM_TYPE_I32, "i32");
+}
+
 static i64 parquet_dump_i64(struct parquet_metadata_iterator *iterator, u32 index) {
-  i64 *value;
-  const char *name;
-
-  // check for available space
-  if (iterator->tokens_count >= PARQUET_METADATA_TOKENS_SIZE - 6) {
-    return PARQUET_ERROR_BUFFER_TOO_SMALL;
-  }
-
-  // key start
-  iterator->tokens[iterator->tokens_count].op = DOM_OP_KEY_START;
-  iterator->tokens[iterator->tokens_count].type = DOM_TYPE_TEXT;
-  iterator->tokens[iterator->tokens_count++].data = (u64) "text";
-
-  // extract the name
-  name = (const char *)iterator->names[index];
-  iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
-  iterator->tokens[iterator->tokens_count].data = (u64)name;
-  iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
-
-  // key end
-  iterator->tokens[iterator->tokens_count++].op = DOM_OP_KEY_END;
-
-  // value start
-  iterator->tokens[iterator->tokens_count].op = DOM_OP_VALUE_START;
-  iterator->tokens[iterator->tokens_count++].data = (u64) "i64";
-
-  // extract the value
-  value = (i64 *)iterator->ctxs[index];
-  iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
-  iterator->tokens[iterator->tokens_count].data = (u64)*value;
-  iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_I64;
-
-  // value end
-  iterator->tokens[iterator->tokens_count++].op = DOM_OP_VALUE_END;
-
-  return 0;
+  return parquet_dump_literal(iterator, index, 64, DOM_TYPE_I64, "i64");
 }
 
 static i64 parquet_dump_text(struct parquet_metadata_iterator *iterator, u32 index) {

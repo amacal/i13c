@@ -111,12 +111,12 @@ struct parquet_schema_element {
 };
 
 struct parquet_column_statistics {
-  char *max;               // 1, maximum value in the column
-  char *min;               // 2, minimum value in the column
+  u8 *max;                 // 1, maximum value in the column
+  u8 *min;                 // 2, minimum value in the column
   i64 null_count;          // 3, number of null values in the column
   i64 distinct_count;      // 4, number of distinct values in the column
-  char *max_value;         // 5, maximum value in the column as a byte array
-  char *min_value;         // 6, minimum value in the column as a byte array
+  u8 *max_value;           // 5, maximum value in the column as a byte array
+  u8 *min_value;           // 6, minimum value in the column as a byte array
   bool is_max_value_exact; // 7, whether the max value is exact
   bool is_min_value_exact; // 8, whether the min value is exact
 };
