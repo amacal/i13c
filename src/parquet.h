@@ -18,7 +18,10 @@ enum parquet_error {
   PARQUET_ERROR_INVALID_VALUE = PARQUET_ERROR_BASE - 0x03,
 
   // indicates that the buffer is too small to hold the data
-  PARQUET_ERROR_BUFFER_TOO_SMALL = PARQUET_ERROR_BASE - 0x04
+  PARQUET_ERROR_BUFFER_TOO_SMALL = PARQUET_ERROR_BASE - 0x04,
+
+  // indicates that the metadata iterator has reached its capacity
+  PARQUET_ERROR_CAPACITY_OVERFLOW = PARQUET_ERROR_BASE - 0x05,
 };
 
 enum parquet_data_type {
