@@ -1844,7 +1844,7 @@ static i64 parquet_dump_enum(struct parquet_metadata_iterator *iterator, u32 ind
   const char *name;
 
   // check for the capacity, we need 6 slots
-  if (iterator->tokens.count >= iterator->tokens.capacity - 6) {
+  if (iterator->tokens.count > iterator->tokens.capacity - 6) {
     return PARQUET_ERROR_BUFFER_TOO_SMALL;
   }
 
@@ -1923,7 +1923,7 @@ parquet_dump_literal(struct parquet_metadata_iterator *iterator, u32 index, u8 w
   const char *name;
 
   // check for the capacity, we need 6 slots
-  if (iterator->tokens.count >= iterator->tokens.capacity - 6) {
+  if (iterator->tokens.count > iterator->tokens.capacity - 6) {
     return PARQUET_ERROR_BUFFER_TOO_SMALL;
   }
 
@@ -1980,7 +1980,7 @@ static i64 parquet_dump_text(struct parquet_metadata_iterator *iterator, u32 ind
   const char *name;
 
   // check for the capacity, we need 6 slots
-  if (iterator->tokens.count >= iterator->tokens.capacity - 6) {
+  if (iterator->tokens.count > iterator->tokens.capacity - 6) {
     return PARQUET_ERROR_BUFFER_TOO_SMALL;
   }
 
@@ -2017,7 +2017,7 @@ static i64 parquet_dump_text(struct parquet_metadata_iterator *iterator, u32 ind
 
 static i64 parquet_dump_struct_open(struct parquet_metadata_iterator *iterator, u32 index) {
   // check for the capacity, we need only one slot
-  if (iterator->tokens.count >= iterator->tokens.capacity - 1) {
+  if (iterator->tokens.count > iterator->tokens.capacity - 1) {
     return PARQUET_ERROR_BUFFER_TOO_SMALL;
   }
 
@@ -2030,7 +2030,7 @@ static i64 parquet_dump_struct_open(struct parquet_metadata_iterator *iterator, 
 
 static i64 parquet_dump_struct_close(struct parquet_metadata_iterator *iterator, u32 index) {
   // check for the capacity, we need only one slot
-  if (iterator->tokens.count >= iterator->tokens.capacity - 1) {
+  if (iterator->tokens.count > iterator->tokens.capacity - 1) {
     return PARQUET_ERROR_BUFFER_TOO_SMALL;
   }
 
@@ -2043,7 +2043,7 @@ static i64 parquet_dump_struct_close(struct parquet_metadata_iterator *iterator,
 
 static i64 parquet_dump_array_open(struct parquet_metadata_iterator *iterator, u32) {
   // check for the capacity, we need only one slot
-  if (iterator->tokens.count >= iterator->tokens.capacity - 1) {
+  if (iterator->tokens.count > iterator->tokens.capacity - 1) {
     return PARQUET_ERROR_BUFFER_TOO_SMALL;
   }
 
@@ -2056,7 +2056,7 @@ static i64 parquet_dump_array_open(struct parquet_metadata_iterator *iterator, u
 
 static i64 parquet_dump_array_close(struct parquet_metadata_iterator *iterator, u32) {
   // check for the capacity, we need only one slot
-  if (iterator->tokens.count >= iterator->tokens.capacity - 1) {
+  if (iterator->tokens.count > iterator->tokens.capacity - 1) {
     return PARQUET_ERROR_BUFFER_TOO_SMALL;
   }
 
@@ -2069,7 +2069,7 @@ static i64 parquet_dump_array_close(struct parquet_metadata_iterator *iterator, 
 
 static i64 parquet_dump_value_close(struct parquet_metadata_iterator *iterator, u32) {
   // check for the capacity, we need only one slot
-  if (iterator->tokens.count >= iterator->tokens.capacity - 1) {
+  if (iterator->tokens.count > iterator->tokens.capacity - 1) {
     return PARQUET_ERROR_BUFFER_TOO_SMALL;
   }
 
@@ -2084,7 +2084,7 @@ static i64 parquet_dump_index_open(struct parquet_metadata_iterator *iterator, u
   const char *name;
 
   // check for the capacity, we need only one slot
-  if (iterator->tokens.count >= iterator->tokens.capacity - 1) {
+  if (iterator->tokens.count > iterator->tokens.capacity - 1) {
     return PARQUET_ERROR_BUFFER_TOO_SMALL;
   }
 
@@ -2102,7 +2102,7 @@ static i64 parquet_dump_index_open(struct parquet_metadata_iterator *iterator, u
 
 static i64 parquet_dump_index_close(struct parquet_metadata_iterator *iterator, u32) {
   // check for the capacity, we need only one slot
-  if (iterator->tokens.count >= iterator->tokens.capacity - 1) {
+  if (iterator->tokens.count > iterator->tokens.capacity - 1) {
     return PARQUET_ERROR_BUFFER_TOO_SMALL;
   }
 
@@ -2127,7 +2127,7 @@ static i64 parquet_dump_index(struct parquet_metadata_iterator *iterator, u32 in
   }
 
   // check for the capacity, we need 4 slots in the queue
-  if (iterator->queue.count >= iterator->queue.capacity - 4) {
+  if (iterator->queue.count > iterator->queue.capacity - 4) {
     return PARQUET_ERROR_CAPACITY_OVERFLOW;
   }
 
@@ -2163,12 +2163,12 @@ static i64 parquet_dump_array(struct parquet_metadata_iterator *iterator, u32 in
   item = iterator->queue.items[index].item_fn;
 
   // check for the capacity, we need 4 slots
-  if (iterator->tokens.count >= iterator->tokens.capacity - 4) {
+  if (iterator->tokens.count > iterator->tokens.capacity - 4) {
     return PARQUET_ERROR_BUFFER_TOO_SMALL;
   }
 
   // check for the capacity, we need 4 slots in the queue
-  if (iterator->queue.count >= iterator->queue.capacity - 4) {
+  if (iterator->queue.count > iterator->queue.capacity - 4) {
     return PARQUET_ERROR_CAPACITY_OVERFLOW;
   }
 
@@ -2214,7 +2214,7 @@ static i64 parquet_dump_encoding_stats(struct parquet_metadata_iterator *iterato
   struct parquet_page_encoding_stats *encoding_stats;
 
   // check for the capacity, we need 5 slots in the queue
-  if (iterator->queue.count >= iterator->queue.capacity - 5) {
+  if (iterator->queue.count > iterator->queue.capacity - 5) {
     return PARQUET_ERROR_CAPACITY_OVERFLOW;
   }
 
@@ -2260,7 +2260,7 @@ static i64 parquet_dump_column_meta(struct parquet_metadata_iterator *iterator, 
   struct parquet_column_meta *column_meta;
 
   // check for the capacity, we need 13 slots in the queue
-  if (iterator->queue.count >= iterator->queue.capacity - 13) {
+  if (iterator->queue.count > iterator->queue.capacity - 13) {
     return PARQUET_ERROR_CAPACITY_OVERFLOW;
   }
 
@@ -2368,7 +2368,7 @@ static i64 parquet_dump_column_chunk(struct parquet_metadata_iterator *iterator,
   struct parquet_column_chunk *column_chunk;
 
   // check for the capacity, we need 5 slots in the queue
-  if (iterator->queue.count >= iterator->queue.capacity - 5) {
+  if (iterator->queue.count > iterator->queue.capacity - 5) {
     return PARQUET_ERROR_CAPACITY_OVERFLOW;
   }
 
@@ -2414,7 +2414,7 @@ static i64 parquet_dump_row_group(struct parquet_metadata_iterator *iterator, u3
   struct parquet_row_group *row_group;
 
   // check for the capacity, we need 7 slots in the queue
-  if (iterator->queue.count >= iterator->queue.capacity - 7) {
+  if (iterator->queue.count > iterator->queue.capacity - 7) {
     return PARQUET_ERROR_CAPACITY_OVERFLOW;
   }
 
@@ -2475,7 +2475,7 @@ static i64 parquet_dump_schema_element(struct parquet_metadata_iterator *iterato
   struct parquet_schema_element *schema_element;
 
   // check for the capacity, we need 8 slots in the queue
-  if (iterator->queue.count >= iterator->queue.capacity - 8) {
+  if (iterator->queue.count > iterator->queue.capacity - 8) {
     return PARQUET_ERROR_CAPACITY_OVERFLOW;
   }
 
@@ -2542,7 +2542,7 @@ static i64 parquet_dump_metadata(struct parquet_metadata_iterator *iterator, u32
   struct parquet_metadata *metadata;
 
   // check for the capacity, we need 7 slots in the queue
-  if (iterator->queue.count >= iterator->queue.capacity - 7) {
+  if (iterator->queue.count > iterator->queue.capacity - 7) {
     return PARQUET_ERROR_CAPACITY_OVERFLOW;
   }
 
@@ -2704,9 +2704,9 @@ static void can_iterate_through_metadata() {
 
   // initialize metadata
   metadata.version = 1;
-  metadata.schemas = NULL;
+  metadata.schemas = PARQUET_NULL_VALUE;
   metadata.num_rows = 43;
-  metadata.row_groups = NULL;
+  metadata.row_groups = PARQUET_NULL_VALUE;
   metadata.created_by = "test_user";
 
   // initialize iterator
@@ -2716,6 +2716,123 @@ static void can_iterate_through_metadata() {
   result = parquet_metadata_next(&iterator);
   assert(result == 0, "should succeed");
   assert(iterator.tokens.count > 0, "should have some tokens");
+}
+
+static void can_dump_enum_with_known_value() {
+  i32 value;
+  i64 result;
+
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  // initialize metadata
+  metadata.version = PARQUET_UNKNOWN_VALUE;
+  metadata.schemas = PARQUET_NULL_VALUE;
+  metadata.num_rows = PARQUET_UNKNOWN_VALUE;
+  metadata.row_groups = PARQUET_NULL_VALUE;
+  metadata.created_by = PARQUET_NULL_VALUE;
+
+  // initialize iterator
+  parquet_metadata_iter(&iterator, &metadata);
+
+  // alter it for this test case
+  value = 3;
+  iterator.queue.count = 0;
+  iterator.queue.items[0].ctx = &value;
+  iterator.queue.items[0].ctx_name = "field-name";
+
+  // process enum
+  result = parquet_dump_enum(&iterator, 0, PARQUET_DATA_TYPE_SIZE, PARQUET_DATA_TYPE_NAMES);
+
+  // assert results
+  assert(result == 0, "should succeed");
+  assert(iterator.tokens.count == 6, "should generate 6 tokens");
+
+  assert(iterator.tokens.items[0].op == DOM_OP_KEY_START, "expected key-start");
+  assert(iterator.tokens.items[1].op == DOM_OP_LITERAL, "expected literal");
+  assert_eq_str((const char *)iterator.tokens.items[1].data, "field-name", "expected correct key");
+  assert(iterator.tokens.items[2].op == DOM_OP_KEY_END, "expected key-end");
+
+  assert(iterator.tokens.items[3].op == DOM_OP_VALUE_START, "expected value-start");
+  assert(iterator.tokens.items[4].op == DOM_OP_LITERAL, "expected literal");
+  assert(iterator.tokens.items[4].type == DOM_TYPE_TEXT, "expected text");
+  assert_eq_str((const char *)iterator.tokens.items[4].data, "INT96", "expected correct value");
+  assert(iterator.tokens.items[5].op == DOM_OP_VALUE_END, "expected value-end");
+}
+
+static void can_dump_enum_with_unknown_value() {
+  i32 value;
+  i64 result;
+
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  // initialize metadata
+  metadata.version = PARQUET_UNKNOWN_VALUE;
+  metadata.schemas = PARQUET_NULL_VALUE;
+  metadata.num_rows = PARQUET_UNKNOWN_VALUE;
+  metadata.row_groups = PARQUET_NULL_VALUE;
+  metadata.created_by = PARQUET_NULL_VALUE;
+
+  // initialize iterator
+  parquet_metadata_iter(&iterator, &metadata);
+
+  // alter it for this test case
+  value = 27;
+  iterator.queue.count = 0;
+  iterator.queue.items[0].ctx = &value;
+  iterator.queue.items[0].ctx_name = "field-name";
+
+  // process enum
+  result = parquet_dump_enum(&iterator, 0, PARQUET_DATA_TYPE_SIZE, PARQUET_DATA_TYPE_NAMES);
+
+  // assert results
+  assert(result == 0, "should succeed");
+  assert(iterator.tokens.count == 6, "should generate 6 tokens");
+
+  assert(iterator.tokens.items[0].op == DOM_OP_KEY_START, "expected key-start");
+  assert(iterator.tokens.items[1].op == DOM_OP_LITERAL, "expected literal");
+  assert_eq_str((const char *)iterator.tokens.items[1].data, "field-name", "expected correct key");
+  assert(iterator.tokens.items[2].op == DOM_OP_KEY_END, "expected key-end");
+
+  assert(iterator.tokens.items[3].op == DOM_OP_VALUE_START, "expected value-start");
+  assert(iterator.tokens.items[4].op == DOM_OP_LITERAL, "expected literal");
+  assert(iterator.tokens.items[4].type == DOM_TYPE_I32, "expected integer");
+  assert((u64)iterator.tokens.items[4].data == 27, "expected correct value");
+  assert(iterator.tokens.items[5].op == DOM_OP_VALUE_END, "expected value-end");
+}
+
+static void can_detect_buffer_too_small_with_enum() {
+  i32 value;
+  i64 result;
+
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  // initialize metadata
+  metadata.version = PARQUET_UNKNOWN_VALUE;
+  metadata.schemas = PARQUET_NULL_VALUE;
+  metadata.num_rows = PARQUET_UNKNOWN_VALUE;
+  metadata.row_groups = PARQUET_NULL_VALUE;
+  metadata.created_by = PARQUET_NULL_VALUE;
+
+  // initialize iterator
+  parquet_metadata_iter(&iterator, &metadata);
+
+  // alter it for this test case
+  value = 3;
+  iterator.queue.count = 0;
+  iterator.queue.items[0].ctx = &value;
+  iterator.queue.items[0].ctx_name = "field-name";
+
+  // we expect a bit more capacity
+  iterator.tokens.count = iterator.tokens.capacity - 5;
+
+  // process enum
+  result = parquet_dump_enum(&iterator, 0, PARQUET_DATA_TYPE_SIZE, PARQUET_DATA_TYPE_NAMES);
+
+  // assert results
+  assert(result == PARQUET_ERROR_BUFFER_TOO_SMALL, "should fail with PARQUET_ERROR_BUFFER_TOO_SMALL");
 }
 
 void parquet_test_cases(struct runner_context *ctx) {
@@ -2770,6 +2887,9 @@ void parquet_test_cases(struct runner_context *ctx) {
 
   // dump cases
   test_case(ctx, "can iterate through metadata", can_iterate_through_metadata);
+  test_case(ctx, "can dump enum with known value", can_dump_enum_with_known_value);
+  test_case(ctx, "can dump enum with unknown value", can_dump_enum_with_unknown_value);
+  test_case(ctx, "can detect buffer too small with enum", can_detect_buffer_too_small_with_enum);
 }
 
 #endif
