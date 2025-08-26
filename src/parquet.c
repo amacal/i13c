@@ -2526,6 +2526,10 @@ static void can_iterate_through_metadata() {
   struct parquet_metadata_iterator iterator;
 
   // initialize metadata
+  metadata.version = 1;
+  metadata.schemas = NULL;
+  metadata.num_rows = 43;
+  metadata.row_groups = NULL;
   metadata.created_by = "test_user";
 
   // initialize iterator
