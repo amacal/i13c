@@ -4,6 +4,9 @@
 #include "malloc.h"
 #include "typing.h"
 
+#define PARQUET_UNKNOWN_VALUE -1
+#define PARQUET_NULL_VALUE NULL
+
 enum parquet_error {
   // indicates that the read would overflow the buffer
   PARQUET_ERROR_BUFFER_OVERFLOW = PARQUET_ERROR_BASE - 0x01,
