@@ -1917,8 +1917,7 @@ static i64 parquet_dump_repetition_type(struct parquet_metadata_iterator *iterat
   return parquet_dump_enum(iterator, index, PARQUET_REPETITION_TYPE_SIZE, PARQUET_REPETITION_TYPE_NAMES);
 }
 
-static i64
-parquet_dump_literal(struct parquet_metadata_iterator *iterator, u32 index, u8 width, u8 type, const char *type_name) {
+static i64 parquet_dump_literal(struct parquet_metadata_iterator *iterator, u32 index, u8 type, const char *type_name) {
   u64 value;
   const char *name;
 
@@ -1946,12 +1945,15 @@ parquet_dump_literal(struct parquet_metadata_iterator *iterator, u32 index, u8 w
   iterator->tokens.items[iterator->tokens.count++].data = (u64)type_name;
 
   // extract the value
-  switch (width) {
-    case 32:
+  switch (type) {
+    case DOM_TYPE_I32:
       value = (u64) * (i32 *)iterator->queue.items[index].ctx;
       break;
-    case 64:
+    case DOM_TYPE_I64:
       value = (u64) * (i64 *)iterator->queue.items[index].ctx;
+      break;
+    case DOM_TYPE_TEXT:
+      value = (u64)(const char *)iterator->queue.items[index].ctx;
       break;
   }
 
@@ -1968,51 +1970,15 @@ parquet_dump_literal(struct parquet_metadata_iterator *iterator, u32 index, u8 w
 }
 
 static i64 parquet_dump_i32(struct parquet_metadata_iterator *iterator, u32 index) {
-  return parquet_dump_literal(iterator, index, 32, DOM_TYPE_I32, "i32");
+  return parquet_dump_literal(iterator, index, DOM_TYPE_I32, "i32");
 }
 
 static i64 parquet_dump_i64(struct parquet_metadata_iterator *iterator, u32 index) {
-  return parquet_dump_literal(iterator, index, 64, DOM_TYPE_I64, "i64");
+  return parquet_dump_literal(iterator, index, DOM_TYPE_I64, "i64");
 }
 
 static i64 parquet_dump_text(struct parquet_metadata_iterator *iterator, u32 index) {
-  const char *text;
-  const char *name;
-
-  // check for the capacity, we need 6 slots
-  if (iterator->tokens.count > iterator->tokens.capacity - 6) {
-    return PARQUET_ERROR_BUFFER_TOO_SMALL;
-  }
-
-  // key start
-  iterator->tokens.items[iterator->tokens.count].op = DOM_OP_KEY_START;
-  iterator->tokens.items[iterator->tokens.count].type = DOM_TYPE_TEXT;
-  iterator->tokens.items[iterator->tokens.count++].data = (u64) "text";
-
-  // extract the name
-  name = iterator->queue.items[index].ctx_name;
-  iterator->tokens.items[iterator->tokens.count].op = DOM_OP_LITERAL;
-  iterator->tokens.items[iterator->tokens.count].data = (u64)name;
-  iterator->tokens.items[iterator->tokens.count++].type = DOM_TYPE_TEXT;
-
-  // key end
-  iterator->tokens.items[iterator->tokens.count++].op = DOM_OP_KEY_END;
-
-  // value start
-  iterator->tokens.items[iterator->tokens.count].op = DOM_OP_VALUE_START;
-  iterator->tokens.items[iterator->tokens.count++].data = (u64) "text";
-
-  // extract the value
-  text = (const char *)iterator->queue.items[index].ctx;
-  iterator->tokens.items[iterator->tokens.count].op = DOM_OP_LITERAL;
-  iterator->tokens.items[iterator->tokens.count].data = (u64)text;
-  iterator->tokens.items[iterator->tokens.count++].type = DOM_TYPE_TEXT;
-
-  // value end
-  iterator->tokens.items[iterator->tokens.count++].op = DOM_OP_VALUE_END;
-
-  // success
-  return 0;
+  return parquet_dump_literal(iterator, index, DOM_TYPE_TEXT, "text");
 }
 
 static i64 parquet_dump_struct_open(struct parquet_metadata_iterator *iterator, u32 index) {
@@ -2835,6 +2801,165 @@ static void can_detect_buffer_too_small_with_enum() {
   assert(result == PARQUET_ERROR_BUFFER_TOO_SMALL, "should fail with PARQUET_ERROR_BUFFER_TOO_SMALL");
 }
 
+static void can_dump_literal_with_i32_value() {
+  i32 value;
+  i64 result;
+
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  // initialize metadata
+  metadata.version = PARQUET_UNKNOWN_VALUE;
+  metadata.schemas = PARQUET_NULL_VALUE;
+  metadata.num_rows = PARQUET_UNKNOWN_VALUE;
+  metadata.row_groups = PARQUET_NULL_VALUE;
+  metadata.created_by = PARQUET_NULL_VALUE;
+
+  // initialize iterator
+  parquet_metadata_iter(&iterator, &metadata);
+
+  // alter it for this test case
+  value = 3;
+  iterator.queue.count = 0;
+  iterator.queue.items[0].ctx = &value;
+  iterator.queue.items[0].ctx_name = "field-name";
+
+  // process literal
+  result = parquet_dump_literal(&iterator, 0, DOM_TYPE_I32, "i32");
+
+  // assert results
+  assert(result == 0, "should succeed");
+  assert(iterator.tokens.count == 6, "should generate 6 tokens");
+
+  assert(iterator.tokens.items[0].op == DOM_OP_KEY_START, "expected key-start");
+  assert(iterator.tokens.items[1].op == DOM_OP_LITERAL, "expected literal");
+  assert_eq_str((const char *)iterator.tokens.items[1].data, "field-name", "expected correct key");
+  assert(iterator.tokens.items[2].op == DOM_OP_KEY_END, "expected key-end");
+
+  assert(iterator.tokens.items[3].op == DOM_OP_VALUE_START, "expected value-start");
+  assert(iterator.tokens.items[4].op == DOM_OP_LITERAL, "expected literal");
+  assert(iterator.tokens.items[4].type == DOM_TYPE_I32, "expected i32");
+  assert((i32)iterator.tokens.items[4].data == 3, "expected correct value");
+  assert(iterator.tokens.items[5].op == DOM_OP_VALUE_END, "expected value-end");
+}
+
+static void can_dump_literal_with_i64_value() {
+  i64 value;
+  i64 result;
+
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  // initialize metadata
+  metadata.version = PARQUET_UNKNOWN_VALUE;
+  metadata.schemas = PARQUET_NULL_VALUE;
+  metadata.num_rows = PARQUET_UNKNOWN_VALUE;
+  metadata.row_groups = PARQUET_NULL_VALUE;
+  metadata.created_by = PARQUET_NULL_VALUE;
+
+  // initialize iterator
+  parquet_metadata_iter(&iterator, &metadata);
+
+  // alter it for this test case
+  value = 3;
+  iterator.queue.count = 0;
+  iterator.queue.items[0].ctx = &value;
+  iterator.queue.items[0].ctx_name = "field-name";
+
+  // process literal
+  result = parquet_dump_literal(&iterator, 0, DOM_TYPE_I64, "i64");
+
+  // assert results
+  assert(result == 0, "should succeed");
+  assert(iterator.tokens.count == 6, "should generate 6 tokens");
+
+  assert(iterator.tokens.items[0].op == DOM_OP_KEY_START, "expected key-start");
+  assert(iterator.tokens.items[1].op == DOM_OP_LITERAL, "expected literal");
+  assert_eq_str((const char *)iterator.tokens.items[1].data, "field-name", "expected correct key");
+  assert(iterator.tokens.items[2].op == DOM_OP_KEY_END, "expected key-end");
+
+  assert(iterator.tokens.items[3].op == DOM_OP_VALUE_START, "expected value-start");
+  assert(iterator.tokens.items[4].op == DOM_OP_LITERAL, "expected literal");
+  assert(iterator.tokens.items[4].type == DOM_TYPE_I64, "expected i64");
+  assert((i64)iterator.tokens.items[4].data == 3, "expected correct value");
+  assert(iterator.tokens.items[5].op == DOM_OP_VALUE_END, "expected value-end");
+}
+
+static void can_dump_literal_with_text_value() {
+  i64 result;
+  const char *value;
+
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  // initialize metadata
+  metadata.version = PARQUET_UNKNOWN_VALUE;
+  metadata.schemas = PARQUET_NULL_VALUE;
+  metadata.num_rows = PARQUET_UNKNOWN_VALUE;
+  metadata.row_groups = PARQUET_NULL_VALUE;
+  metadata.created_by = PARQUET_NULL_VALUE;
+
+  // initialize iterator
+  parquet_metadata_iter(&iterator, &metadata);
+
+  // alter it for this test case
+  value = "abc";
+  iterator.queue.count = 0;
+  iterator.queue.items[0].ctx = (void *)value;
+  iterator.queue.items[0].ctx_name = "field-name";
+
+  // process literal
+  result = parquet_dump_literal(&iterator, 0, DOM_TYPE_TEXT, "text");
+
+  // assert results
+  assert(result == 0, "should succeed");
+  assert(iterator.tokens.count == 6, "should generate 6 tokens");
+
+  assert(iterator.tokens.items[0].op == DOM_OP_KEY_START, "expected key-start");
+  assert(iterator.tokens.items[1].op == DOM_OP_LITERAL, "expected literal");
+  assert_eq_str((const char *)iterator.tokens.items[1].data, "field-name", "expected correct key");
+  assert(iterator.tokens.items[2].op == DOM_OP_KEY_END, "expected key-end");
+
+  assert(iterator.tokens.items[3].op == DOM_OP_VALUE_START, "expected value-start");
+  assert(iterator.tokens.items[4].op == DOM_OP_LITERAL, "expected literal");
+  assert(iterator.tokens.items[4].type == DOM_TYPE_TEXT, "expected text");
+  assert_eq_str((const char *)iterator.tokens.items[4].data, "abc", "expected correct value");
+  assert(iterator.tokens.items[5].op == DOM_OP_VALUE_END, "expected value-end");
+}
+
+static void can_detect_buffer_too_small_with_literal() {
+  i64 result;
+  const char *value;
+
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  // initialize metadata
+  metadata.version = PARQUET_UNKNOWN_VALUE;
+  metadata.schemas = PARQUET_NULL_VALUE;
+  metadata.num_rows = PARQUET_UNKNOWN_VALUE;
+  metadata.row_groups = PARQUET_NULL_VALUE;
+  metadata.created_by = PARQUET_NULL_VALUE;
+
+  // initialize iterator
+  parquet_metadata_iter(&iterator, &metadata);
+
+  // alter it for this test case
+  value = "abc";
+  iterator.queue.count = 0;
+  iterator.queue.items[0].ctx = (void *)value;
+  iterator.queue.items[0].ctx_name = "field-name";
+
+  // we expect a bit more capacity
+  iterator.tokens.count = iterator.tokens.capacity - 5;
+
+  // process literal
+  result = parquet_dump_literal(&iterator, 0, DOM_TYPE_TEXT, "text");
+
+  // assert results
+  assert(result == PARQUET_ERROR_BUFFER_TOO_SMALL, "should fail with PARQUET_ERROR_BUFFER_TOO_SMALL");
+}
+
 void parquet_test_cases(struct runner_context *ctx) {
   // opening and closing cases
   test_case(ctx, "can open and close parquet file", can_open_and_close_parquet_file);
@@ -2890,6 +3015,11 @@ void parquet_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can dump enum with known value", can_dump_enum_with_known_value);
   test_case(ctx, "can dump enum with unknown value", can_dump_enum_with_unknown_value);
   test_case(ctx, "can detect buffer too small with enum", can_detect_buffer_too_small_with_enum);
+
+  test_case(ctx, "can dump literal with i32 value", can_dump_literal_with_i32_value);
+  test_case(ctx, "can dump literal with i64 value", can_dump_literal_with_i64_value);
+  test_case(ctx, "can dump literal with text value", can_dump_literal_with_text_value);
+  test_case(ctx, "can detect buffer to small with literal", can_detect_buffer_too_small_with_literal);
 }
 
 #endif
