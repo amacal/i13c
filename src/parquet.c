@@ -1742,7 +1742,7 @@ static const char *PARQUET_REPETITION_TYPE_NAMES[PARQUET_REPETITION_TYPE_SIZE] =
   [PARQUET_REPETITION_TYPE_REPEATED] = "REPEATED",
 };
 
-static i64 parquet_dump_compression_codec(struct parquet_metadata_iterator *iterator, u32 index) {
+static i64 parquet_dump_enum(struct parquet_metadata_iterator *iterator, u32 index, i32 size, const char **names) {
   i32 *value;
   const char *name;
 
@@ -1774,8 +1774,8 @@ static i64 parquet_dump_compression_codec(struct parquet_metadata_iterator *iter
   name = NULL;
 
   // find mapping if available
-  if (*value < PARQUET_COMPRESSION_SIZE) {
-    name = PARQUET_COMPRESSION_NAMES[*value];
+  if (*value < size) {
+    name = names[*value];
   }
 
   // output either raw i32 or mapped name
@@ -1794,222 +1794,26 @@ static i64 parquet_dump_compression_codec(struct parquet_metadata_iterator *iter
 
   // success
   return 0;
+}
+
+static i64 parquet_dump_compression_codec(struct parquet_metadata_iterator *iterator, u32 index) {
+  return parquet_dump_enum(iterator, index, PARQUET_COMPRESSION_SIZE, PARQUET_COMPRESSION_NAMES);
 }
 
 static i64 parquet_dump_converted_type(struct parquet_metadata_iterator *iterator, u32 index) {
-  i32 *value;
-  const char *name;
-
-  // check for available space, we need 6 tokens
-  if (iterator->tokens_count >= PARQUET_METADATA_TOKENS_SIZE - 6) {
-    return PARQUET_ERROR_BUFFER_TOO_SMALL;
-  }
-
-  // key start
-  iterator->tokens[iterator->tokens_count].op = DOM_OP_KEY_START;
-  iterator->tokens[iterator->tokens_count].type = DOM_TYPE_TEXT;
-  iterator->tokens[iterator->tokens_count++].data = (u64) "text";
-
-  // extract the name
-  name = (const char *)iterator->names[index];
-  iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
-  iterator->tokens[iterator->tokens_count].data = (u64)name;
-  iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
-
-  // key end
-  iterator->tokens[iterator->tokens_count++].op = DOM_OP_KEY_END;
-
-  // value start
-  iterator->tokens[iterator->tokens_count].op = DOM_OP_VALUE_START;
-  iterator->tokens[iterator->tokens_count++].data = (u64) "i32";
-
-  // extract the value and the name
-  value = (i32 *)iterator->ctxs[index];
-  name = NULL;
-
-  // find mapping if available
-  if (*value < PARQUET_CONVERTED_TYPE_SIZE) {
-    name = PARQUET_CONVERTED_TYPE_NAMES[*value];
-  }
-
-  // output either raw i32 or mapped name
-  if (name == NULL) {
-    iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
-    iterator->tokens[iterator->tokens_count].data = (u64)*value;
-    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_I32;
-  } else {
-    iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
-    iterator->tokens[iterator->tokens_count].data = (u64)name;
-    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
-  }
-
-  // value end
-  iterator->tokens[iterator->tokens_count++].op = DOM_OP_VALUE_END;
-
-  // success
-  return 0;
+  return parquet_dump_enum(iterator, index, PARQUET_CONVERTED_TYPE_SIZE, PARQUET_CONVERTED_TYPE_NAMES);
 }
 
 static i64 parquet_dump_data_type(struct parquet_metadata_iterator *iterator, u32 index) {
-  i32 *value;
-  const char *name;
-
-  // check for available space, we need 6 tokens
-  if (iterator->tokens_count >= PARQUET_METADATA_TOKENS_SIZE - 6) {
-    return PARQUET_ERROR_BUFFER_TOO_SMALL;
-  }
-
-  // key start
-  iterator->tokens[iterator->tokens_count].op = DOM_OP_KEY_START;
-  iterator->tokens[iterator->tokens_count].type = DOM_TYPE_TEXT;
-  iterator->tokens[iterator->tokens_count++].data = (u64) "text";
-
-  // extract the name
-  name = (const char *)iterator->names[index];
-  iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
-  iterator->tokens[iterator->tokens_count].data = (u64)name;
-  iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
-
-  // key end
-  iterator->tokens[iterator->tokens_count++].op = DOM_OP_KEY_END;
-
-  // value start
-  iterator->tokens[iterator->tokens_count].op = DOM_OP_VALUE_START;
-  iterator->tokens[iterator->tokens_count++].data = (u64) "i32";
-
-  // extract the value and the name
-  value = (i32 *)iterator->ctxs[index];
-  name = NULL;
-
-  // find mapping if available
-  if (*value < PARQUET_DATA_TYPE_SIZE) {
-    name = PARQUET_DATA_TYPE_NAMES[*value];
-  }
-
-  // output either raw i32 or mapped name
-  if (name == NULL) {
-    iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
-    iterator->tokens[iterator->tokens_count].data = (u64)*value;
-    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_I32;
-  } else {
-    iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
-    iterator->tokens[iterator->tokens_count].data = (u64)name;
-    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
-  }
-
-  // value end
-  iterator->tokens[iterator->tokens_count++].op = DOM_OP_VALUE_END;
-
-  // success
-  return 0;
+  return parquet_dump_enum(iterator, index, PARQUET_DATA_TYPE_SIZE, PARQUET_DATA_TYPE_NAMES);
 }
 
 static i64 parquet_dump_encoding(struct parquet_metadata_iterator *iterator, u32 index) {
-  i32 *value;
-  const char *name;
-
-  // check for available space, we need 6 tokens
-  if (iterator->tokens_count >= PARQUET_METADATA_TOKENS_SIZE - 6) {
-    return PARQUET_ERROR_BUFFER_TOO_SMALL;
-  }
-
-  // key start
-  iterator->tokens[iterator->tokens_count].op = DOM_OP_KEY_START;
-  iterator->tokens[iterator->tokens_count].type = DOM_TYPE_TEXT;
-  iterator->tokens[iterator->tokens_count++].data = (u64) "text";
-
-  // extract the name
-  name = (const char *)iterator->names[index];
-  iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
-  iterator->tokens[iterator->tokens_count].data = (u64)name;
-  iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
-
-  // key end
-  iterator->tokens[iterator->tokens_count++].op = DOM_OP_KEY_END;
-
-  // value start
-  iterator->tokens[iterator->tokens_count].op = DOM_OP_VALUE_START;
-  iterator->tokens[iterator->tokens_count++].data = (u64) "i32";
-
-  // extract the value and the name
-  value = (i32 *)iterator->ctxs[index];
-  name = NULL;
-
-  // find mapping if available
-  if (*value < PARQUET_ENCODING_SIZE) {
-    name = PARQUET_ENCODING_NAMES[*value];
-  }
-
-  // output either raw i32 or mapped name
-  if (name == NULL) {
-    iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
-    iterator->tokens[iterator->tokens_count].data = (u64)*value;
-    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_I32;
-  } else {
-    iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
-    iterator->tokens[iterator->tokens_count].data = (u64)name;
-    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
-  }
-
-  // value end
-  iterator->tokens[iterator->tokens_count++].op = DOM_OP_VALUE_END;
-
-  // success
-  return 0;
+  return parquet_dump_enum(iterator, index, PARQUET_ENCODING_SIZE, PARQUET_ENCODING_NAMES);
 }
 
 static i64 parquet_dump_repetition_type(struct parquet_metadata_iterator *iterator, u32 index) {
-  i32 *value;
-  const char *name;
-
-  // check for available space, we need 6 tokens
-  if (iterator->tokens_count >= PARQUET_METADATA_TOKENS_SIZE - 6) {
-    return PARQUET_ERROR_BUFFER_TOO_SMALL;
-  }
-
-  // key start
-  iterator->tokens[iterator->tokens_count].op = DOM_OP_KEY_START;
-  iterator->tokens[iterator->tokens_count].type = DOM_TYPE_TEXT;
-  iterator->tokens[iterator->tokens_count++].data = (u64) "text";
-
-  // extract the name
-  name = (const char *)iterator->names[index];
-  iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
-  iterator->tokens[iterator->tokens_count].data = (u64)name;
-  iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
-
-  // key end
-  iterator->tokens[iterator->tokens_count++].op = DOM_OP_KEY_END;
-
-  // value start
-  iterator->tokens[iterator->tokens_count].op = DOM_OP_VALUE_START;
-  iterator->tokens[iterator->tokens_count++].data = (u64) "i32";
-
-  // extract the value and the name
-  value = (i32 *)iterator->ctxs[index];
-  name = NULL;
-
-  // find mapping if available
-  if (*value < PARQUET_REPETITION_TYPE_SIZE) {
-    name = PARQUET_REPETITION_TYPE_NAMES[*value];
-  }
-
-  // output either raw i32 or mapped name
-  if (name == NULL) {
-    iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
-    iterator->tokens[iterator->tokens_count].data = (u64)*value;
-    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_I32;
-  } else {
-    iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
-    iterator->tokens[iterator->tokens_count].data = (u64)name;
-    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_TEXT;
-  }
-
-  // value end
-  iterator->tokens[iterator->tokens_count++].op = DOM_OP_VALUE_END;
-
-  // success
-  return 0;
+  return parquet_dump_enum(iterator, index, PARQUET_REPETITION_TYPE_SIZE, PARQUET_REPETITION_TYPE_NAMES);
 }
 
 static i64 parquet_dump_i32(struct parquet_metadata_iterator *iterator, u32 index) {
@@ -2083,12 +1887,7 @@ static i64 parquet_dump_i64(struct parquet_metadata_iterator *iterator, u32 inde
   value = (i64 *)iterator->ctxs[index];
   iterator->tokens[iterator->tokens_count].op = DOM_OP_LITERAL;
   iterator->tokens[iterator->tokens_count].data = (u64)*value;
-
-  if (value == NULL) {
-    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_NULL;
-  } else {
-    iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_I64;
-  }
+  iterator->tokens[iterator->tokens_count++].type = DOM_TYPE_I64;
 
   // value end
   iterator->tokens[iterator->tokens_count++].op = DOM_OP_VALUE_END;
