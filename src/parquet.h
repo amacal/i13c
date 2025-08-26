@@ -67,6 +67,7 @@ enum parquet_converted_type {
 };
 
 enum parquet_encoding {
+  PARQUET_ENCODING_NONE = -1,
   PARQUET_ENCODING_PLAIN = 0,
   PARQUET_ENCODING_GROUP_VAR_INT = 1,
   PARQUET_ENCODING_PLAIN_DICTIONARY = 2,
@@ -94,6 +95,7 @@ enum parquet_compression_codec {
 };
 
 enum parquet_page_type {
+  PARQUET_PAGE_TYPE_NONE = -1,
   PARQUET_PAGE_TYPE_DATA_PAGE = 0,
   PARQUET_PAGE_TYPE_INDEX_PAGE = 1,
   PARQUET_PAGE_TYPE_DICTIONARY_PAGE = 2,

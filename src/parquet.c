@@ -497,12 +497,73 @@ static i64 parquet_parse_schemas(
   return parquet_read_list(ctx, field_id, field_type, buffer, buffer_size);
 }
 
+static i64
+parquet_parse_encoding_stats_element(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size) {
+  i64 result, read;
+  struct parquet_page_encoding_stats *element;
+  struct parquet_parse_context context;
+
+  const u32 FIELDS_SLOTS = 4;
+  thrift_read_fn fields[FIELDS_SLOTS];
+
+  // prepare the mapping of fields
+  fields[1] = (thrift_read_fn)parquet_read_i32_positive; // page_type
+  fields[2] = (thrift_read_fn)parquet_read_i32_positive; // encoding
+  fields[3] = (thrift_read_fn)parquet_read_i32_positive; // count
+
+  // page_encoding_stats
+  element = (struct parquet_page_encoding_stats *)ctx->target;
+  element->page_type = PARQUET_PAGE_TYPE_NONE;
+  element->encoding = PARQUET_ENCODING_NONE;
+  element->count = -1;
+
+  // context
+  context.target = element;
+  context.buffer = ctx->buffer;
+  context.buffer_size = ctx->buffer_size;
+  context.buffer_tail = ctx->buffer_tail;
+
+  // targets
+  context.ptrs[1] = &element->page_type;
+  context.ptrs[2] = &element->encoding;
+  context.ptrs[3] = &element->count;
+
+  // default
+  read = 0;
+
+  // delegate content reading to the thrift function
+  result = thrift_read_struct_content(&context, fields, FIELDS_SLOTS, buffer, buffer_size);
+  if (result < 0) return result;
+
+  // move the buffer pointer and size
+  read += result;
+  buffer += result;
+  buffer_size -= result;
+
+  // restore the context
+  ctx->buffer_tail = context.buffer_tail;
+
+  // success
+  return read;
+}
+
+static i64 parquet_parse_encoding_stats(
+  struct parquet_parse_context *ctx, i16 field_id, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
+
+  // fill up the context
+  ctx->target_size = sizeof(struct parquet_page_encoding_stats);
+  ctx->target_fn = (parquet_read_fn)parquet_parse_encoding_stats_element;
+
+  // call generic list reader
+  return parquet_read_list(ctx, field_id, field_type, buffer, buffer_size);
+}
+
 static i64 parquet_parse_column_meta_element(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size) {
   i64 result, read;
   struct parquet_column_meta *meta;
   struct parquet_parse_context context;
 
-  const u32 FIELDS_SLOTS = 11;
+  const u32 FIELDS_SLOTS = 14;
   thrift_read_fn fields[FIELDS_SLOTS];
 
   // prepare the mapping of fields
@@ -513,9 +574,12 @@ static i64 parquet_parse_column_meta_element(struct parquet_parse_context *ctx, 
   fields[5] = (thrift_read_fn)parquet_read_i64_positive;      // num_values
   fields[6] = (thrift_read_fn)parquet_read_i64_positive;      // total_uncompressed_size
   fields[7] = (thrift_read_fn)parquet_read_i64_positive;      // total_compressed_size
-  fields[8] = (thrift_read_fn)parquet_read_i64_positive;      // data_page_offset
-  fields[9] = (thrift_read_fn)parquet_read_i64_positive;      // index_page_offset
-  fields[10] = (thrift_read_fn)parquet_read_i64_positive;     // dictionary_page_offset
+  fields[8] = (thrift_read_fn)thrift_ignore_field;            // key_value_metadata
+  fields[9] = (thrift_read_fn)parquet_read_i64_positive;      // data_page_offset
+  fields[10] = (thrift_read_fn)parquet_read_i64_positive;     // index_page_offset
+  fields[11] = (thrift_read_fn)parquet_read_i64_positive;     // dictionary_page_offset
+  fields[12] = (thrift_read_fn)thrift_ignore_field;           // statistics
+  fields[13] = (thrift_read_fn)parquet_parse_encoding_stats;  // encoding_stats
 
   // meta
   meta = (struct parquet_column_meta *)ctx->target;
@@ -546,9 +610,11 @@ static i64 parquet_parse_column_meta_element(struct parquet_parse_context *ctx, 
   context.ptrs[5] = &meta->num_values;
   context.ptrs[6] = &meta->total_uncompressed_size;
   context.ptrs[7] = &meta->total_compressed_size;
-  context.ptrs[8] = &meta->data_page_offset;
-  context.ptrs[9] = &meta->index_page_offset;
-  context.ptrs[10] = &meta->dictionary_page_offset;
+  context.ptrs[9] = &meta->data_page_offset;
+  context.ptrs[10] = &meta->index_page_offset;
+  context.ptrs[11] = &meta->dictionary_page_offset;
+  context.ptrs[12] = &meta->statistics;
+  context.ptrs[13] = &meta->encoding_stats;
 
   // default
   read = 0;
@@ -1736,6 +1802,13 @@ static const char *PARQUET_ENCODING_NAMES[PARQUET_ENCODING_SIZE] = {
   [PARQUET_ENCODING_BYTE_STREAM_SPLIT] = "BYTE_STREAM_SPLIT",
 };
 
+static const char *PARQUET_PAGE_TYPE_NAMES[PARQUET_PAGE_TYPE_SIZE] = {
+  [PARQUET_PAGE_TYPE_DATA_PAGE] = "DATA_PAGE",
+  [PARQUET_PAGE_TYPE_INDEX_PAGE] = "INDEX_PAGE",
+  [PARQUET_PAGE_TYPE_DICTIONARY_PAGE] = "DICTIONARY_PAGE",
+  [PARQUET_PAGE_TYPE_DATA_PAGE_V2] = "DATA_PAGE_V2",
+};
+
 static const char *PARQUET_REPETITION_TYPE_NAMES[PARQUET_REPETITION_TYPE_SIZE] = {
   [PARQUET_REPETITION_TYPE_REQUIRED] = "REQUIRED",
   [PARQUET_REPETITION_TYPE_OPTIONAL] = "OPTIONAL",
@@ -1810,6 +1883,10 @@ static i64 parquet_dump_data_type(struct parquet_metadata_iterator *iterator, u3
 
 static i64 parquet_dump_encoding(struct parquet_metadata_iterator *iterator, u32 index) {
   return parquet_dump_enum(iterator, index, PARQUET_ENCODING_SIZE, PARQUET_ENCODING_NAMES);
+}
+
+static i64 parquet_dump_page_type(struct parquet_metadata_iterator *iterator, u32 index) {
+  return parquet_dump_enum(iterator, index, PARQUET_PAGE_TYPE_SIZE, PARQUET_PAGE_TYPE_NAMES);
 }
 
 static i64 parquet_dump_repetition_type(struct parquet_metadata_iterator *iterator, u32 index) {
@@ -2103,6 +2180,47 @@ static i64 parquet_dump_array(struct parquet_metadata_iterator *iterator, u32 in
   return 0;
 }
 
+static i64 parquet_dump_encoding_stats(struct parquet_metadata_iterator *iterator, u32 index) {
+  struct parquet_page_encoding_stats *encoding_stats;
+
+  // get the value
+  encoding_stats = (struct parquet_page_encoding_stats *)iterator->ctxs[index];
+
+  // close-struct
+  iterator->names[iterator->context_count] = "encoding-stats";
+  iterator->fns[iterator->context_count] = parquet_dump_struct_close;
+  iterator->ctxs[iterator->context_count++] = encoding_stats;
+
+  // count
+  if (encoding_stats->count > -1) {
+    iterator->names[iterator->context_count] = "count";
+    iterator->fns[iterator->context_count] = parquet_dump_i32;
+    iterator->ctxs[iterator->context_count++] = &encoding_stats->count;
+  }
+
+  // encoding
+  if (encoding_stats->encoding > PARQUET_ENCODING_NONE) {
+    iterator->names[iterator->context_count] = "encoding";
+    iterator->fns[iterator->context_count] = parquet_dump_encoding;
+    iterator->ctxs[iterator->context_count++] = &encoding_stats->encoding;
+  }
+
+  // page_type
+  if (encoding_stats->page_type > PARQUET_PAGE_TYPE_NONE) {
+    iterator->names[iterator->context_count] = "page_type";
+    iterator->fns[iterator->context_count] = parquet_dump_page_type;
+    iterator->ctxs[iterator->context_count++] = &encoding_stats->page_type;
+  }
+
+  // open-struct
+  iterator->names[iterator->context_count] = "encoding-stats";
+  iterator->fns[iterator->context_count] = parquet_dump_struct_open;
+  iterator->ctxs[iterator->context_count++] = encoding_stats;
+
+  // success
+  return 0;
+}
+
 static i64 parquet_dump_column_meta(struct parquet_metadata_iterator *iterator, u32 index) {
   struct parquet_column_meta *column_meta;
 
@@ -2113,6 +2231,14 @@ static i64 parquet_dump_column_meta(struct parquet_metadata_iterator *iterator, 
   iterator->names[iterator->context_count] = "column-meta";
   iterator->fns[iterator->context_count] = parquet_dump_struct_close;
   iterator->ctxs[iterator->context_count++] = column_meta;
+
+  // encoding_stats
+  if (column_meta->encoding_stats) {
+    iterator->names[iterator->context_count] = "encoding_stats";
+    iterator->fns[iterator->context_count] = parquet_dump_array;
+    iterator->items[iterator->context_count] = parquet_dump_encoding_stats;
+    iterator->ctxs[iterator->context_count++] = column_meta->encoding_stats;
+  }
 
   // dictionary_page_offset
   if (column_meta->dictionary_page_offset > -1) {
@@ -2363,7 +2489,7 @@ static i64 parquet_dump_metadata(struct parquet_metadata_iterator *iterator, u32
   iterator->fns[iterator->context_count] = parquet_dump_struct_close;
   iterator->ctxs[iterator->context_count++] = metadata;
 
-  // created-by
+  // created_by
   if (metadata->created_by) {
     iterator->names[iterator->context_count] = "created_by";
     iterator->fns[iterator->context_count] = parquet_dump_text;
