@@ -142,7 +142,7 @@ struct parquet_column_meta {
 
 struct parquet_column_chunk {
   char *file_path;                  // 1, optional, path to the external file
-  i64 file_offset;                  // 2 obsolete, file offset of the column chunk
+  i64 file_offset;                  // 2. file offset of the column chunk, obsolete
   struct parquet_column_meta *meta; // 3, metadata for the column chunk
 };
 
