@@ -2082,10 +2082,12 @@ static i64 parquet_dump_index_close(struct parquet_metadata_iterator *iterator, 
 static i64 parquet_dump_index(struct parquet_metadata_iterator *iterator, u32 index) {
   void **value;
   const char *name;
+  parquet_metadata_iterator_fn item_fn;
 
   // get the value
   name = iterator->queue.items[index].ctx_name;
   value = (void **)iterator->queue.items[index].ctx;
+  item_fn = iterator->queue.items[index].item_fn;
 
   // check for null-terminated
   if (*value == NULL) {
@@ -2100,8 +2102,8 @@ static i64 parquet_dump_index(struct parquet_metadata_iterator *iterator, u32 in
   // next index
   iterator->queue.items[iterator->queue.count].ctx = value + 1;
   iterator->queue.items[iterator->queue.count].ctx_name = name;
-  iterator->queue.items[iterator->queue.count].ctx_fn = iterator->queue.items[index].ctx_fn;
-  iterator->queue.items[iterator->queue.count++].item_fn = iterator->queue.items[index].item_fn;
+  iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_index;
+  iterator->queue.items[iterator->queue.count++].item_fn = item_fn;
 
   // close-index
   iterator->queue.items[iterator->queue.count++].ctx_fn = parquet_dump_index_close;
@@ -2109,7 +2111,7 @@ static i64 parquet_dump_index(struct parquet_metadata_iterator *iterator, u32 in
   // index content
   iterator->queue.items[iterator->queue.count].ctx = *value;
   iterator->queue.items[iterator->queue.count].ctx_name = name;
-  iterator->queue.items[iterator->queue.count++].ctx_fn = iterator->queue.items[index].item_fn;
+  iterator->queue.items[iterator->queue.count++].ctx_fn = item_fn;
 
   // open-index
   iterator->queue.items[iterator->queue.count].ctx_name = name;
@@ -2960,6 +2962,119 @@ static void can_detect_buffer_too_small_with_literal() {
   assert(result == PARQUET_ERROR_BUFFER_TOO_SMALL, "should fail with PARQUET_ERROR_BUFFER_TOO_SMALL");
 }
 
+static void can_dump_index_with_null_terminator() {
+  i64 result;
+  const char *value;
+
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  // initialize metadata
+  metadata.version = PARQUET_UNKNOWN_VALUE;
+  metadata.schemas = PARQUET_NULL_VALUE;
+  metadata.num_rows = PARQUET_UNKNOWN_VALUE;
+  metadata.row_groups = PARQUET_NULL_VALUE;
+  metadata.created_by = PARQUET_NULL_VALUE;
+
+  // initialize iterator
+  parquet_metadata_iter(&iterator, &metadata);
+
+  // alter it for this test case
+  value = PARQUET_NULL_VALUE;
+  iterator.queue.count = 0;
+  iterator.queue.items[0].ctx = (void *)&value;
+  iterator.queue.items[0].ctx_name = "type-x";
+  iterator.queue.items[0].item_fn = (parquet_metadata_iterator_fn)0x12345678;
+
+  // process index
+  result = parquet_dump_index(&iterator, 0);
+
+  // assert results
+  assert(result == 0, "should succeed");
+  assert(iterator.tokens.count == 0, "should generate 0 tokens");
+  assert(iterator.queue.count == 0, "should have 0 items in the queue");
+}
+
+static void can_dump_index_with_next_item() {
+  i64 result;
+  const char *value[3];
+
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  // initialize metadata
+  metadata.version = PARQUET_UNKNOWN_VALUE;
+  metadata.schemas = PARQUET_NULL_VALUE;
+  metadata.num_rows = PARQUET_UNKNOWN_VALUE;
+  metadata.row_groups = PARQUET_NULL_VALUE;
+  metadata.created_by = PARQUET_NULL_VALUE;
+
+  // initialize iterator
+  parquet_metadata_iter(&iterator, &metadata);
+
+  // alter it for this test case
+  value[0] = "abc";
+  value[1] = "cde";
+  value[2] = PARQUET_NULL_VALUE;
+
+  iterator.queue.count = 0;
+  iterator.queue.items[0].ctx = (void *)value;
+  iterator.queue.items[0].ctx_name = "type-x";
+  iterator.queue.items[0].item_fn = (parquet_metadata_iterator_fn)0x12345678;
+
+  // process index
+  result = parquet_dump_index(&iterator, 0);
+
+  // assert results
+  assert(result == 0, "should succeed");
+  assert(iterator.tokens.count == 0, "should generate 0 tokens");
+  assert(iterator.queue.count == 4, "should have 4 items in the queue");
+
+  assert(iterator.queue.items[3].ctx_fn == parquet_dump_index_open, "expected index open");
+  assert(iterator.queue.items[1].ctx_fn == parquet_dump_index_close, "expected index close");
+  assert(iterator.queue.items[0].ctx_fn == parquet_dump_index, "expected index");
+  assert(iterator.queue.items[2].ctx_fn == iterator.queue.items[0].item_fn, "expected callback");
+
+  assert(iterator.queue.items[2].ctx == value[0], "expected first item");
+  assert(iterator.queue.items[0].ctx == &value[1], "expected second item");
+}
+
+static void can_detect_buffer_too_small_with_index() {
+  i64 result;
+  const char *value[3];
+
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  // initialize metadata
+  metadata.version = PARQUET_UNKNOWN_VALUE;
+  metadata.schemas = PARQUET_NULL_VALUE;
+  metadata.num_rows = PARQUET_UNKNOWN_VALUE;
+  metadata.row_groups = PARQUET_NULL_VALUE;
+  metadata.created_by = PARQUET_NULL_VALUE;
+
+  // initialize iterator
+  parquet_metadata_iter(&iterator, &metadata);
+
+  // alter it for this test case
+  value[0] = "abc";
+  value[1] = "cde";
+  value[2] = PARQUET_NULL_VALUE;
+
+  iterator.queue.count = iterator.queue.capacity - 3;
+  iterator.queue.items[0].ctx = (void *)value;
+  iterator.queue.items[0].ctx_name = "type-x";
+  iterator.queue.items[0].item_fn = (parquet_metadata_iterator_fn)0x12345678;
+
+  // process index
+  result = parquet_dump_index(&iterator, 0);
+
+  // assert results
+  assert(result == PARQUET_ERROR_CAPACITY_OVERFLOW, "should fail with PARQUET_ERROR_CAPACITY_OVERFLOW");
+  assert(iterator.tokens.count == 0, "should not generate any tokens");
+  assert(iterator.queue.count == iterator.queue.capacity - 3, "should not change the queue");
+}
+
 void parquet_test_cases(struct runner_context *ctx) {
   // opening and closing cases
   test_case(ctx, "can open and close parquet file", can_open_and_close_parquet_file);
@@ -3020,6 +3135,10 @@ void parquet_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can dump literal with i64 value", can_dump_literal_with_i64_value);
   test_case(ctx, "can dump literal with text value", can_dump_literal_with_text_value);
   test_case(ctx, "can detect buffer to small with literal", can_detect_buffer_too_small_with_literal);
+
+  test_case(ctx, "can dump index with null-terminator", can_dump_index_with_null_terminator);
+  test_case(ctx, "can dump index with next item", can_dump_index_with_next_item);
+  test_case(ctx, "can detect buffer too small with index", can_detect_buffer_too_small_with_index);
 }
 
 #endif
