@@ -143,7 +143,7 @@ void parquet_close(struct parquet_file *file) {
   }
 }
 
-static i64 parquet_metadata_acquire(struct parquet_parse_context *ctx, u64 size) {
+static i64 parquet_metadata_acquire(struct parquet_parse_context *ctx, u32 size) {
   u32 offset;
 
   // check if there is enough space
@@ -159,7 +159,7 @@ static i64 parquet_metadata_acquire(struct parquet_parse_context *ctx, u64 size)
   return (i64)(ctx->buffer + offset);
 }
 
-static void parquet_metadata_release(struct parquet_parse_context *ctx, u64 size) {
+static void parquet_metadata_release(struct parquet_parse_context *ctx, u32 size) {
   // move tail back aligned to 8 bytes
   ctx->buffer_tail -= (size + 7) & ~7;
 }
@@ -479,7 +479,7 @@ static i64 parquet_read_list_i32_positive(
   struct parquet_parse_context *ctx, i16 field_id, enum thrift_type field_type, const char *buffer, u64 buffer_size) {
 
   // fill up the context
-  ctx->target_size = sizeof(char **);
+  ctx->target_size = sizeof(i32);
   ctx->target_fn = (parquet_read_fn)parquet_read_i32_positive_element;
 
   // call generic list reader
@@ -1387,7 +1387,7 @@ static void can_read_struct() {
 
   // context
   ctx.ptrs[0] = &value;
-  ctx.target_size = sizeof(value);
+  ctx.target_size = sizeof(struct sample);
   ctx.target_fn = (parquet_read_fn)can_read_struct_item;
 
   // read the value from the buffer
@@ -1396,7 +1396,7 @@ static void can_read_struct() {
   // assert the result
   assert(result == 1, "should read one byte");
   assert(value != NULL, "should allocate value");
-  assert(ctx.buffer_tail == 8, "should update buffer tail to 8");
+  assert(ctx.buffer_tail == 16, "should update buffer tail to 16");
 }
 
 static void can_detect_struct_invalid_type() {
@@ -1627,20 +1627,20 @@ static void can_read_list_i32_positive() {
   assert(values != NULL, "should allocate values");
   assert((u64)values % 8 == 0, "container should be aligned to 8 bytes");
 
-  assert((u64)values[0] % 8 == 0, "entry should be aligned to 8 bytes");
+  assert((u64)values[0] % 4 == 0, "entry should be aligned to 4 bytes");
   assert(*values[0] == 1, "should read value 1");
 
-  assert((u64)values[1] % 8 == 0, "entry should be aligned to 8 bytes");
+  assert((u64)values[1] % 4 == 0, "entry should be aligned to 4 bytes");
   assert(*values[1] == 2, "should read value 2");
 
-  assert((u64)values[2] % 8 == 0, "entry should be aligned to 8 bytes");
+  assert((u64)values[2] % 4 == 0, "entry should be aligned to 4 bytes");
   assert(*values[2] == 3, "should read value 3");
 
-  assert((u64)values[3] % 8 == 0, "entry should be aligned to 8 bytes");
+  assert((u64)values[3] % 4 == 0, "entry should be aligned to 4 bytes");
   assert(*values[3] == 1337, "should read value 1337");
 
   assert(values[4] == NULL, "should be null-terminated");
-  assert(ctx.buffer_tail == 40 + 32, "should update buffer tail to 72");
+  assert(ctx.buffer_tail == 40 + 16, "should update buffer tail to 56");
 }
 
 static void can_detect_list_i32_positive_invalid_type() {
@@ -1683,7 +1683,7 @@ static void can_detect_list_i32_positive_buffer_overflow() {
 
   // buffer
   ctx.buffer = (char *)output;
-  ctx.buffer_size = 64;
+  ctx.buffer_size = 48;
   ctx.buffer_tail = 0;
 
   // read the value from the buffer
