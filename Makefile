@@ -175,7 +175,10 @@ thrift: $(THRIFTOUTPUT)
 	@$(THRIFTOUTPUT)
 
 parquet: $(PARQUETOUTPUT)
-	@$(PARQUETOUTPUT)
+	@$(PARQUETOUTPUT) $(ARGS)
+
+parquet-01: $(PARQUETOUTPUT)
+	@$(PARQUETOUTPUT) data/test01.parquet
 
 .PHONY: debug
 debug: $(BINOUTPUT)

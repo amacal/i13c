@@ -4,7 +4,7 @@
 #include "runner.h"
 #include "typing.h"
 
-#define MALLOC_SLOTS 5 // from 4096 to 65536 bytes, 5 slots
+#define MALLOC_SLOTS 8 // from 4096 to 262144 bytes, 8 slots
 
 enum malloc_error {
   // indicates that the size is not acceptable, e.g., too small, too big or not a power of two

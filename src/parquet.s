@@ -5,7 +5,10 @@
     extern parquet_main
 
 parquet_start:
+    mov rdi, [rsp]
+    lea rsi, [rsp+8]
     call parquet_main
+
     mov edi, eax
     mov rax, 60
     syscall

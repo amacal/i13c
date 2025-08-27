@@ -45,6 +45,13 @@ static const dom_write_fn DOM_WRITE_OP_FN[DOM_OP_SIZE] = {
   [DOM_OP_VALUE_END] = write_value_end,
 };
 
+// type to string mappings
+static const char *DOM_TYPE_NAMES[DOM_TYPE_SIZE] = {
+  [DOM_TYPE_NULL] = "null", [DOM_TYPE_I8] = "i8",     [DOM_TYPE_I16] = "i16",     [DOM_TYPE_I32] = "i32",
+  [DOM_TYPE_I64] = "i64",   [DOM_TYPE_U8] = "u8",     [DOM_TYPE_U16] = "u16",     [DOM_TYPE_U32] = "u32",
+  [DOM_TYPE_U64] = "u64",   [DOM_TYPE_TEXT] = "text", [DOM_TYPE_ARRAY] = "array", [DOM_TYPE_STRUCT] = "struct",
+};
+
 static i64 write_null(struct dom_state *state, struct dom_token *) {
   // prepare the format string
   state->format.fmt = "%inull\n";
@@ -149,8 +156,14 @@ static i64 write_index_start(struct dom_state *state, struct dom_token *token) {
   state->format.fmt = "%iindex-start, index=%d, type=%s\n";
   state->format.vargs[0] = (void *)(u64)state->entries_indent;
   state->format.vargs[1] = (void *)(u64)state->entries[state->entries_indent - 1].index;
-  state->format.vargs[2] = (void *)(const char *)token->data;
   state->format.vargs_offset = 0;
+
+  // take over the type or find its representation
+  if (token->data < DOM_TYPE_SIZE) {
+    state->format.vargs[2] = DOM_TYPE_NAMES[token->data];
+  } else {
+    state->format.vargs[2] = (void *)token->data;
+  }
 
   // fix up the next entry
   state->entries[state->entries_indent].op = DOM_OP_INDEX_START;
@@ -434,6 +447,65 @@ static void can_write_array_with_two_items() {
   tokens[3].op = DOM_OP_INDEX_END;
   tokens[4].op = DOM_OP_INDEX_START;
   tokens[4].data = (u64) "u16";
+
+  tokens[5].op = DOM_OP_LITERAL;
+  tokens[5].type = DOM_TYPE_U16;
+  tokens[5].data = (u64)2;
+
+  tokens[6].op = DOM_OP_INDEX_END;
+  tokens[7].op = DOM_OP_ARRAY_END;
+
+  // write the tokens
+  result = dom_write(&state, tokens, &size);
+
+  // assert the result
+  assert(result == 0, "should succeed");
+  assert(size == 8, "should consume all tokens");
+  assert(state.format.buffer_offset == 116, "should write 116 bytes to the buffer");
+
+  const char *expected = "array-start\n"
+                         " index-start, index=0, type=u16\n"
+                         "  1\n"
+                         " index-end\n"
+                         " index-start, index=1, type=u16\n"
+                         "  2\n"
+                         " index-end\n"
+                         "array-end\n";
+
+  assert_eq_str(buffer, expected, "should write exact text");
+}
+
+static void can_write_array_with_type_id() {
+  u32 size;
+  i64 result;
+  char buffer[256];
+
+  struct dom_state state;
+  struct malloc_lease lease;
+  struct dom_token tokens[8];
+
+  // initialize the state
+  lease.ptr = buffer;
+  lease.size = sizeof(buffer);
+
+  size = 8;
+  dom_init(&state, &lease);
+
+  // set up the tokens
+  tokens[0].op = DOM_OP_ARRAY_START;
+  tokens[0].data = (u64)2;
+  tokens[0].type = DOM_TYPE_U32;
+
+  tokens[1].op = DOM_OP_INDEX_START;
+  tokens[1].data = (u64)DOM_TYPE_U16;
+
+  tokens[2].op = DOM_OP_LITERAL;
+  tokens[2].type = DOM_TYPE_U16;
+  tokens[2].data = (u64)1;
+
+  tokens[3].op = DOM_OP_INDEX_END;
+  tokens[4].op = DOM_OP_INDEX_START;
+  tokens[4].data = (u64)DOM_TYPE_U16;
 
   tokens[5].op = DOM_OP_LITERAL;
   tokens[5].type = DOM_TYPE_U16;
@@ -761,6 +833,7 @@ void dom_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can write array with no items", can_write_array_with_no_items);
   test_case(ctx, "can write array with one item", can_write_array_with_one_item);
   test_case(ctx, "can write array with two items", can_write_array_with_two_items);
+  test_case(ctx, "can write array with type id", can_write_array_with_type_id);
 
   test_case(ctx, "can write struct with no fields", can_write_struct_with_no_fields);
   test_case(ctx, "can write struct with one field", can_write_struct_with_one_field);
