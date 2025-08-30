@@ -160,7 +160,7 @@ static i64 write_index_start(struct dom_state *state, struct dom_token *token) {
 
   // take over the type or find its representation
   if (token->data < DOM_TYPE_SIZE) {
-    state->format.vargs[2] = DOM_TYPE_NAMES[token->data];
+    state->format.vargs[2] = (void *)DOM_TYPE_NAMES[token->data];
   } else {
     state->format.vargs[2] = (void *)token->data;
   }

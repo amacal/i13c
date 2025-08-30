@@ -42,7 +42,7 @@ i64 malloc_acquire(struct malloc_pool *pool, struct malloc_lease *lease) {
   }
 
   // check if the size if too large
-  if ((index = __builtin_ctzl(lease->size >> 12)) >= MALLOC_SLOTS) {
+  if ((index = __builtin_ctzll(lease->size >> 12)) >= MALLOC_SLOTS) {
     return MALLOC_ERROR_INVALID_SIZE;
   }
 
