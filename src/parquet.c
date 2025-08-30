@@ -1734,14 +1734,19 @@ typedef void *parquet_metadata_iterator_ctx;
 typedef const char *parquet_metadata_iterator_name;
 typedef i64 (*parquet_metadata_iterator_fn)(struct parquet_metadata_iterator *iterator, u32 index);
 
+union parquet_metadata_iterator_args {
+  u64 value;        // the row value
+  const char *name; // the static item name
+};
+
 struct parquet_metadata_iterator_item {
   void *ctx; // context of the item
 
-  const char *ctx_name;                // the context name
-  parquet_metadata_iterator_fn ctx_fn; // the context handler
+  union parquet_metadata_iterator_args ctx_args; // the context args
+  parquet_metadata_iterator_fn ctx_fn;           // the context handler
 
-  const char *item_name;                // the index field type
-  parquet_metadata_iterator_fn item_fn; // the index handler
+  union parquet_metadata_iterator_args item_args; // the item args
+  parquet_metadata_iterator_fn item_fn;           // the item handler
 };
 
 struct parquet_metadata_iterator_tokens {
@@ -1946,7 +1951,7 @@ static i64 parquet_dump_struct_open(struct parquet_metadata_iterator *iterator, 
 
   // struct start
   iterator->tokens.items[iterator->tokens.count].op = DOM_OP_STRUCT_START;
-  iterator->tokens.items[iterator->tokens.count++].data = (u64)iterator->queue.items[index].ctx_name;
+  iterator->tokens.items[iterator->tokens.count++].data = iterator->queue.items[index].ctx_args.value;
 
   return 0;
 }
@@ -1959,7 +1964,7 @@ static i64 parquet_dump_struct_close(struct parquet_metadata_iterator *iterator,
 
   // struct end
   iterator->tokens.items[iterator->tokens.count].op = DOM_OP_STRUCT_END;
-  iterator->tokens.items[iterator->tokens.count++].data = (u64)iterator->queue.items[index].ctx_name;
+  iterator->tokens.items[iterator->tokens.count++].data = iterator->queue.items[index].ctx_args.value;
 
   return 0;
 }
@@ -2004,20 +2009,19 @@ static i64 parquet_dump_value_close(struct parquet_metadata_iterator *iterator, 
 }
 
 static i64 parquet_dump_index_open(struct parquet_metadata_iterator *iterator, u32 index) {
-  const char *name;
+  u64 ctx_args;
 
   // check for the capacity, we need only one slot
   if (iterator->tokens.count > iterator->tokens.capacity - 1) {
     return PARQUET_ERROR_BUFFER_TOO_SMALL;
   }
 
-  // get the name
-  name = iterator->queue.items[index].ctx_name;
+  // get args
+  ctx_args = iterator->queue.items[index].ctx_args.value;
 
   // index start
   iterator->tokens.items[iterator->tokens.count].op = DOM_OP_INDEX_START;
-  iterator->tokens.items[iterator->tokens.count].type = DOM_TYPE_STRUCT;
-  iterator->tokens.items[iterator->tokens.count++].data = (u64)name;
+  iterator->tokens.items[iterator->tokens.count++].data = ctx_args;
 
   // success
   return 0;
@@ -2038,7 +2042,7 @@ static i64 parquet_dump_index_close(struct parquet_metadata_iterator *iterator, 
 
 static i64 parquet_dump_field(struct parquet_metadata_iterator *iterator, u32 index) {
   i32 *ctx;
-  const char *ctx_name, *item_name;
+  u64 ctx_args, item_args;
   parquet_metadata_iterator_fn item_fn;
 
   // check for the capacity, we need 4 slots
@@ -2053,8 +2057,8 @@ static i64 parquet_dump_field(struct parquet_metadata_iterator *iterator, u32 in
 
   // extract
   ctx = iterator->queue.items[index].ctx;
-  ctx_name = iterator->queue.items[index].ctx_name;
-  item_name = iterator->queue.items[index].item_name;
+  ctx_args = iterator->queue.items[index].ctx_args.value;
+  item_args = iterator->queue.items[index].item_args.value;
   item_fn = iterator->queue.items[index].item_fn;
 
   // key-start
@@ -2064,7 +2068,7 @@ static i64 parquet_dump_field(struct parquet_metadata_iterator *iterator, u32 in
 
   // key-content
   iterator->tokens.items[iterator->tokens.count].op = DOM_OP_LITERAL;
-  iterator->tokens.items[iterator->tokens.count].data = (u64)ctx_name;
+  iterator->tokens.items[iterator->tokens.count].data = ctx_args;
   iterator->tokens.items[iterator->tokens.count++].type = DOM_TYPE_TEXT;
 
   // key-end
@@ -2072,14 +2076,14 @@ static i64 parquet_dump_field(struct parquet_metadata_iterator *iterator, u32 in
 
   // value-start
   iterator->tokens.items[iterator->tokens.count].op = DOM_OP_VALUE_START;
-  iterator->tokens.items[iterator->tokens.count++].data = (u64)item_name;
+  iterator->tokens.items[iterator->tokens.count++].data = item_args;
 
   // value-close
   iterator->queue.items[iterator->queue.count++].ctx_fn = parquet_dump_value_close;
 
   // value-content
   iterator->queue.items[iterator->queue.count].ctx = ctx;
-  iterator->queue.items[iterator->queue.count].ctx_name = item_name;
+  iterator->queue.items[iterator->queue.count].ctx_args.value = item_args;
   iterator->queue.items[iterator->queue.count++].ctx_fn = item_fn;
 
   // success
@@ -2088,13 +2092,13 @@ static i64 parquet_dump_field(struct parquet_metadata_iterator *iterator, u32 in
 
 static i64 parquet_dump_index(struct parquet_metadata_iterator *iterator, u32 index) {
   void **ctx;
-  const char *ctx_name, *item_name;
+  u64 ctx_args, item_args;
   parquet_metadata_iterator_fn item_fn;
 
   // get the value
   ctx = (void **)iterator->queue.items[index].ctx;
-  ctx_name = iterator->queue.items[index].ctx_name;
-  item_name = iterator->queue.items[index].item_name;
+  ctx_args = iterator->queue.items[index].ctx_args.value;
+  item_args = iterator->queue.items[index].item_args.value;
   item_fn = iterator->queue.items[index].item_fn;
 
   // check for null-terminated
@@ -2109,9 +2113,9 @@ static i64 parquet_dump_index(struct parquet_metadata_iterator *iterator, u32 in
 
   // next index
   iterator->queue.items[iterator->queue.count].ctx = ctx + 1;
-  iterator->queue.items[iterator->queue.count].ctx_name = ctx_name;
+  iterator->queue.items[iterator->queue.count].ctx_args.value = ctx_args;
   iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_index;
-  iterator->queue.items[iterator->queue.count].item_name = item_name;
+  iterator->queue.items[iterator->queue.count].item_args.value = item_args;
   iterator->queue.items[iterator->queue.count++].item_fn = item_fn;
 
   // close-index
@@ -2119,11 +2123,11 @@ static i64 parquet_dump_index(struct parquet_metadata_iterator *iterator, u32 in
 
   // index content
   iterator->queue.items[iterator->queue.count].ctx = *ctx;
-  iterator->queue.items[iterator->queue.count].ctx_name = ctx_name;
+  iterator->queue.items[iterator->queue.count].ctx_args.value = ctx_args;
   iterator->queue.items[iterator->queue.count++].ctx_fn = item_fn;
 
   // open-index
-  iterator->queue.items[iterator->queue.count].ctx_name = item_name;
+  iterator->queue.items[iterator->queue.count].ctx_args.value = item_args;
   iterator->queue.items[iterator->queue.count++].ctx_fn = parquet_dump_index_open;
 
   // success
@@ -2132,7 +2136,7 @@ static i64 parquet_dump_index(struct parquet_metadata_iterator *iterator, u32 in
 
 static i64 parquet_dump_array(struct parquet_metadata_iterator *iterator, u32 index) {
   void *ctx;
-  const char *ctx_name, *item_name;
+  u64 ctx_args, item_args;
   parquet_metadata_iterator_fn item_fn;
 
   // check for the capacity, we need 4 slots
@@ -2148,8 +2152,8 @@ static i64 parquet_dump_array(struct parquet_metadata_iterator *iterator, u32 in
   // copy values
   ctx = iterator->queue.items[index].ctx;
   item_fn = iterator->queue.items[index].item_fn;
-  ctx_name = iterator->queue.items[index].ctx_name;
-  item_name = iterator->queue.items[index].item_name;
+  ctx_args = iterator->queue.items[index].ctx_args.value;
+  item_args = iterator->queue.items[index].item_args.value;
 
   // key start
   iterator->tokens.items[iterator->tokens.count].op = DOM_OP_KEY_START;
@@ -2158,7 +2162,7 @@ static i64 parquet_dump_array(struct parquet_metadata_iterator *iterator, u32 in
 
   // extract the name
   iterator->tokens.items[iterator->tokens.count].op = DOM_OP_LITERAL;
-  iterator->tokens.items[iterator->tokens.count].data = (u64)ctx_name;
+  iterator->tokens.items[iterator->tokens.count].data = ctx_args;
   iterator->tokens.items[iterator->tokens.count++].type = DOM_TYPE_TEXT;
 
   // key end
@@ -2166,7 +2170,7 @@ static i64 parquet_dump_array(struct parquet_metadata_iterator *iterator, u32 in
 
   // value start
   iterator->tokens.items[iterator->tokens.count].op = DOM_OP_VALUE_START;
-  iterator->tokens.items[iterator->tokens.count++].data = (u64)item_name;
+  iterator->tokens.items[iterator->tokens.count++].data = item_args;
 
   // close-value
   iterator->queue.items[iterator->queue.count++].ctx_fn = parquet_dump_value_close;
@@ -2176,9 +2180,9 @@ static i64 parquet_dump_array(struct parquet_metadata_iterator *iterator, u32 in
 
   // open-index with the first item or a null-termination
   iterator->queue.items[iterator->queue.count].ctx = ctx;
-  iterator->queue.items[iterator->queue.count].ctx_name = ctx_name;
+  iterator->queue.items[iterator->queue.count].ctx_args.value = ctx_args;
   iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_index;
-  iterator->queue.items[iterator->queue.count].item_name = item_name;
+  iterator->queue.items[iterator->queue.count].item_args.value = item_args;
   iterator->queue.items[iterator->queue.count++].item_fn = item_fn;
 
   // open-array
@@ -2201,39 +2205,39 @@ static i64 parquet_dump_encoding_stats(struct parquet_metadata_iterator *iterato
 
   // close-struct
   iterator->queue.items[iterator->queue.count].ctx = encoding_stats;
-  iterator->queue.items[iterator->queue.count].ctx_name = "encoding-stats";
+  iterator->queue.items[iterator->queue.count].ctx_args.name = "encoding-stats";
   iterator->queue.items[iterator->queue.count++].ctx_fn = parquet_dump_struct_close;
 
   // count
   if (encoding_stats->count != PARQUET_UNKNOWN_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = &encoding_stats->count;
-    iterator->queue.items[iterator->queue.count].ctx_name = "count";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "count";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "i32";
+    iterator->queue.items[iterator->queue.count].item_args.name = "i32";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_i32;
   }
 
   // encoding
   if (encoding_stats->encoding != PARQUET_ENCODING_NONE) {
     iterator->queue.items[iterator->queue.count].ctx = &encoding_stats->encoding;
-    iterator->queue.items[iterator->queue.count].ctx_name = "encoding";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "encoding";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "enum";
+    iterator->queue.items[iterator->queue.count].item_args.name = "enum";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_encoding;
   }
 
   // page_type
   if (encoding_stats->page_type != PARQUET_PAGE_TYPE_NONE) {
     iterator->queue.items[iterator->queue.count].ctx = &encoding_stats->page_type;
-    iterator->queue.items[iterator->queue.count].ctx_name = "page_type";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "page_type";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "enum";
+    iterator->queue.items[iterator->queue.count].item_args.name = "enum";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_page_type;
   }
 
   // open-struct
   iterator->queue.items[iterator->queue.count].ctx = encoding_stats;
-  iterator->queue.items[iterator->queue.count].ctx_name = "encoding-stats";
+  iterator->queue.items[iterator->queue.count].ctx_args.name = "encoding-stats";
   iterator->queue.items[iterator->queue.count++].ctx_fn = parquet_dump_struct_open;
 
   // success
@@ -2253,111 +2257,111 @@ static i64 parquet_dump_column_meta(struct parquet_metadata_iterator *iterator, 
 
   // close-struct
   iterator->queue.items[iterator->queue.count].ctx = column_meta;
-  iterator->queue.items[iterator->queue.count].ctx_name = "column-meta";
+  iterator->queue.items[iterator->queue.count].ctx_args.name = "column-meta";
   iterator->queue.items[iterator->queue.count++].ctx_fn = parquet_dump_struct_close;
 
   // encoding_stats
   if (column_meta->encoding_stats != PARQUET_NULL_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = column_meta->encoding_stats;
-    iterator->queue.items[iterator->queue.count].ctx_name = "encoding_stats";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "encoding_stats";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_array;
-    iterator->queue.items[iterator->queue.count].item_name = "struct";
+    iterator->queue.items[iterator->queue.count].item_args.name = "struct";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_encoding_stats;
   }
 
   // dictionary_page_offset
   if (column_meta->dictionary_page_offset != PARQUET_UNKNOWN_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = &column_meta->dictionary_page_offset;
-    iterator->queue.items[iterator->queue.count].ctx_name = "dictionary_page_offset";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "dictionary_page_offset";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "i64";
+    iterator->queue.items[iterator->queue.count].item_args.name = "i64";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_i64;
   }
 
   // index_page_offset
   if (column_meta->index_page_offset != PARQUET_UNKNOWN_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = &column_meta->index_page_offset;
-    iterator->queue.items[iterator->queue.count].ctx_name = "index_page_offset";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "index_page_offset";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "i64";
+    iterator->queue.items[iterator->queue.count].item_args.name = "i64";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_i64;
   }
 
   // data_page_offset
   if (column_meta->data_page_offset != PARQUET_UNKNOWN_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = &column_meta->data_page_offset;
-    iterator->queue.items[iterator->queue.count].ctx_name = "data_page_offset";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "data_page_offset";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "i64";
+    iterator->queue.items[iterator->queue.count].item_args.name = "i64";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_i64;
   }
 
   // total_compressed_size
   if (column_meta->total_compressed_size != PARQUET_UNKNOWN_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = &column_meta->total_compressed_size;
-    iterator->queue.items[iterator->queue.count].ctx_name = "total_compressed_size";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "total_compressed_size";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "i64";
+    iterator->queue.items[iterator->queue.count].item_args.name = "i64";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_i64;
   }
 
   // total_uncompressed_size
   if (column_meta->total_uncompressed_size != PARQUET_UNKNOWN_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = &column_meta->total_uncompressed_size;
-    iterator->queue.items[iterator->queue.count].ctx_name = "total_uncompressed_size";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "total_uncompressed_size";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "i64";
+    iterator->queue.items[iterator->queue.count].item_args.name = "i64";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_i64;
   }
 
   // num_values
   if (column_meta->num_values != PARQUET_UNKNOWN_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = &column_meta->num_values;
-    iterator->queue.items[iterator->queue.count].ctx_name = "num_values";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "num_values";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "i64";
+    iterator->queue.items[iterator->queue.count].item_args.name = "i64";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_i64;
   }
 
   // compression_codec
   if (column_meta->compression_codec != PARQUET_COMPRESSION_NONE) {
     iterator->queue.items[iterator->queue.count].ctx = &column_meta->compression_codec;
-    iterator->queue.items[iterator->queue.count].ctx_name = "compression_codec";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "compression_codec";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "enum";
+    iterator->queue.items[iterator->queue.count].item_args.name = "enum";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_compression_codec;
   }
 
   // path_in_schema
   if (column_meta->path_in_schema != PARQUET_NULL_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = column_meta->path_in_schema;
-    iterator->queue.items[iterator->queue.count].ctx_name = "path_in_schema";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "path_in_schema";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_array;
-    iterator->queue.items[iterator->queue.count].item_name = "str";
+    iterator->queue.items[iterator->queue.count].item_args.name = "str";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_text;
   }
 
   // encodings
   if (column_meta->encodings != PARQUET_NULL_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = column_meta->encodings;
-    iterator->queue.items[iterator->queue.count].ctx_name = "encodings";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "encodings";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_array;
-    iterator->queue.items[iterator->queue.count].item_name = "i32";
+    iterator->queue.items[iterator->queue.count].item_args.name = "i32";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_encoding;
   }
 
   // data_type
   if (column_meta->data_type != PARQUET_DATA_TYPE_NONE) {
     iterator->queue.items[iterator->queue.count].ctx = &column_meta->data_type;
-    iterator->queue.items[iterator->queue.count].ctx_name = "data_type";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "data_type";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "enum";
+    iterator->queue.items[iterator->queue.count].item_args.name = "enum";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_data_type;
   }
 
   // open-struct
   iterator->queue.items[iterator->queue.count].ctx = column_meta;
-  iterator->queue.items[iterator->queue.count].ctx_name = "column-meta";
+  iterator->queue.items[iterator->queue.count].ctx_args.name = "column-meta";
   iterator->queue.items[iterator->queue.count++].ctx_fn = parquet_dump_struct_open;
 
   // success
@@ -2377,37 +2381,37 @@ static i64 parquet_dump_column_chunk(struct parquet_metadata_iterator *iterator,
 
   // close-struct
   iterator->queue.items[iterator->queue.count].ctx = column_chunk;
-  iterator->queue.items[iterator->queue.count].ctx_name = "column-chunk";
+  iterator->queue.items[iterator->queue.count].ctx_args.name = "column-chunk";
   iterator->queue.items[iterator->queue.count++].ctx_fn = parquet_dump_struct_close;
 
   // meta
   if (column_chunk->meta != PARQUET_NULL_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = column_chunk->meta;
-    iterator->queue.items[iterator->queue.count].ctx_name = "meta";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "meta";
     iterator->queue.items[iterator->queue.count++].ctx_fn = parquet_dump_column_meta;
   }
 
   // file_path
   if (column_chunk->file_path != PARQUET_NULL_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = column_chunk->file_path;
-    iterator->queue.items[iterator->queue.count].ctx_name = "file_path";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "file_path";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "text";
+    iterator->queue.items[iterator->queue.count].item_args.name = "text";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_text;
   }
 
   // file_offset, not -1
   if (column_chunk->file_offset > 0) {
     iterator->queue.items[iterator->queue.count].ctx = &column_chunk->file_offset;
-    iterator->queue.items[iterator->queue.count].ctx_name = "file_offset";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "file_offset";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "i64";
+    iterator->queue.items[iterator->queue.count].item_args.name = "i64";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_i64;
   }
 
   // open-struct
   iterator->queue.items[iterator->queue.count].ctx = column_chunk;
-  iterator->queue.items[iterator->queue.count].ctx_name = "column-chunk";
+  iterator->queue.items[iterator->queue.count].ctx_args.name = "column-chunk";
   iterator->queue.items[iterator->queue.count++].ctx_fn = parquet_dump_struct_open;
 
   // success
@@ -2427,57 +2431,57 @@ static i64 parquet_dump_row_group(struct parquet_metadata_iterator *iterator, u3
 
   // close-struct
   iterator->queue.items[iterator->queue.count].ctx = row_group;
-  iterator->queue.items[iterator->queue.count].ctx_name = "row_group";
+  iterator->queue.items[iterator->queue.count].ctx_args.name = "row_group";
   iterator->queue.items[iterator->queue.count++].ctx_fn = parquet_dump_struct_close;
 
   // total_compressed_size
   if (row_group->total_compressed_size != PARQUET_UNKNOWN_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = &row_group->total_compressed_size;
-    iterator->queue.items[iterator->queue.count].ctx_name = "total_compressed_size";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "total_compressed_size";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "i64";
+    iterator->queue.items[iterator->queue.count].item_args.name = "i64";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_i64;
   }
 
   // file_offset, not -1
   if (row_group->file_offset > 0) {
     iterator->queue.items[iterator->queue.count].ctx = &row_group->file_offset;
-    iterator->queue.items[iterator->queue.count].ctx_name = "file_offset";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "file_offset";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "i64";
+    iterator->queue.items[iterator->queue.count].item_args.name = "i64";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_i64;
   }
 
   // num_rows
   if (row_group->num_rows != PARQUET_UNKNOWN_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = &row_group->num_rows;
-    iterator->queue.items[iterator->queue.count].ctx_name = "num_rows";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "num_rows";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "i64";
+    iterator->queue.items[iterator->queue.count].item_args.name = "i64";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_i64;
   }
 
   // total_byte_size
   if (row_group->total_byte_size != PARQUET_UNKNOWN_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = &row_group->total_byte_size;
-    iterator->queue.items[iterator->queue.count].ctx_name = "total_byte_size";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "total_byte_size";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "i64";
+    iterator->queue.items[iterator->queue.count].item_args.name = "i64";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_i64;
   }
 
   // columns
   if (row_group->columns != PARQUET_NULL_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = row_group->columns;
-    iterator->queue.items[iterator->queue.count].ctx_name = "columns";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "columns";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_array;
-    iterator->queue.items[iterator->queue.count].item_name = "struct";
+    iterator->queue.items[iterator->queue.count].item_args.name = "struct";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_column_chunk;
   }
 
   // open-struct
   iterator->queue.items[iterator->queue.count].ctx = row_group;
-  iterator->queue.items[iterator->queue.count].ctx_name = "row_group";
+  iterator->queue.items[iterator->queue.count].ctx_args.name = "row_group";
   iterator->queue.items[iterator->queue.count++].ctx_fn = parquet_dump_struct_open;
 
   return 0;
@@ -2496,66 +2500,66 @@ static i64 parquet_dump_schema_element(struct parquet_metadata_iterator *iterato
 
   // close-struct
   iterator->queue.items[iterator->queue.count].ctx = schema_element;
-  iterator->queue.items[iterator->queue.count].ctx_name = "schema_element";
+  iterator->queue.items[iterator->queue.count].ctx_args.name = "schema_element";
   iterator->queue.items[iterator->queue.count++].ctx_fn = parquet_dump_struct_close;
 
   // converted_type
   if (schema_element->converted_type != PARQUET_CONVERTED_TYPE_NONE) {
     iterator->queue.items[iterator->queue.count].ctx = &schema_element->converted_type;
-    iterator->queue.items[iterator->queue.count].ctx_name = "converted_type";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "converted_type";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "enum";
+    iterator->queue.items[iterator->queue.count].item_args.name = "enum";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_converted_type;
   }
 
   // num_children
   if (schema_element->num_children != PARQUET_UNKNOWN_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = &schema_element->num_children;
-    iterator->queue.items[iterator->queue.count].ctx_name = "num_children";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "num_children";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "i32";
+    iterator->queue.items[iterator->queue.count].item_args.name = "i32";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_i32;
   }
 
   // name
   if (schema_element->name != PARQUET_NULL_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = schema_element->name;
-    iterator->queue.items[iterator->queue.count].ctx_name = "name";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "name";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "text";
+    iterator->queue.items[iterator->queue.count].item_args.name = "text";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_text;
   }
 
   // repetition_type
   if (schema_element->repetition_type != PARQUET_REPETITION_TYPE_NONE) {
     iterator->queue.items[iterator->queue.count].ctx = &schema_element->repetition_type;
-    iterator->queue.items[iterator->queue.count].ctx_name = "repetition_type";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "repetition_type";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "enum";
+    iterator->queue.items[iterator->queue.count].item_args.name = "enum";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_repetition_type;
   }
 
   // type_length
   if (schema_element->type_length != PARQUET_UNKNOWN_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = &schema_element->type_length;
-    iterator->queue.items[iterator->queue.count].ctx_name = "type_length";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "type_length";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "i32";
+    iterator->queue.items[iterator->queue.count].item_args.name = "i32";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_i32;
   }
 
   // data_type
   if (schema_element->data_type != PARQUET_DATA_TYPE_NONE) {
     iterator->queue.items[iterator->queue.count].ctx = &schema_element->data_type;
-    iterator->queue.items[iterator->queue.count].ctx_name = "data_type";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "data_type";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "enum";
+    iterator->queue.items[iterator->queue.count].item_args.name = "enum";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_data_type;
   }
 
   // open-struct
   iterator->queue.items[iterator->queue.count].ctx = schema_element;
-  iterator->queue.items[iterator->queue.count].ctx_name = "schema_element";
+  iterator->queue.items[iterator->queue.count].ctx_args.name = "schema_element";
   iterator->queue.items[iterator->queue.count++].ctx_fn = parquet_dump_struct_open;
 
   // success
@@ -2575,57 +2579,57 @@ static i64 parquet_dump_metadata(struct parquet_metadata_iterator *iterator, u32
 
   // close-struct
   iterator->queue.items[iterator->queue.count].ctx = metadata;
-  iterator->queue.items[iterator->queue.count].ctx_name = "metadata";
+  iterator->queue.items[iterator->queue.count].ctx_args.name = "metadata";
   iterator->queue.items[iterator->queue.count++].ctx_fn = parquet_dump_struct_close;
 
   // created_by
   if (metadata->created_by != PARQUET_NULL_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = metadata->created_by;
-    iterator->queue.items[iterator->queue.count].ctx_name = "created_by";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "created_by";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "text";
+    iterator->queue.items[iterator->queue.count].item_args.name = "text";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_text;
   }
 
   // row_groups
   if (metadata->row_groups != PARQUET_NULL_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = metadata->row_groups;
-    iterator->queue.items[iterator->queue.count].ctx_name = "row_groups";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "row_groups";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_array;
-    iterator->queue.items[iterator->queue.count].item_name = "struct";
+    iterator->queue.items[iterator->queue.count].item_args.name = "struct";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_row_group;
   }
 
   // num_rows
   if (metadata->num_rows != PARQUET_UNKNOWN_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = &metadata->num_rows;
-    iterator->queue.items[iterator->queue.count].ctx_name = "num_rows";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "num_rows";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "i64";
+    iterator->queue.items[iterator->queue.count].item_args.name = "i64";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_i64;
   }
 
   // schemas
   if (metadata->schemas != PARQUET_NULL_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = metadata->schemas;
-    iterator->queue.items[iterator->queue.count].ctx_name = "schemas";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "schemas";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_array;
-    iterator->queue.items[iterator->queue.count].item_name = "struct";
+    iterator->queue.items[iterator->queue.count].item_args.name = "struct";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_schema_element;
   }
 
   // version
   if (metadata->version != PARQUET_UNKNOWN_VALUE) {
     iterator->queue.items[iterator->queue.count].ctx = &metadata->version;
-    iterator->queue.items[iterator->queue.count].ctx_name = "version";
+    iterator->queue.items[iterator->queue.count].ctx_args.name = "version";
     iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_field;
-    iterator->queue.items[iterator->queue.count].item_name = "i32";
+    iterator->queue.items[iterator->queue.count].item_args.name = "i32";
     iterator->queue.items[iterator->queue.count++].item_fn = parquet_dump_i32;
   }
 
   // open-struct
   iterator->queue.items[iterator->queue.count].ctx = metadata;
-  iterator->queue.items[iterator->queue.count].ctx_name = "metadata";
+  iterator->queue.items[iterator->queue.count].ctx_args.name = "metadata";
   iterator->queue.items[iterator->queue.count++].ctx_fn = parquet_dump_struct_open;
 
   // success
@@ -2641,7 +2645,7 @@ static void parquet_metadata_iter(struct parquet_metadata_iterator *iterator, st
   iterator->queue.count = 0;
   iterator->queue.capacity = PARQUET_METADATA_QUEUE_SIZE;
 
-  iterator->queue.items[iterator->queue.count].ctx_name = "metadata";
+  iterator->queue.items[iterator->queue.count].ctx_args.name = "metadata";
   iterator->queue.items[iterator->queue.count].ctx_fn = parquet_dump_metadata;
   iterator->queue.items[iterator->queue.count++].ctx = metadata;
 }
@@ -2773,7 +2777,7 @@ static void can_dump_enum_with_known_value() {
   value = 3;
   iterator.queue.count = 0;
   iterator.queue.items[0].ctx = &value;
-  iterator.queue.items[0].ctx_name = "field-name";
+  iterator.queue.items[0].ctx_args.name = "field-name";
 
   // process enum
   result = parquet_dump_enum(&iterator, 0, PARQUET_DATA_TYPE_SIZE, PARQUET_DATA_TYPE_NAMES);
@@ -2808,7 +2812,7 @@ static void can_dump_enum_with_unknown_value() {
   value = 27;
   iterator.queue.count = 0;
   iterator.queue.items[0].ctx = &value;
-  iterator.queue.items[0].ctx_name = "field-name";
+  iterator.queue.items[0].ctx_args.name = "field-name";
 
   // process enum
   result = parquet_dump_enum(&iterator, 0, PARQUET_DATA_TYPE_SIZE, PARQUET_DATA_TYPE_NAMES);
@@ -2843,7 +2847,7 @@ static void can_detect_buffer_too_small_with_enum() {
   value = 3;
   iterator.queue.count = 0;
   iterator.queue.items[0].ctx = &value;
-  iterator.queue.items[0].ctx_name = "field-name";
+  iterator.queue.items[0].ctx_args.name = "field-name";
 
   // we expect a bit more capacity
   iterator.tokens.count = iterator.tokens.capacity;
@@ -3010,7 +3014,7 @@ static void can_dump_index_with_null_terminator() {
   value = PARQUET_NULL_VALUE;
   iterator.queue.count = 0;
   iterator.queue.items[0].ctx = (void *)&value;
-  iterator.queue.items[0].ctx_name = "type-x";
+  iterator.queue.items[0].ctx_args.name = "type-x";
   iterator.queue.items[0].item_fn = (parquet_metadata_iterator_fn)0x12345678;
 
   // process index
@@ -3046,7 +3050,7 @@ static void can_dump_index_with_next_item() {
 
   iterator.queue.count = 0;
   iterator.queue.items[0].ctx = (void *)value;
-  iterator.queue.items[0].ctx_name = "type-x";
+  iterator.queue.items[0].ctx_args.name = "type-x";
   iterator.queue.items[0].item_fn = (parquet_metadata_iterator_fn)0x12345678;
 
   // process index
@@ -3090,7 +3094,7 @@ static void can_detect_buffer_too_small_with_index() {
 
   iterator.queue.count = iterator.queue.capacity - 3;
   iterator.queue.items[0].ctx = (void *)value;
-  iterator.queue.items[0].ctx_name = "type-x";
+  iterator.queue.items[0].ctx_args.name = "type-x";
   iterator.queue.items[0].item_fn = (parquet_metadata_iterator_fn)0x12345678;
 
   // process index
@@ -3124,8 +3128,8 @@ static void can_dump_array_with_no_items() {
 
   iterator.queue.count = 0;
   iterator.queue.items[0].ctx = (void *)&array;
-  iterator.queue.items[0].ctx_name = "field-name";
-  iterator.queue.items[0].item_name = "item-x";
+  iterator.queue.items[0].ctx_args.name = "field-name";
+  iterator.queue.items[0].item_args.name = "item-x";
   iterator.queue.items[0].item_fn = (parquet_metadata_iterator_fn)0x12345678;
 
   // process index
@@ -3149,7 +3153,7 @@ static void can_dump_array_with_no_items() {
 
   assert(iterator.queue.items[2].ctx == array, "expected first item");
   assert((u64)iterator.queue.items[2].item_fn == 0x12345678, "expected callback");
-  assert_eq_str((const char *)iterator.queue.items[2].item_name, "item-x", "expected correct name");
+  assert_eq_str(iterator.queue.items[2].item_args.name, "item-x", "expected correct name");
 }
 
 static void can_dump_array_with_two_items() {
@@ -3176,8 +3180,8 @@ static void can_dump_array_with_two_items() {
 
   iterator.queue.count = 0;
   iterator.queue.items[0].ctx = (void *)&array;
-  iterator.queue.items[0].ctx_name = "field-name";
-  iterator.queue.items[0].item_name = "item-x";
+  iterator.queue.items[0].ctx_args.name = "field-name";
+  iterator.queue.items[0].item_args.name = "item-x";
   iterator.queue.items[0].item_fn = (parquet_metadata_iterator_fn)0x12345678;
 
   // process index
@@ -3201,7 +3205,99 @@ static void can_dump_array_with_two_items() {
 
   assert(iterator.queue.items[2].ctx == array, "expected first item");
   assert((u64)iterator.queue.items[2].item_fn == 0x12345678, "expected callback");
-  assert_eq_str((const char *)iterator.queue.items[2].item_name, "item-x", "expected correct name");
+  assert_eq_str(iterator.queue.items[2].item_args.name, "item-x", "expected correct name");
+}
+
+static void can_dump_field_with_type_name() {
+  i64 result, value;
+
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  // initialize metadata
+  metadata.version = PARQUET_UNKNOWN_VALUE;
+  metadata.schemas = PARQUET_NULL_VALUE;
+  metadata.num_rows = PARQUET_UNKNOWN_VALUE;
+  metadata.row_groups = PARQUET_NULL_VALUE;
+  metadata.created_by = PARQUET_NULL_VALUE;
+
+  // initialize iterator
+  parquet_metadata_iter(&iterator, &metadata);
+
+  // alter it for this test case
+  value = 42;
+
+  iterator.queue.count = 0;
+  iterator.queue.items[0].ctx = (void *)&value;
+  iterator.queue.items[0].ctx_args.name = "field-name";
+  iterator.queue.items[0].item_args.name = "item-x";
+  iterator.queue.items[0].item_fn = (parquet_metadata_iterator_fn)0x12345678;
+
+  // process index
+  result = parquet_dump_field(&iterator, 0);
+
+  // assert results
+  assert(result == 0, "should succeed");
+  assert(iterator.tokens.count == 4, "should generate 4 tokens");
+  assert(iterator.queue.count == 2, "should have 2 items in the queue");
+
+  assert(iterator.tokens.items[0].op == DOM_OP_KEY_START, "expected key-start");
+  assert(iterator.tokens.items[1].op == DOM_OP_LITERAL, "expected literal");
+  assert_eq_str((const char *)iterator.tokens.items[1].data, "field-name", "expected correct key");
+  assert(iterator.tokens.items[2].op == DOM_OP_KEY_END, "expected key-end");
+  assert(iterator.tokens.items[3].op == DOM_OP_VALUE_START, "expected value-start");
+
+  assert(iterator.queue.items[0].ctx_fn == parquet_dump_value_close, "expected value close");
+  assert(iterator.queue.items[1].ctx_fn == (parquet_metadata_iterator_fn)0x12345678, "expected callback");
+
+  assert(iterator.queue.items[1].ctx == &value, "expected value");
+  assert_eq_str(iterator.queue.items[1].ctx_args.name, "item-x", "expected correct name");
+}
+
+static void can_dump_field_with_type_id() {
+  i64 result, value;
+
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  // initialize metadata
+  metadata.version = PARQUET_UNKNOWN_VALUE;
+  metadata.schemas = PARQUET_NULL_VALUE;
+  metadata.num_rows = PARQUET_UNKNOWN_VALUE;
+  metadata.row_groups = PARQUET_NULL_VALUE;
+  metadata.created_by = PARQUET_NULL_VALUE;
+
+  // initialize iterator
+  parquet_metadata_iter(&iterator, &metadata);
+
+  // alter it for this test case
+  value = 42;
+
+  iterator.queue.count = 0;
+  iterator.queue.items[0].ctx = (void *)&value;
+  iterator.queue.items[0].ctx_args.name = "field-name";
+  iterator.queue.items[0].item_args.value = DOM_TYPE_U16;
+  iterator.queue.items[0].item_fn = (parquet_metadata_iterator_fn)0x12345678;
+
+  // process index
+  result = parquet_dump_field(&iterator, 0);
+
+  // assert results
+  assert(result == 0, "should succeed");
+  assert(iterator.tokens.count == 4, "should generate 4 tokens");
+  assert(iterator.queue.count == 2, "should have 2 items in the queue");
+
+  assert(iterator.tokens.items[0].op == DOM_OP_KEY_START, "expected key-start");
+  assert(iterator.tokens.items[1].op == DOM_OP_LITERAL, "expected literal");
+  assert_eq_str((const char *)iterator.tokens.items[1].data, "field-name", "expected correct key");
+  assert(iterator.tokens.items[2].op == DOM_OP_KEY_END, "expected key-end");
+  assert(iterator.tokens.items[3].op == DOM_OP_VALUE_START, "expected value-start");
+
+  assert(iterator.queue.items[0].ctx_fn == parquet_dump_value_close, "expected value close");
+  assert(iterator.queue.items[1].ctx_fn == (parquet_metadata_iterator_fn)0x12345678, "expected callback");
+
+  assert(iterator.queue.items[1].ctx == &value, "expected value");
+  assert(iterator.queue.items[1].ctx_args.value == DOM_TYPE_U16, "expected correct name");
 }
 
 void parquet_test_cases(struct runner_context *ctx) {
@@ -3271,6 +3367,9 @@ void parquet_test_cases(struct runner_context *ctx) {
 
   test_case(ctx, "can dump array with no items", can_dump_array_with_no_items);
   test_case(ctx, "can dump array with two items", can_dump_array_with_two_items);
+
+  test_case(ctx, "can dump field with type name", can_dump_field_with_type_name);
+  test_case(ctx, "can dumo field with type id", can_dump_field_with_type_id);
 }
 
 #endif
