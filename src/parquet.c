@@ -3070,7 +3070,7 @@ static void can_dump_index_with_next_item() {
   assert(iterator.queue.items[0].ctx == &value[1], "expected second item");
 }
 
-static void can_detect_buffer_too_small_with_index() {
+static void can_detect_capacity_overflow_with_index() {
   i64 result;
   const char *value[3];
 
@@ -3208,6 +3208,82 @@ static void can_dump_array_with_two_items() {
   assert_eq_str(iterator.queue.items[2].item_args.name, "item-x", "expected correct name");
 }
 
+static void can_detect_buffer_too_small_with_array() {
+  i64 *array[3];
+  i64 result, v1, v2;
+
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  // initialize metadata
+  metadata.version = PARQUET_UNKNOWN_VALUE;
+  metadata.schemas = PARQUET_NULL_VALUE;
+  metadata.num_rows = PARQUET_UNKNOWN_VALUE;
+  metadata.row_groups = PARQUET_NULL_VALUE;
+  metadata.created_by = PARQUET_NULL_VALUE;
+
+  // initialize iterator
+  parquet_metadata_iter(&iterator, &metadata);
+
+  // alter it for this test case
+  array[0] = &v1;
+  array[1] = &v2;
+  array[2] = PARQUET_NULL_VALUE;
+
+  iterator.queue.count = 0;
+  iterator.queue.items[0].ctx = (void *)&array;
+  iterator.queue.items[0].ctx_args.name = "field-name";
+  iterator.queue.items[0].item_args.name = "item-x";
+  iterator.queue.items[0].item_fn = (parquet_metadata_iterator_fn)0x12345678;
+
+  // we expect a bit more capacity
+  iterator.tokens.count = iterator.tokens.capacity - 3;
+
+  // process array
+  result = parquet_dump_array(&iterator, 0);
+
+  // assert results
+  assert(result == PARQUET_ERROR_BUFFER_TOO_SMALL, "should fail with PARQUET_ERROR_BUFFER_TOO_SMALL");
+}
+
+static void can_detect_capacity_overflow_with_array() {
+  i64 *array[3];
+  i64 result, v1, v2;
+
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  // initialize metadata
+  metadata.version = PARQUET_UNKNOWN_VALUE;
+  metadata.schemas = PARQUET_NULL_VALUE;
+  metadata.num_rows = PARQUET_UNKNOWN_VALUE;
+  metadata.row_groups = PARQUET_NULL_VALUE;
+  metadata.created_by = PARQUET_NULL_VALUE;
+
+  // initialize iterator
+  parquet_metadata_iter(&iterator, &metadata);
+
+  // alter it for this test case
+  array[0] = &v1;
+  array[1] = &v2;
+  array[2] = PARQUET_NULL_VALUE;
+
+  iterator.queue.count = 0;
+  iterator.queue.items[0].ctx = (void *)&array;
+  iterator.queue.items[0].ctx_args.name = "field-name";
+  iterator.queue.items[0].item_args.name = "item-x";
+  iterator.queue.items[0].item_fn = (parquet_metadata_iterator_fn)0x12345678;
+
+  // we expect a bit more capacity
+  iterator.queue.count = iterator.queue.capacity - 3;
+
+  // process array
+  result = parquet_dump_array(&iterator, 0);
+
+  // assert results
+  assert(result == PARQUET_ERROR_CAPACITY_OVERFLOW, "should fail with PARQUET_ERROR_CAPACITY_OVERFLOW");
+}
+
 static void can_dump_field_with_type_name() {
   i64 result, value;
 
@@ -3300,6 +3376,78 @@ static void can_dump_field_with_type_id() {
   assert(iterator.queue.items[1].ctx_args.value == DOM_TYPE_U16, "expected correct name");
 }
 
+static void can_detect_buffer_too_small_with_field() {
+  i64 result;
+  u64 value;
+
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  // initialize metadata
+  metadata.version = PARQUET_UNKNOWN_VALUE;
+  metadata.schemas = PARQUET_NULL_VALUE;
+  metadata.num_rows = PARQUET_UNKNOWN_VALUE;
+  metadata.row_groups = PARQUET_NULL_VALUE;
+  metadata.created_by = PARQUET_NULL_VALUE;
+
+  // initialize iterator
+  parquet_metadata_iter(&iterator, &metadata);
+
+  // alter it for this test case
+  value = 42;
+
+  iterator.queue.count = 0;
+  iterator.queue.items[0].ctx = (void *)&value;
+  iterator.queue.items[0].ctx_args.name = "field-name";
+  iterator.queue.items[0].item_args.value = DOM_TYPE_U16;
+  iterator.queue.items[0].item_fn = (parquet_metadata_iterator_fn)0x12345678;
+
+  // we expect a bit more capacity
+  iterator.tokens.count = iterator.tokens.capacity - 3;
+
+  // process field
+  result = parquet_dump_field(&iterator, 0);
+
+  // assert results
+  assert(result == PARQUET_ERROR_BUFFER_TOO_SMALL, "should fail with PARQUET_ERROR_BUFFER_TOO_SMALL");
+}
+
+static void can_detect_capacity_overflow_with_field() {
+  i64 result;
+  u64 value;
+
+  struct parquet_metadata metadata;
+  struct parquet_metadata_iterator iterator;
+
+  // initialize metadata
+  metadata.version = PARQUET_UNKNOWN_VALUE;
+  metadata.schemas = PARQUET_NULL_VALUE;
+  metadata.num_rows = PARQUET_UNKNOWN_VALUE;
+  metadata.row_groups = PARQUET_NULL_VALUE;
+  metadata.created_by = PARQUET_NULL_VALUE;
+
+  // initialize iterator
+  parquet_metadata_iter(&iterator, &metadata);
+
+  // alter it for this test case
+  value = 42;
+
+  iterator.queue.count = 0;
+  iterator.queue.items[0].ctx = (void *)&value;
+  iterator.queue.items[0].ctx_args.name = "field-name";
+  iterator.queue.items[0].item_args.value = DOM_TYPE_U16;
+  iterator.queue.items[0].item_fn = (parquet_metadata_iterator_fn)0x12345678;
+
+  // we expect a bit more capacity
+  iterator.queue.count = iterator.queue.capacity - 1;
+
+  // process field
+  result = parquet_dump_field(&iterator, 0);
+
+  // assert results
+  assert(result == PARQUET_ERROR_CAPACITY_OVERFLOW, "should fail with PARQUET_ERROR_CAPACITY_OVERFLOW");
+}
+
 void parquet_test_cases(struct runner_context *ctx) {
   // opening and closing cases
   test_case(ctx, "can open and close parquet file", can_open_and_close_parquet_file);
@@ -3363,13 +3511,17 @@ void parquet_test_cases(struct runner_context *ctx) {
 
   test_case(ctx, "can dump index with null-terminator", can_dump_index_with_null_terminator);
   test_case(ctx, "can dump index with next item", can_dump_index_with_next_item);
-  test_case(ctx, "can detect buffer too small with index", can_detect_buffer_too_small_with_index);
+  test_case(ctx, "can detect buffer too small with index", can_detect_capacity_overflow_with_index);
 
   test_case(ctx, "can dump array with no items", can_dump_array_with_no_items);
   test_case(ctx, "can dump array with two items", can_dump_array_with_two_items);
+  test_case(ctx, "can detect buffer too small with array", can_detect_buffer_too_small_with_array);
+  test_case(ctx, "can detect capacity overflow with array", can_detect_capacity_overflow_with_array);
 
   test_case(ctx, "can dump field with type name", can_dump_field_with_type_name);
   test_case(ctx, "can dumo field with type id", can_dump_field_with_type_id);
+  test_case(ctx, "can detect buffer too small with field", can_detect_buffer_too_small_with_field);
+  test_case(ctx, "can detect capacity overflow with field", can_detect_capacity_overflow_with_field);
 }
 
 #endif
