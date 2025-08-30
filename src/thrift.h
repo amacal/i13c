@@ -6,13 +6,13 @@
 
 enum thrift_error {
   // indicates that the read would overflow the buffer
-  THRIFT_ERROR_BUFFER_OVERFLOW = THRIFT_ERROR_BASE | 0x01,
+  THRIFT_ERROR_BUFFER_OVERFLOW = THRIFT_ERROR_BASE - 0x01,
 
   // indicates that the read would overflow integer bits
-  THRIFT_ERROR_BITS_OVERFLOW = THRIFT_ERROR_BASE | 0x02,
+  THRIFT_ERROR_BITS_OVERFLOW = THRIFT_ERROR_BASE - 0x02,
 
   // indicates that the read value is invalid, e.g., zero delta
-  THRIFT_ERROR_INVALID_VALUE = THRIFT_ERROR_BASE | 0x03,
+  THRIFT_ERROR_INVALID_VALUE = THRIFT_ERROR_BASE - 0x03,
 };
 
 enum thrift_type {

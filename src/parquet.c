@@ -2724,7 +2724,7 @@ i32 parquet_main(u32 argc, const char **argv) {
 
   // try to open parquet file
   result = parquet_open(&file, argv[1]);
-  if (result < 0) goto cleanup_file;
+  if (result < 0) goto cleanup;
 
   // try to parse metadata
   result = parquet_parse(&file, &metadata);
