@@ -1,0 +1,547 @@
+struct-start, type=metadata
+ version, type=i32
+  1
+ schemas, type=struct
+  array-start
+   index-start, index=0, type=struct
+    struct-start, type=schema_element
+     repetition_type, type=enum
+      REQUIRED
+     name, type=text
+      duckdb_schema
+     num_children, type=i32
+      12
+    struct-end
+   index-end
+   index-start, index=1, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT64
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      PassengerId
+     converted_type, type=enum
+      INT64
+    struct-end
+   index-end
+   index-start, index=2, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT64
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      Survived
+     converted_type, type=enum
+      INT64
+    struct-end
+   index-end
+   index-start, index=3, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT64
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      Pclass
+     converted_type, type=enum
+      INT64
+    struct-end
+   index-end
+   index-start, index=4, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      Name
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=5, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      Sex
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=6, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      DOUBLE
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      Age
+    struct-end
+   index-end
+   index-start, index=7, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT64
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      SibSp
+     converted_type, type=enum
+      INT64
+    struct-end
+   index-end
+   index-start, index=8, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT64
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      Parch
+     converted_type, type=enum
+      INT64
+    struct-end
+   index-end
+   index-start, index=9, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      Ticket
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=10, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      DOUBLE
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      Fare
+    struct-end
+   index-end
+   index-start, index=11, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      Cabin
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=12, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      Embarked
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+  array-end
+ num_rows, type=i64
+  891
+ row_groups, type=struct
+  array-start
+   index-start, index=0, type=struct
+    struct-start, type=row_group
+     columns, type=struct
+      array-start
+       index-start, index=0, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT64
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             PassengerId
+            index-end
+           array-end
+          compression_codec, type=enum
+           SNAPPY
+          num_values, type=i64
+           891
+          total_uncompressed_size, type=i64
+           7155
+          total_compressed_size, type=i64
+           4357
+          data_page_offset, type=i64
+           4
+         struct-end
+        struct-end
+       index-end
+       index-start, index=1, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT64
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             Survived
+            index-end
+           array-end
+          compression_codec, type=enum
+           SNAPPY
+          num_values, type=i64
+           891
+          total_uncompressed_size, type=i64
+           7155
+          total_compressed_size, type=i64
+           1051
+          data_page_offset, type=i64
+           4361
+         struct-end
+        struct-end
+       index-end
+       index-start, index=2, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT64
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             Pclass
+            index-end
+           array-end
+          compression_codec, type=enum
+           SNAPPY
+          num_values, type=i64
+           891
+          total_uncompressed_size, type=i64
+           7155
+          total_compressed_size, type=i64
+           1332
+          data_page_offset, type=i64
+           5412
+         struct-end
+        struct-end
+       index-end
+       index-start, index=3, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             Name
+            index-end
+           array-end
+          compression_codec, type=enum
+           SNAPPY
+          num_values, type=i64
+           891
+          total_uncompressed_size, type=i64
+           27619
+          total_compressed_size, type=i64
+           17512
+          data_page_offset, type=i64
+           6744
+         struct-end
+        struct-end
+       index-end
+       index-start, index=4, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE_DICTIONARY
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             Sex
+            index-end
+           array-end
+          compression_codec, type=enum
+           SNAPPY
+          num_values, type=i64
+           891
+          total_uncompressed_size, type=i64
+           897
+          total_compressed_size, type=i64
+           501
+          data_page_offset, type=i64
+           24276
+          dictionary_page_offset, type=i64
+           24256
+         struct-end
+        struct-end
+       index-end
+       index-start, index=5, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           DOUBLE
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             Age
+            index-end
+           array-end
+          compression_codec, type=enum
+           SNAPPY
+          num_values, type=i64
+           891
+          total_uncompressed_size, type=i64
+           6342
+          total_compressed_size, type=i64
+           1991
+          data_page_offset, type=i64
+           24757
+         struct-end
+        struct-end
+       index-end
+       index-start, index=6, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT64
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             SibSp
+            index-end
+           array-end
+          compression_codec, type=enum
+           SNAPPY
+          num_values, type=i64
+           891
+          total_uncompressed_size, type=i64
+           7155
+          total_compressed_size, type=i64
+           1016
+          data_page_offset, type=i64
+           26748
+         struct-end
+        struct-end
+       index-end
+       index-start, index=7, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT64
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             Parch
+            index-end
+           array-end
+          compression_codec, type=enum
+           SNAPPY
+          num_values, type=i64
+           891
+          total_uncompressed_size, type=i64
+           7155
+          total_compressed_size, type=i64
+           866
+          data_page_offset, type=i64
+           27764
+         struct-end
+        struct-end
+       index-end
+       index-start, index=8, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             Ticket
+            index-end
+           array-end
+          compression_codec, type=enum
+           SNAPPY
+          num_values, type=i64
+           891
+          total_uncompressed_size, type=i64
+           9607
+          total_compressed_size, type=i64
+           5129
+          data_page_offset, type=i64
+           28630
+         struct-end
+        struct-end
+       index-end
+       index-start, index=9, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           DOUBLE
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             Fare
+            index-end
+           array-end
+          compression_codec, type=enum
+           SNAPPY
+          num_values, type=i64
+           891
+          total_uncompressed_size, type=i64
+           7155
+          total_compressed_size, type=i64
+           3307
+          data_page_offset, type=i64
+           33759
+         struct-end
+        struct-end
+       index-end
+       index-start, index=10, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             Cabin
+            index-end
+           array-end
+          compression_codec, type=enum
+           SNAPPY
+          num_values, type=i64
+           891
+          total_uncompressed_size, type=i64
+           2214
+          total_compressed_size, type=i64
+           1281
+          data_page_offset, type=i64
+           37066
+         struct-end
+        struct-end
+       index-end
+       index-start, index=11, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE_DICTIONARY
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             Embarked
+            index-end
+           array-end
+          compression_codec, type=enum
+           SNAPPY
+          num_values, type=i64
+           891
+          total_uncompressed_size, type=i64
+           820
+          total_compressed_size, type=i64
+           496
+          data_page_offset, type=i64
+           38364
+          dictionary_page_offset, type=i64
+           38347
+         struct-end
+        struct-end
+       index-end
+      array-end
+     total_byte_size, type=i64
+      0
+     num_rows, type=i64
+      891
+     file_offset, type=i64
+      4
+    struct-end
+   index-end
+  array-end
+ created_by, type=text
+  DuckDB
+struct-end

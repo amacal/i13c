@@ -1,0 +1,382 @@
+struct-start, type=metadata
+ version, type=i32
+  1
+ schemas, type=struct
+  array-start
+   index-start, index=0, type=struct
+    struct-start, type=schema_element
+     name, type=text
+      table
+     num_children, type=i32
+      5
+    struct-end
+   index-end
+   index-start, index=1, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT32
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      date
+     converted_type, type=enum
+      DATE
+    struct-end
+   index-end
+   index-start, index=2, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT32
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      hour
+    struct-end
+   index-end
+   index-start, index=3, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      ip_country_code
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=4, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT64
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      cnt
+    struct-end
+   index-end
+   index-start, index=5, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT32
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      bin
+    struct-end
+   index-end
+  array-end
+ num_rows, type=i64
+  5815
+ row_groups, type=struct
+  array-start
+   index-start, index=0, type=struct
+    struct-start, type=row_group
+     columns, type=struct
+      array-start
+       index-start, index=0, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT32
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=1, type=i32
+             PLAIN_DICTIONARY
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             date
+            index-end
+           array-end
+          compression_codec, type=enum
+           ZSTD
+          num_values, type=i64
+           5815
+          total_uncompressed_size, type=i64
+           45
+          total_compressed_size, type=i64
+           71
+          data_page_offset, type=i64
+           34
+          dictionary_page_offset, type=i64
+           4
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+            index-start, index=1, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DICTIONARY_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=1, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT32
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=1, type=i32
+             PLAIN_DICTIONARY
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             hour
+            index-end
+           array-end
+          compression_codec, type=enum
+           ZSTD
+          num_values, type=i64
+           5815
+          total_uncompressed_size, type=i64
+           3785
+          total_compressed_size, type=i64
+           247
+          data_page_offset, type=i64
+           145
+          dictionary_page_offset, type=i64
+           75
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+            index-start, index=1, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DICTIONARY_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=2, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=1, type=i32
+             PLAIN_DICTIONARY
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             ip_country_code
+            index-end
+           array-end
+          compression_codec, type=enum
+           ZSTD
+          num_values, type=i64
+           5815
+          total_uncompressed_size, type=i64
+           2015
+          total_compressed_size, type=i64
+           808
+          data_page_offset, type=i64
+           709
+          dictionary_page_offset, type=i64
+           322
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+            index-start, index=1, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DICTIONARY_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=3, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT64
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=1, type=i32
+             PLAIN
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             cnt
+            index-end
+           array-end
+          compression_codec, type=enum
+           ZSTD
+          num_values, type=i64
+           5815
+          total_uncompressed_size, type=i64
+           46549
+          total_compressed_size, type=i64
+           16573
+          data_page_offset, type=i64
+           1130
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=4, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT32
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=1, type=i32
+             PLAIN_DICTIONARY
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bin
+            index-end
+           array-end
+          compression_codec, type=enum
+           ZSTD
+          num_values, type=i64
+           5815
+          total_uncompressed_size, type=i64
+           628
+          total_compressed_size, type=i64
+           449
+          data_page_offset, type=i64
+           17887
+          dictionary_page_offset, type=i64
+           17703
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+            index-start, index=1, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DICTIONARY_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+      array-end
+     total_byte_size, type=i64
+      53022
+     num_rows, type=i64
+      5815
+     total_compressed_size, type=i64
+      18148
+    struct-end
+   index-end
+  array-end
+ created_by, type=text
+  parquet-mr-trino version 0.215-23249-g67fe549 (build n/a)
+struct-end

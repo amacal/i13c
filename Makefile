@@ -29,10 +29,10 @@ NASMFLAGS_TEST    = $(NASMFLAGS_COMMON) -D I13C_TESTS
 NASMFLAGS_THRIFT  = $(NASMFLAGS_COMMON) -D I13C_THRIFT
 NASMFLAGS_PARQUET = $(NASMFLAGS_COMMON) -D I13C_PARQUET
 
-BINOUTPUT=bin/i13c
-TESTOUTPUT=bin/i13c-tests
-THRIFTOUTPUT=bin/i13c-thrift
-PARQUETOUTPUT=bin/i13c-parquet
+BIN_OUTPUT=bin/i13c
+TEST_OUTPUT=bin/i13c-tests
+THRIFT_OUTPUT=bin/i13c-thrift
+PARQUET_OUTPUT=bin/i13c-parquet
 
 BINDIR=bin
 SRCDIR=src
@@ -63,24 +63,24 @@ OBJS_PARQUET := $(patsubst $(SRCDIR)/%.c, $(OBJDIR_PARQUET)/%.c.o, $(SRCS_C)) \
 -include $(OBJS_THRIFT:.o=.d)
 -include $(OBJS_PARQUET:.o=.d)
 
-$(BINOUTPUT): $(OBJDIR_MAIN)/main.s.o $(OBJS_MAIN)
+$(BIN_OUTPUT): $(OBJDIR_MAIN)/main.s.o $(OBJS_MAIN)
 	@mkdir -p bin
 	@$(LD) -T src/main.ld $(LDFLAGS) -o $@ $^
-	@strip --strip-all $(BINOUTPUT) -o $(BINOUTPUT)
+	@strip --strip-all $(BIN_OUTPUT) -o $(BIN_OUTPUT)
 
-$(TESTOUTPUT): $(OBJDIR_TESTS)/runner.s.o $(OBJS_TEST)
+$(TEST_OUTPUT): $(OBJDIR_TESTS)/runner.s.o $(OBJS_TEST)
 	@mkdir -p bin
 	@$(LD) -T src/runner.ld $(LDFLAGS) -o $@ $^
 
-$(THRIFTOUTPUT): $(OBJDIR_THRIFT)/thrift.s.o $(OBJS_THRIFT)
+$(THRIFT_OUTPUT): $(OBJDIR_THRIFT)/thrift.s.o $(OBJS_THRIFT)
 	@mkdir -p bin
 	@$(LD) -T src/thrift.ld $(LDFLAGS) -o $@ $^
-	@strip --strip-all $(THRIFTOUTPUT)
+	@strip --strip-all $(THRIFT_OUTPUT)
 
-$(PARQUETOUTPUT): $(OBJDIR_PARQUET)/parquet.s.o $(OBJS_PARQUET)
+$(PARQUET_OUTPUT): $(OBJDIR_PARQUET)/parquet.s.o $(OBJS_PARQUET)
 	@mkdir -p bin
 	@$(LD) -T src/parquet.ld $(LDFLAGS) -o $@ $^
-	@strip --strip-all $(PARQUETOUTPUT)
+	@strip --strip-all $(PARQUET_OUTPUT)
 
 $(OBJDIR_MAIN)/%.c.o: $(SRCDIR)/%.c
 	@mkdir -p $(dir $@)
@@ -119,7 +119,7 @@ clean:
 	@rm -rf $(OBJDIR_MAIN) $(OBJDIR_TESTS) $(OBJDIR_THRIFT) $(OBJDIR_PARQUET) $(TMPDIR) $(BINDIR) $(RELEASE_DIR)
 
 .PHONY: build
-build: $(BINOUTPUT) $(TESTOUTPUT) $(THRIFTOUTPUT) $(PARQUETOUTPUT)
+build: $(BIN_OUTPUT) $(TEST_OUTPUT) $(THRIFT_OUTPUT) $(PARQUET_OUTPUT)
 
 .PHONY: release
 release: $(RELEASE_DIR)/$(TARBALL_NAME) $(RELEASE_DIR)/$(DEB_NAME)
@@ -127,6 +127,7 @@ release: $(RELEASE_DIR)/$(TARBALL_NAME) $(RELEASE_DIR)/$(DEB_NAME)
 $(RELEASE_DIR)/$(TARBALL_NAME):
 	@mkdir -p $(TARBALL_DIR)
 	@cp bin/i13c-thrift $(TARBALL_DIR)/
+	@cp bin/i13c-parquet $(TARBALL_DIR)/
 	@cp LICENSE README.md $(TARBALL_DIR)/
 	@tar -czvf $@ -C $(RELEASE_DIR) $(notdir $(TARBALL_DIR))
 
@@ -134,7 +135,9 @@ $(RELEASE_DIR)/$(DEB_NAME):
 	@mkdir -p $(DEB_DIR)/DEBIAN
 	@mkdir -p $(DEB_DIR)/usr/bin
 	@cp bin/i13c-thrift $(DEB_DIR)/usr/bin/
+	@cp bin/i13c-parquet $(DEB_DIR)/usr/bin/
 	@chmod 755 $(DEB_DIR)/usr/bin/i13c-thrift
+	@chmod 755 $(DEB_DIR)/usr/bin/i13c-parquet
 	@echo "Package: i13c" >  $(DEB_DIR)/DEBIAN/control
 	@echo "Version: $(VERSION)-1" >> $(DEB_DIR)/DEBIAN/control
 	@echo "Section: utils" >>       $(DEB_DIR)/DEBIAN/control
@@ -163,43 +166,63 @@ fix:
 check-commit: lint
 
 .PHONY: run
-run: $(BINOUTPUT)
-	@$(BINOUTPUT)
+run: $(BIN_OUTPUT)
+	@$(BIN_OUTPUT)
 
 .PHONY: test
-test: $(TESTOUTPUT)
-	@$(TESTOUTPUT)
+test: $(TEST_OUTPUT)
+	@$(TEST_OUTPUT)
 
 .PHONY: thrift
-thrift: $(THRIFTOUTPUT)
-	@$(THRIFTOUTPUT)
+thrift: $(THRIFT_OUTPUT)
+	@$(THRIFT_OUTPUT)
 
-parquet: $(PARQUETOUTPUT)
-	@$(PARQUETOUTPUT) $(ARGS)
+parquet: $(PARQUET_OUTPUT)
+	@$(PARQUET_OUTPUT) $(ARGS)
 
-parquet-01: $(PARQUETOUTPUT)
-	@$(PARQUETOUTPUT) data/test01.parquet
+parquet-01: $(PARQUET_OUTPUT)
+	@$(PARQUET_OUTPUT) data/test01.parquet
 
 .PHONY: debug
-debug: $(BINOUTPUT)
-	@edb --run $(BINOUTPUT) 2> /dev/null
+debug: $(BIN_OUTPUT)
+	@edb --run $(BIN_OUTPUT) 2> /dev/null
 
 .PHONY: thrift-dump-01
-thrift-dump-01: $(THRIFTOUTPUT)
-	@dd if=data/test01.parquet skip=18152 bs=1 count=579 status=none | $(THRIFTOUTPUT) > data/test01.thrift
+thrift-dump-01: $(THRIFT_OUTPUT)
+	@dd if=data/test01.parquet skip=18152 bs=1 count=579 status=none | $(THRIFT_OUTPUT) > data/test01.thrift
 
 .PHONY: thrift-dump-02
-thrift-dump-02: $(THRIFTOUTPUT)
-	@dd if=data/test02.parquet skip=5939 bs=1 count=14110 status=none | $(THRIFTOUTPUT) > data/test02.thrift
+thrift-dump-02: $(THRIFT_OUTPUT)
+	@dd if=data/test02.parquet skip=5939 bs=1 count=14110 status=none | $(THRIFT_OUTPUT) > data/test02.thrift
 
 .PHONY: thrift-dump-03
-thrift-dump-03: $(THRIFTOUTPUT)
-	@dd if=data/test03.parquet skip=3408 bs=1 count=6841 status=none | $(THRIFTOUTPUT) > data/test03.thrift
+thrift-dump-03: $(THRIFT_OUTPUT)
+	@dd if=data/test03.parquet skip=3408 bs=1 count=6841 status=none | $(THRIFT_OUTPUT) > data/test03.thrift
 
 .PHONY: thrift-dump-04
-thrift-dump-04: $(THRIFTOUTPUT)
-	@dd if=data/test04.parquet skip=38843 bs=1 count=1160 status=none | $(THRIFTOUTPUT) > data/test04.thrift
+thrift-dump-04: $(THRIFT_OUTPUT)
+	@dd if=data/test04.parquet skip=38843 bs=1 count=1160 status=none | $(THRIFT_OUTPUT) > data/test04.thrift
 
 .PHONY: thrift-dump-05
-thrift-dump-05: $(THRIFTOUTPUT)
-	@dd if=data/test05.parquet skip=590 bs=1 count=1321 status=none | $(THRIFTOUTPUT) > data/test05.thrift
+thrift-dump-05: $(THRIFT_OUTPUT)
+	@dd if=data/test05.parquet skip=590 bs=1 count=1321 status=none | $(THRIFT_OUTPUT) > data/test05.thrift
+
+.PHONY: parquet-dump-01
+parquet-dump-01: $(PARQUET_OUTPUT)
+	@$(PARQUET_OUTPUT) data/test01.parquet > data/test01.metadata
+
+.PHONY: parquet-dump-02
+parquet-dump-02: $(PARQUET_OUTPUT)
+	@$(PARQUET_OUTPUT) data/test02.parquet > data/test02.metadata
+
+.PHONY: parquet-dump-03
+parquet-dump-03: $(PARQUET_OUTPUT)
+	@$(PARQUET_OUTPUT) data/test03.parquet > data/test03.metadata
+
+.PHONY: parquet-dump-04
+parquet-dump-04: $(PARQUET_OUTPUT)
+	@$(PARQUET_OUTPUT) data/test04.parquet > data/test04.metadata
+
+.PHONY: parquet-dump-05
+parquet-dump-05: $(PARQUET_OUTPUT)
+	@$(PARQUET_OUTPUT) data/test05.parquet > data/test05.metadata

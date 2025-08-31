@@ -1,0 +1,3625 @@
+struct-start, type=metadata
+ version, type=i32
+  1
+ schemas, type=struct
+  array-start
+   index-start, index=0, type=struct
+    struct-start, type=schema_element
+     name, type=text
+      trino_schema
+     num_children, type=i32
+      13
+    struct-end
+   index-end
+   index-start, index=1, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT32
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      sampling
+     converted_type, type=enum
+      INT32
+    struct-end
+   index-end
+   index-start, index=2, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT64
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      partnerid
+     converted_type, type=enum
+      INT64
+    struct-end
+   index-end
+   index-start, index=3, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT32
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      browsertz
+     converted_type, type=enum
+      INT32
+    struct-end
+   index-end
+   index-start, index=4, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      pbjsversion
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=5, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      auctionid
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=6, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT64
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      starttimestamp
+     converted_type, type=enum
+      INT64
+    struct-end
+   index-end
+   index-start, index=7, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT64
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      endtimestamp
+     converted_type, type=enum
+      INT64
+    struct-end
+   index-end
+   index-start, index=8, type=struct
+    struct-start, type=schema_element
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      bidderrequests
+     num_children, type=i32
+      1
+     converted_type, type=enum
+      LIST
+    struct-end
+   index-end
+   index-start, index=9, type=struct
+    struct-start, type=schema_element
+     repetition_type, type=enum
+      REPEATED
+     name, type=text
+      list
+     num_children, type=i32
+      1
+    struct-end
+   index-end
+   index-start, index=10, type=struct
+    struct-start, type=schema_element
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      element
+     num_children, type=i32
+      7
+    struct-end
+   index-end
+   index-start, index=11, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      adunitcode
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=12, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      biddercode
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=13, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      bidid
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=14, type=struct
+    struct-start, type=schema_element
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      useridproviders
+     num_children, type=i32
+      1
+     converted_type, type=enum
+      LIST
+    struct-end
+   index-end
+   index-start, index=15, type=struct
+    struct-start, type=schema_element
+     repetition_type, type=enum
+      REPEATED
+     name, type=text
+      list
+     num_children, type=i32
+      1
+    struct-end
+   index-end
+   index-start, index=16, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      element
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=17, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT32
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      id5linktype
+     converted_type, type=enum
+      INT32
+    struct-end
+   index-end
+   index-start, index=18, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BOOLEAN
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      id5abtesting
+    struct-end
+   index-end
+   index-start, index=19, type=struct
+    struct-start, type=schema_element
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      id5uidmetadata
+     num_children, type=i32
+      11
+    struct-end
+   index-end
+   index-start, index=20, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BOOLEAN
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      hasconsent
+    struct-end
+   index-end
+   index-start, index=21, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BOOLEAN
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      hasid5id
+    struct-end
+   index-end
+   index-start, index=22, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      linktype
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=23, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      linkresolver
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=24, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      requestidentity
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=25, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      jurisdiction
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=26, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BOOLEAN
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      isunrecognized
+    struct-end
+   index-end
+   index-start, index=27, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      id5uid
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=28, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BOOLEAN
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      isenriched
+    struct-end
+   index-end
+   index-start, index=29, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BOOLEAN
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      isenrichmentselected
+    struct-end
+   index-end
+   index-start, index=30, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT64
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      requestid
+     converted_type, type=enum
+      INT64
+    struct-end
+   index-end
+   index-start, index=31, type=struct
+    struct-start, type=schema_element
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      bidsreceived
+     num_children, type=i32
+      1
+     converted_type, type=enum
+      LIST
+    struct-end
+   index-end
+   index-start, index=32, type=struct
+    struct-start, type=schema_element
+     repetition_type, type=enum
+      REPEATED
+     name, type=text
+      list
+     num_children, type=i32
+      1
+    struct-end
+   index-end
+   index-start, index=33, type=struct
+    struct-start, type=schema_element
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      element
+     num_children, type=i32
+      15
+    struct-end
+   index-end
+   index-start, index=34, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      adunitcode
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=35, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      biddercode
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=36, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      requestid
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=37, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      creativeid
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=38, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      dealid
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=39, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT64
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      responsetimestamp
+     converted_type, type=enum
+      INT64
+    struct-end
+   index-end
+   index-start, index=40, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT64
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      requesttimestamp
+     converted_type, type=enum
+      INT64
+    struct-end
+   index-end
+   index-start, index=41, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      DOUBLE
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      originalcpm
+    struct-end
+   index-end
+   index-start, index=42, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      originalcurrency
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=43, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      DOUBLE
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      cpm
+    struct-end
+   index-end
+   index-start, index=44, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      currency
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=45, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BOOLEAN
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      netrevenue
+    struct-end
+   index-end
+   index-start, index=46, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT32
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      width
+     converted_type, type=enum
+      INT32
+    struct-end
+   index-end
+   index-start, index=47, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT32
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      height
+     converted_type, type=enum
+      INT32
+    struct-end
+   index-end
+   index-start, index=48, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      mediatype
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=49, type=struct
+    struct-start, type=schema_element
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      nobids
+     num_children, type=i32
+      1
+     converted_type, type=enum
+      LIST
+    struct-end
+   index-end
+   index-start, index=50, type=struct
+    struct-start, type=schema_element
+     repetition_type, type=enum
+      REPEATED
+     name, type=text
+      list
+     num_children, type=i32
+      1
+    struct-end
+   index-end
+   index-start, index=51, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      element
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=52, type=struct
+    struct-start, type=schema_element
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      useragent
+     num_children, type=i32
+      9
+    struct-end
+   index-end
+   index-start, index=53, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      devicetype
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=54, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      devicemake
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=55, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      browservendor
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=56, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      browsername
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=57, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      browserversion
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=58, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      osvendor
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=59, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      osname
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=60, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      osfamily
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=61, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      osversion
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=62, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      refererhost
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+   index-start, index=63, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      BYTE_ARRAY
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      ipcountrycode
+     converted_type, type=enum
+      UTF8
+    struct-end
+   index-end
+  array-end
+ num_rows, type=i64
+  1
+ row_groups, type=struct
+  array-start
+   index-start, index=0, type=struct
+    struct-start, type=row_group
+     columns, type=struct
+      array-start
+       index-start, index=0, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT32
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             sampling
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           27
+          total_compressed_size, type=i64
+           45
+          data_page_offset, type=i64
+           4
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=1, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT64
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             partnerid
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           49
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=2, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT32
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             browsertz
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           27
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           96
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=3, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             pbjsversion
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           34
+          total_compressed_size, type=i64
+           52
+          data_page_offset, type=i64
+           143
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=4, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             auctionid
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           64
+          total_compressed_size, type=i64
+           82
+          data_page_offset, type=i64
+           195
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=5, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT64
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             starttimestamp
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           51
+          data_page_offset, type=i64
+           277
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=6, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT64
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             endtimestamp
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           51
+          data_page_offset, type=i64
+           328
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=7, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             RLE
+            index-end
+            index-start, index=1, type=i32
+             PLAIN_DICTIONARY
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidderrequests
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             adunitcode
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           9
+          total_uncompressed_size, type=i64
+           99
+          total_compressed_size, type=i64
+           137
+          data_page_offset, type=i64
+           466
+          dictionary_page_offset, type=i64
+           379
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+            index-start, index=1, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DICTIONARY_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=8, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidderrequests
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             biddercode
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           9
+          total_uncompressed_size, type=i64
+           145
+          total_compressed_size, type=i64
+           136
+          data_page_offset, type=i64
+           516
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=9, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidderrequests
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             bidid
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           9
+          total_uncompressed_size, type=i64
+           205
+          total_compressed_size, type=i64
+           163
+          data_page_offset, type=i64
+           652
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=10, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             RLE
+            index-end
+            index-start, index=1, type=i32
+             PLAIN_DICTIONARY
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidderrequests
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             useridproviders
+            index-end
+            index-start, index=4, type=str
+             list
+            index-end
+            index-start, index=5, type=str
+             element
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           36
+          total_uncompressed_size, type=i64
+           115
+          total_compressed_size, type=i64
+           138
+          data_page_offset, type=i64
+           896
+          dictionary_page_offset, type=i64
+           815
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+            index-start, index=1, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DICTIONARY_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=11, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT32
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             RLE
+            index-end
+            index-start, index=1, type=i32
+             PLAIN_DICTIONARY
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidderrequests
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             id5linktype
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           9
+          total_uncompressed_size, type=i64
+           49
+          total_compressed_size, type=i64
+           87
+          data_page_offset, type=i64
+           990
+          dictionary_page_offset, type=i64
+           953
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+            index-start, index=1, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DICTIONARY_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=12, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BOOLEAN
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidderrequests
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             id5abtesting
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           9
+          total_uncompressed_size, type=i64
+           30
+          total_compressed_size, type=i64
+           48
+          data_page_offset, type=i64
+           1040
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=13, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BOOLEAN
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidderrequests
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             id5uidmetadata
+            index-end
+            index-start, index=4, type=str
+             hasconsent
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           9
+          total_uncompressed_size, type=i64
+           32
+          total_compressed_size, type=i64
+           51
+          data_page_offset, type=i64
+           1088
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=14, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BOOLEAN
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidderrequests
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             id5uidmetadata
+            index-end
+            index-start, index=4, type=str
+             hasid5id
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           9
+          total_uncompressed_size, type=i64
+           32
+          total_compressed_size, type=i64
+           51
+          data_page_offset, type=i64
+           1139
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=15, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             RLE
+            index-end
+            index-start, index=1, type=i32
+             PLAIN_DICTIONARY
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidderrequests
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             id5uidmetadata
+            index-end
+            index-start, index=4, type=str
+             linktype
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           9
+          total_uncompressed_size, type=i64
+           62
+          total_compressed_size, type=i64
+           100
+          data_page_offset, type=i64
+           1240
+          dictionary_page_offset, type=i64
+           1190
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+            index-start, index=1, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DICTIONARY_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=16, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             RLE
+            index-end
+            index-start, index=1, type=i32
+             PLAIN_DICTIONARY
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidderrequests
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             id5uidmetadata
+            index-end
+            index-start, index=4, type=str
+             linkresolver
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           9
+          total_uncompressed_size, type=i64
+           67
+          total_compressed_size, type=i64
+           105
+          data_page_offset, type=i64
+           1345
+          dictionary_page_offset, type=i64
+           1290
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+            index-start, index=1, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DICTIONARY_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=17, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             RLE
+            index-end
+            index-start, index=1, type=i32
+             PLAIN_DICTIONARY
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidderrequests
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             id5uidmetadata
+            index-end
+            index-start, index=4, type=str
+             requestidentity
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           9
+          total_uncompressed_size, type=i64
+           54
+          total_compressed_size, type=i64
+           92
+          data_page_offset, type=i64
+           1437
+          dictionary_page_offset, type=i64
+           1395
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+            index-start, index=1, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DICTIONARY_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=18, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             RLE
+            index-end
+            index-start, index=1, type=i32
+             PLAIN_DICTIONARY
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidderrequests
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             id5uidmetadata
+            index-end
+            index-start, index=4, type=str
+             jurisdiction
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           9
+          total_uncompressed_size, type=i64
+           54
+          total_compressed_size, type=i64
+           92
+          data_page_offset, type=i64
+           1529
+          dictionary_page_offset, type=i64
+           1487
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+            index-start, index=1, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DICTIONARY_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=19, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BOOLEAN
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidderrequests
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             id5uidmetadata
+            index-end
+            index-start, index=4, type=str
+             isunrecognized
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           9
+          total_uncompressed_size, type=i64
+           32
+          total_compressed_size, type=i64
+           50
+          data_page_offset, type=i64
+           1579
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=20, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             RLE
+            index-end
+            index-start, index=1, type=i32
+             PLAIN_DICTIONARY
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidderrequests
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             id5uidmetadata
+            index-end
+            index-start, index=4, type=str
+             id5uid
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           9
+          total_uncompressed_size, type=i64
+           85
+          total_compressed_size, type=i64
+           123
+          data_page_offset, type=i64
+           1702
+          dictionary_page_offset, type=i64
+           1629
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+            index-start, index=1, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DICTIONARY_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=21, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BOOLEAN
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidderrequests
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             id5uidmetadata
+            index-end
+            index-start, index=4, type=str
+             isenriched
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           9
+          total_uncompressed_size, type=i64
+           32
+          total_compressed_size, type=i64
+           50
+          data_page_offset, type=i64
+           1752
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=22, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BOOLEAN
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidderrequests
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             id5uidmetadata
+            index-end
+            index-start, index=4, type=str
+             isenrichmentselected
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           9
+          total_uncompressed_size, type=i64
+           32
+          total_compressed_size, type=i64
+           50
+          data_page_offset, type=i64
+           1802
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=23, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT64
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             RLE
+            index-end
+            index-start, index=1, type=i32
+             PLAIN_DICTIONARY
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidderrequests
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             id5uidmetadata
+            index-end
+            index-start, index=4, type=str
+             requestid
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           9
+          total_uncompressed_size, type=i64
+           53
+          total_compressed_size, type=i64
+           91
+          data_page_offset, type=i64
+           1893
+          dictionary_page_offset, type=i64
+           1852
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+            index-start, index=1, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DICTIONARY_PAGE
+              encoding, type=enum
+               PLAIN_DICTIONARY
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=24, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidsreceived
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             adunitcode
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           1943
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=25, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidsreceived
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             biddercode
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           1990
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=26, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidsreceived
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             requestid
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           2037
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=27, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidsreceived
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             creativeid
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           2084
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=28, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidsreceived
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             dealid
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           2131
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=29, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT64
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidsreceived
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             responsetimestamp
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           2178
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=30, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT64
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidsreceived
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             requesttimestamp
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           2225
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=31, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           DOUBLE
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidsreceived
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             originalcpm
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           2272
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=32, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidsreceived
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             originalcurrency
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           2319
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=33, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           DOUBLE
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidsreceived
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             cpm
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           2366
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=34, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidsreceived
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             currency
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           2413
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=35, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BOOLEAN
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidsreceived
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             netrevenue
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           2460
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=36, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT32
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidsreceived
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             width
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           2507
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=37, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           INT32
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidsreceived
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             height
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           2554
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=38, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             bidsreceived
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+            index-start, index=3, type=str
+             mediatype
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           31
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           2601
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=39, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             nobids
+            index-end
+            index-start, index=1, type=str
+             list
+            index-end
+            index-start, index=2, type=str
+             element
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           9
+          total_uncompressed_size, type=i64
+           205
+          total_compressed_size, type=i64
+           162
+          data_page_offset, type=i64
+           2648
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=40, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             useragent
+            index-end
+            index-start, index=1, type=str
+             devicetype
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           38
+          total_compressed_size, type=i64
+           56
+          data_page_offset, type=i64
+           2810
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=41, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             useragent
+            index-end
+            index-start, index=1, type=str
+             devicemake
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           28
+          total_compressed_size, type=i64
+           45
+          data_page_offset, type=i64
+           2866
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=42, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             useragent
+            index-end
+            index-start, index=1, type=str
+             browservendor
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           38
+          total_compressed_size, type=i64
+           56
+          data_page_offset, type=i64
+           2911
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=43, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             useragent
+            index-end
+            index-start, index=1, type=str
+             browsername
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           41
+          total_compressed_size, type=i64
+           59
+          data_page_offset, type=i64
+           2967
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=44, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             useragent
+            index-end
+            index-start, index=1, type=str
+             browserversion
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           37
+          total_compressed_size, type=i64
+           53
+          data_page_offset, type=i64
+           3026
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=45, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             useragent
+            index-end
+            index-start, index=1, type=str
+             osvendor
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           38
+          total_compressed_size, type=i64
+           56
+          data_page_offset, type=i64
+           3079
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=46, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             useragent
+            index-end
+            index-start, index=1, type=str
+             osname
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           35
+          total_compressed_size, type=i64
+           53
+          data_page_offset, type=i64
+           3135
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=47, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             useragent
+            index-end
+            index-start, index=1, type=str
+             osfamily
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           35
+          total_compressed_size, type=i64
+           53
+          data_page_offset, type=i64
+           3188
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=48, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             useragent
+            index-end
+            index-start, index=1, type=str
+             osversion
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           38
+          total_compressed_size, type=i64
+           56
+          data_page_offset, type=i64
+           3241
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=49, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             refererhost
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           46
+          total_compressed_size, type=i64
+           64
+          data_page_offset, type=i64
+           3297
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+       index-start, index=50, type=struct
+        struct-start, type=column-chunk
+         struct-start, type=column-meta
+          data_type, type=enum
+           BYTE_ARRAY
+          encodings, type=i32
+           array-start
+            index-start, index=0, type=i32
+             PLAIN
+            index-end
+            index-start, index=1, type=i32
+             BIT_PACKED
+            index-end
+            index-start, index=2, type=i32
+             RLE
+            index-end
+           array-end
+          path_in_schema, type=str
+           array-start
+            index-start, index=0, type=str
+             ipcountrycode
+            index-end
+           array-end
+          compression_codec, type=enum
+           GZIP
+          num_values, type=i64
+           1
+          total_uncompressed_size, type=i64
+           29
+          total_compressed_size, type=i64
+           47
+          data_page_offset, type=i64
+           3361
+          encoding_stats, type=struct
+           array-start
+            index-start, index=0, type=struct
+             struct-start, type=encoding-stats
+              page_type, type=enum
+               DATA_PAGE
+              encoding, type=enum
+               PLAIN
+              count, type=i32
+               1
+             struct-end
+            index-end
+           array-end
+         struct-end
+        struct-end
+       index-end
+      array-end
+     total_byte_size, type=i64
+      2496
+     num_rows, type=i64
+      1
+     total_compressed_size, type=i64
+      3404
+    struct-end
+   index-end
+  array-end
+ created_by, type=text
+  parquet-mr-trino version 0.215-23249-g67fe549 (build n/a)
+struct-end

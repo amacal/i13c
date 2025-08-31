@@ -31,6 +31,44 @@ struct-end
 
 Supports: primitive types, nested structs, lists, zigzag decoding.
 
+### **i13c-parquet**
+
+A minimal parser and dumper for parquet files. Reads metadata section from the file footer and prints a human-readable field structure.
+
+```bash
+i13c-parquet data/test01.parquet
+```
+
+Example output (truncated):
+
+```
+struct-start, type=metadata
+ version, type=i32
+  1
+ schemas, type=struct
+  array-start
+   index-start, index=0, type=struct
+    struct-start, type=schema_element
+     name, type=text
+      table
+     num_children, type=i32
+      5
+    struct-end
+   index-end
+   index-start, index=1, type=struct
+    struct-start, type=schema_element
+     data_type, type=enum
+      INT32
+     repetition_type, type=enum
+      OPTIONAL
+     name, type=text
+      date
+     converted_type, type=enum
+      DATE
+    struct-end
+   index-end
+```
+
 ## development
 
 Everything is wired through the Makefile. The devcontainer provides all tooling, so you can just:
@@ -50,6 +88,9 @@ make fix
 
 # runs i13c-thrift
 make thrift
+
+# runs i13c-parquet
+make parquet ARGS="file.parquet"
 ```
 
 # license

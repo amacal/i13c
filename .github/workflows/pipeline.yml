@@ -50,6 +50,7 @@ jobs:
           name: i13c-binaries
           path: |
             bin/i13c-thrift
+            bin/i13c-parquet
             LICENSE
             README.md
 
@@ -90,9 +91,7 @@ jobs:
             i13c ${{ github.ref_name }}
 
             Changes:
-            - Lightweight C binary tools for x86_64 Linux.
-            - Thrift Compact Protocol parser: `i13c-thrift`
-            - No dependencies, no libc.
+            - Parquet parser: `i13c-parquet`
 
           files: |
             release/*.tar.gz
