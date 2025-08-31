@@ -69,7 +69,7 @@ void malloc_release(struct malloc_pool *pool, struct malloc_lease *lease) {
   struct malloc_slot *slot;
 
   // if the size is too large, just release it
-  if ((index = __builtin_ctzl(lease->size >> 12)) >= MALLOC_SLOTS) {
+  if ((index = __builtin_ctzll(lease->size >> 12)) >= MALLOC_SLOTS) {
     sys_munmap(lease->ptr, lease->size);
     return;
   }
