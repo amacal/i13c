@@ -95,4 +95,4 @@ make parquet ARGS="file.parquet"
 
 # license
 
-This project is licensed under the [Creative Commons Attribution-NonCommercial 4.0 International License](LICENSE).
+This project is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE).
