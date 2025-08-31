@@ -36,7 +36,7 @@ extern void malloc_destroy(struct malloc_pool *pool);
 /// @brief Acquires memory from the pool.
 /// @param pool Pointer to the malloc_pool structure.
 /// @param lease Pointer to the malloc_lease structure to fill.
-/// @return Zero on success, or NULL on failure.
+/// @return NULL on success, or a negative error code on failure.
 extern i64 malloc_acquire(struct malloc_pool *pool, struct malloc_lease *lease);
 
 /// @brief Releases a previously allocated memory block.
