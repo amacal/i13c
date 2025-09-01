@@ -121,6 +121,10 @@ clean:
 .PHONY: build
 build: $(BIN_OUTPUT) $(TEST_OUTPUT) $(THRIFT_OUTPUT) $(PARQUET_OUTPUT)
 
+.PHONE: notes
+notes:
+	@awk "/## \\[${VERSION}\\]/{flag=1;next}/## \[/{flag=0}flag" CHANGELOG.md
+
 .PHONY: release
 release: $(RELEASE_DIR)/$(TARBALL_NAME) $(RELEASE_DIR)/$(DEB_NAME)
 

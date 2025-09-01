@@ -82,17 +82,21 @@ jobs:
           name: i13c-deb
           path: release/*.deb
 
+      - name: Extract Release Notes
+        id: notes
+        run: |
+          {
+            echo "body<<EOF"
+            make notes
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          body: |
-            i13c ${{ github.ref_name }}
-
-            Changes:
-            - Parquet parser: `i13c-parquet`
-
+          body: ${{ steps.notes.outputs.body }}
           files: |
             release/*.tar.gz
             release/*.deb
