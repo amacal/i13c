@@ -18,6 +18,9 @@ struct malloc_slot {
 };
 
 struct malloc_pool {
+  u64 acquired;
+  u64 released;
+
   struct malloc_slot *slots[MALLOC_SLOTS]; // predefined number of slots
 };
 

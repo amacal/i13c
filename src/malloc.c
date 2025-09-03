@@ -4,6 +4,9 @@
 #include "typing.h"
 
 void malloc_init(struct malloc_pool *pool) {
+  pool->acquired = 0;
+  pool->released = 0;
+
   for (u32 i = 0; i < MALLOC_SLOTS; i++) {
     pool->slots[i] = NULL;
   }
@@ -50,7 +53,7 @@ i64 malloc_acquire(struct malloc_pool *pool, struct malloc_lease *lease) {
   if ((slot = pool->slots[index]) != NULL) {
     pool->slots[index] = slot->next;
     lease->ptr = slot->ptr;
-    return 0;
+    goto success;
   }
 
   // allocate memory using mmap
@@ -59,6 +62,10 @@ i64 malloc_acquire(struct malloc_pool *pool, struct malloc_lease *lease) {
 
   // prepare the lease
   lease->ptr = (void *)result;
+
+success:
+  // increase the counter
+  pool->acquired += lease->size;
 
   // success
   return 0;
@@ -71,7 +78,7 @@ void malloc_release(struct malloc_pool *pool, struct malloc_lease *lease) {
   // if the size is too large, just release it
   if ((index = __builtin_ctzll(lease->size >> 12)) >= MALLOC_SLOTS) {
     sys_munmap(lease->ptr, lease->size);
-    return;
+    goto success;
   }
 
   // prepare the slot
@@ -82,6 +89,10 @@ void malloc_release(struct malloc_pool *pool, struct malloc_lease *lease) {
 
   // add as a head of the linked list
   pool->slots[index] = slot;
+
+success:
+  // increase the counter
+  pool->released += lease->size;
 
   // clear the lease pointer
   lease->ptr = NULL;
@@ -99,6 +110,10 @@ static void can_init_and_destroy_pool() {
   for (u32 i = 0; i < MALLOC_SLOTS; i++) {
     assert(pool.slots[i] == NULL, "pool slot should be NULL after init");
   }
+
+  // verify the initial state
+  assert(pool.acquired == 0, "pool should not have acquired any memory");
+  assert(pool.released == 0, "pool should not have released any memory");
 
   // destroy the pool
   malloc_destroy(&pool);
@@ -122,8 +137,16 @@ static void can_allocate_and_free_memory() {
   assert(malloc_acquire(&pool, &lease) == 0, "should allocate memory");
   assert(lease.ptr != NULL, "lease ptr should be set");
 
+  // verify the pool state
+  assert(pool.acquired == 4096, "pool should have acquired 4096 bytes");
+  assert(pool.released == 0, "pool should not have released any memory");
+
   // release the memory
   malloc_release(&pool, &lease);
+
+  // verify the pool state
+  assert(pool.acquired == 4096, "pool should have acquired 4096 bytes");
+  assert(pool.released == 4096, "pool should have released 4096 bytes");
 
   // destroy the pool
   malloc_destroy(&pool);
@@ -163,6 +186,10 @@ static void can_reuse_deallocated_slot() {
   // destroy the pool
   malloc_destroy(&pool);
 
+  // verify the pool state
+  assert(pool.acquired == 8192, "pool should have acquired 8192 bytes");
+  assert(pool.released == 8192, "pool should have released 8192 bytes");
+
   for (u32 i = 0; i < MALLOC_SLOTS; i++) {
     assert(pool.slots[i] == NULL, "pool slot should be NULL after destroy");
   }
@@ -181,6 +208,10 @@ static void cannot_allocate_too_small_lease() {
   // try to acquire memory
   assert(malloc_acquire(&pool, &lease) == MALLOC_ERROR_INVALID_SIZE, "should not allocate too small lease");
 
+  // verify the pool state
+  assert(pool.acquired == 0, "pool should have acquired 0 bytes");
+  assert(pool.released == 0, "pool should have released 0 bytes");
+
   // destroy the pool
   malloc_destroy(&pool);
 }
@@ -198,6 +229,10 @@ static void cannot_allocate_too_large_lease() {
   // try to acquire memory
   assert(malloc_acquire(&pool, &lease) == MALLOC_ERROR_INVALID_SIZE, "should not allocate too large lease");
 
+  // verify the pool state
+  assert(pool.acquired == 0, "pool should have acquired 0 bytes");
+  assert(pool.released == 0, "pool should have released 0 bytes");
+
   // destroy the pool
   malloc_destroy(&pool);
 }
@@ -214,6 +249,10 @@ static void cannot_allocate_not_power_of_two() {
 
   // try to acquire memory
   assert(malloc_acquire(&pool, &lease) == MALLOC_ERROR_INVALID_SIZE, "should not allocate not power of two");
+
+  // verify the pool state
+  assert(pool.acquired == 0, "pool should have acquired 0 bytes");
+  assert(pool.released == 0, "pool should have released 0 bytes");
 
   // destroy the pool
   malloc_destroy(&pool);

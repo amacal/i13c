@@ -22,6 +22,11 @@
 #define FORMAT_ERROR_BASE (ERROR_BASE - 4 * ERROR_BLOCK_SIZE)
 #define FORMAT_ERROR_NAME "format"
 
+#define ARENA_ERROR_BASE (ERROR_BASE - 5 * ERROR_BLOCK_SIZE)
+#define ARENA_ERROR_NAME "arena"
+
+#define ERROR_BASE_MAX ARENA_ERROR_BASE
+
 /// @brief Converts a result to a string representation.
 /// @param result Result value to convert.
 /// @return Pointer to the string representation of the result value, or NULL if the value is not recognized.

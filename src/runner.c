@@ -1,4 +1,5 @@
 #include "runner.h"
+#include "arena.h"
 #include "dom.h"
 #include "error.h"
 #include "format.h"
@@ -72,6 +73,7 @@ i32 runner_execute() {
   ctx.offset = 0;
 
   // register test cases
+  arena_test_cases(&ctx);
   dom_test_cases(&ctx);
   error_test_cases(&ctx);
   malloc_test_cases(&ctx);
