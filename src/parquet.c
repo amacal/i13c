@@ -2874,7 +2874,7 @@ i32 parquet_main(u32 argc, const char **argv) {
 
   // try to open parquet file
   result = parquet_open(&file, argv[1]);
-  if (result < 0) goto cleanup;
+  if (result < 0) goto cleanup_memory;
 
   // try to parse metadata
   result = parquet_parse(&file, &metadata);
@@ -2901,7 +2901,7 @@ i32 parquet_main(u32 argc, const char **argv) {
   } while (iterator.tokens.count > 0);
 
   // success
-  return 0;
+  result = 0;
 
 cleanup_buffer:
   malloc_release(&pool, &output);
@@ -2909,9 +2909,14 @@ cleanup_buffer:
 cleanup_file:
   parquet_close(&file);
 
+cleanup_memory:
+  malloc_destroy(&pool);
+
 cleanup:
+  if (result == 0) return 0;
+
   writef("Something wrong happened; error=%r\n", result);
-  return -1;
+  return result;
 }
 
 #endif
