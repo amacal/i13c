@@ -1,5 +1,6 @@
 #pragma once
 
+#include "arena.h"
 #include "error.h"
 #include "malloc.h"
 #include "typing.h"
@@ -8,9 +9,6 @@
 #define PARQUET_NULL_VALUE NULL
 
 enum parquet_error {
-  // indicates that the read would overflow the buffer
-  PARQUET_ERROR_BUFFER_OVERFLOW = PARQUET_ERROR_BASE - 0x01,
-
   // indicates that the read field type is invalid
   PARQUET_ERROR_INVALID_TYPE = PARQUET_ERROR_BASE - 0x02,
 
@@ -179,8 +177,8 @@ struct parquet_file {
   struct malloc_pool *pool; // memory pool for buffer allocation
   u32 fd;                   // file descriptor for the parquet file
 
-  struct malloc_lease buffer_lease;   // lease for the buffer memory
-  struct malloc_lease metadata_lease; // lease for the metadata memory
+  struct malloc_lease buffer_lease; // lease for the buffer memory
+  struct arena_allocator arena;     // metadata allocator
 
   u64 footer_size;           // size of the footer in bytes
   char *footer_buffer_start; // pointer to the start of the footer

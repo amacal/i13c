@@ -16,15 +16,14 @@ enum arena_error {
 };
 
 struct arena_node {
-  u32 tail;
-
   struct arena_node *next;
   struct malloc_lease data;
 };
 
 struct arena_allocator {
-  u32 alloc_step;
-  u32 alloc_max;
+  u32 step;
+  u32 limit;
+  u64 cursor;
 
   struct arena_node data;
   struct arena_node *head;
@@ -49,14 +48,23 @@ extern void arena_destroy(struct arena_allocator *allocator);
 /// @return 0 on success, or negative error code on failure.
 extern i64 arena_acquire(struct arena_allocator *allocator, u32 size, void **ptr);
 
-/// @brief Releases a block of memory back to the arena allocator.
+/// @brief Reverts to a previous state in the arena allocator.
 /// @param allocator Pointer to the arena_allocator structure.
-/// @param size Size of the memory block to release.
-/// @param ptr Pointer to the memory block to release.
+/// @param cursor Cursor position to revert to.
 /// @return 0 on success, or negative error code on failure.
-extern i64 arena_release(struct arena_allocator *allocator, u32 size, void *ptr);
+extern i64 arena_revert(struct arena_allocator *allocator, u64 cursor);
 
 #if defined(I13C_TESTS)
+
+/// @brief Gets the current available bytes of the arena allocator.
+/// @param allocator Pointer to the arena_allocator structure.
+/// @return Current available bytes in bytes.
+extern u32 arena_available(struct arena_allocator *allocator);
+
+/// @brief Gets the current occupied bytes of the arena allocator.
+/// @param allocator Pointer to the arena_allocator structure.
+/// @return Current occupied bytes in bytes.
+extern u32 arena_occupied(struct arena_allocator *allocator);
 
 /// @brief Registers arena test cases.
 /// @param ctx Pointer to the runner_context structure.

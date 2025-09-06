@@ -1,4 +1,5 @@
 #include "parquet.h"
+#include "arena.h"
 #include "dom.h"
 #include "malloc.h"
 #include "runner.h"
@@ -18,13 +19,11 @@ struct parquet_parse_context;
 typedef i64 (*parquet_read_fn)(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size);
 
 struct parquet_parse_context {
+  struct arena_allocator *arena; // arena allocator for metadata
+
   void *target;              // pointer to the target structure to fill
   u64 target_size;           // size of the target structure
   parquet_read_fn target_fn; // function to read the target structure
-
-  char *buffer;    // the buffer behind metadata storage
-  u64 buffer_size; // the size of the buffer
-  u64 buffer_tail; // the tail of the buffer
 
   void *ptrs[16];         // pointers to the fields in the target structure
   thrift_read_fn *fields; // array of thrift read functions for the fields
@@ -41,12 +40,11 @@ void parquet_init(struct parquet_file *file, struct malloc_pool *pool) {
   file->footer_buffer_start = NULL;
   file->footer_buffer_end = NULL;
 
-  file->metadata_lease.ptr = NULL;
-  file->metadata_lease.size = 0;
+  arena_init(&file->arena, pool, 4096, 32 * 4096);
 }
 
 i64 parquet_open(struct parquet_file *file, const char *path) {
-  const u64 DEFAULT_BUFFER_SIZE = 16384;
+  const u64 DEFAULT_BUFFER_SIZE = 4096;
 
   i64 result;
   file_stat stat;
@@ -156,31 +154,8 @@ void parquet_close(struct parquet_file *file) {
   sys_close(file->fd);
   file->fd = 0;
 
-  // release the metadata lease, if exists
-  if (file->metadata_lease.ptr) {
-    malloc_release(file->pool, &file->metadata_lease);
-  }
-}
-
-static i64 parquet_metadata_acquire(struct parquet_parse_context *ctx, u32 size) {
-  u32 offset;
-
-  // check if there is enough space
-  if (ctx->buffer_tail + size > ctx->buffer_size) {
-    return PARQUET_ERROR_BUFFER_OVERFLOW;
-  }
-
-  // move tail aligned to 8 bytes
-  offset = ctx->buffer_tail;
-  ctx->buffer_tail = (offset + size + 7) & ~7;
-
-  // allocated space
-  return (i64)(ctx->buffer + offset);
-}
-
-static void parquet_metadata_release(struct parquet_parse_context *ctx, u32 size) {
-  // move tail back aligned to 8 bytes
-  ctx->buffer_tail -= (size + 7) & ~7;
+  // release arena
+  arena_destroy(&file->arena);
 }
 
 static i64 parquet_read_i32_positive(
@@ -235,6 +210,7 @@ static i64 parquet_read_string(
   char *value;
   i64 result, read;
   u32 size;
+  u64 cursor;
 
   // check if the field type is correct
   if (field_type != THRIFT_TYPE_BINARY) {
@@ -243,34 +219,35 @@ static i64 parquet_read_string(
 
   // read the size of the value string
   result = thrift_read_binary_header(&size, buffer, buffer_size);
-  if (result < 0) goto cleanup;
+  if (result < 0) return result;
 
   // move the buffer pointer and size
   read = result;
   buffer += result;
   buffer_size -= result;
 
-  // allocate the space for the copy + EOS
-  result = parquet_metadata_acquire(ctx, size + 1);
-  if (result < 0) goto cleanup;
+  // remember the cursor
+  cursor = ctx->arena->cursor;
 
-  // remember allocated memory slice
-  value = (char *)result;
+  // allocate the space for the copy + EOS
+  result = arena_acquire(ctx->arena, size + 1, (void **)&value);
+  if (result < 0) goto cleanup;
 
   // copy binary content, it also includes null terminator EOS
   result = thrift_read_binary_content(value, size, buffer, buffer_size);
-  if (result < 0) goto cleanup_buffer;
+  if (result < 0) goto cleanup;
 
   // value is OK, field will be found
   *(char **)ctx->ptrs[field_id] = value;
 
-  // successs
+  // success
   return read + result;
 
-cleanup_buffer:
-  parquet_metadata_release(ctx, size + 1);
-
 cleanup:
+  // revert the arena to the previous state
+  arena_revert(ctx->arena, cursor);
+
+  // failure
   return result;
 }
 
@@ -279,9 +256,11 @@ static i64 parquet_read_list(
   struct parquet_parse_context context;
   struct thrift_list_header header;
 
+  void *ptr;
   void **ptrs;
   i64 result, read;
   u32 index;
+  u64 cursor;
 
   // check if the field type is correct
   if (field_type != THRIFT_TYPE_LIST) {
@@ -290,39 +269,37 @@ static i64 parquet_read_list(
 
   // read the size of the schemas list
   result = thrift_read_list_header(&header, buffer, buffer_size);
-  if (result < 0) goto cleanup;
+  if (result < 0) return result;
 
   // move the buffer pointer and size
   read = result;
   buffer += result;
   buffer_size -= result;
 
-  // allocate memory for the pointers
-  result = parquet_metadata_acquire(ctx, 8 + header.size * 8);
-  if (result < 0) goto cleanup;
+  // remember the cursor
+  cursor = ctx->arena->cursor;
 
-  // remember allocated array
-  ptrs = (void **)result;
+  // allocate memory for the pointers
+  result = arena_acquire(ctx->arena, 8 + header.size * 8, (void **)&ptrs);
+  if (result < 0) return result;
 
   // null-terminate the array
   ptrs[header.size] = NULL;
 
   // allocate memory for the array
   if (ctx->target_size > 0) {
-    result = parquet_metadata_acquire(ctx, header.size * ctx->target_size);
-    if (result < 0) goto cleanup_ptrs;
+    result = arena_acquire(ctx->arena, header.size * ctx->target_size, &ptr);
+    if (result < 0) goto cleanup;
 
     // fill out the array of schema elements
     for (index = 0; index < header.size; index++) {
-      ptrs[index] = (void *)(result);
-      result += ctx->target_size;
+      ptrs[index] = ptr;
+      ptr += ctx->target_size;
     }
   }
 
   // initialize nested context
-  context.buffer = ctx->buffer;
-  context.buffer_size = ctx->buffer_size;
-  context.buffer_tail = ctx->buffer_tail;
+  context.arena = ctx->arena;
 
   // parse each schema element
   for (index = 0; index < header.size; index++) {
@@ -331,7 +308,7 @@ static i64 parquet_read_list(
 
     // read the next schema element
     result = ctx->target_fn(&context, buffer, buffer_size);
-    if (result < 0) goto cleanup_data;
+    if (result < 0) goto cleanup;
 
     // move the buffer pointer and size
     read += result;
@@ -339,22 +316,17 @@ static i64 parquet_read_list(
     buffer_size -= result;
   }
 
-  // apply buffer tail
-  ctx->buffer_tail = context.buffer_tail;
-
   // value is OK, field will be found
   *(void **)ctx->ptrs[field_id] = ptrs;
 
   // success
   return read;
 
-cleanup_data:
-  parquet_metadata_release(ctx, header.size * ctx->target_size);
-
-cleanup_ptrs:
-  parquet_metadata_release(ctx, 8 + header.size * 8);
-
 cleanup:
+  // revert the arena to the previous state
+  arena_revert(ctx->arena, cursor);
+
+  // failure
   return result;
 }
 
@@ -363,36 +335,32 @@ static i64 parquet_read_struct(
   struct parquet_parse_context context;
   i64 result, read;
   void *data;
+  u64 cursor;
 
   // check if the field type is correct
   if (field_type != THRIFT_TYPE_STRUCT) {
     return PARQUET_ERROR_INVALID_TYPE;
   }
 
-  // allocate memory for the struct
-  result = parquet_metadata_acquire(ctx, ctx->target_size);
-  if (result < 0) goto cleanup;
+  // remember the cursor
+  cursor = ctx->arena->cursor;
 
-  // remember allocated array
-  data = (void *)result;
+  // allocate memory for the struct
+  result = arena_acquire(ctx->arena, ctx->target_size, &data);
+  if (result < 0) return result;
 
   // context
   context.target = data;
-  context.buffer = ctx->buffer;
-  context.buffer_size = ctx->buffer_size;
-  context.buffer_tail = ctx->buffer_tail;
+  context.arena = ctx->arena;
 
   // read the next schema element
   result = ctx->target_fn(&context, buffer, buffer_size);
-  if (result < 0) goto cleanup_data;
+  if (result < 0) goto cleanup;
 
   // move the buffer pointer and size
   read = result;
   buffer += result;
   buffer_size -= result;
-
-  // restore the context
-  ctx->buffer_tail = context.buffer_tail;
 
   // value is OK, field will be found
   *(void **)ctx->ptrs[field_id] = data;
@@ -400,10 +368,11 @@ static i64 parquet_read_struct(
   // success
   return read;
 
-cleanup_data:
-  parquet_metadata_release(ctx, ctx->target_size);
-
 cleanup:
+  // revert the arena to the previous state
+  arena_revert(ctx->arena, cursor);
+
+  // failure
   return result;
 }
 
@@ -434,9 +403,7 @@ static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const
 
   // context
   context.target = schema;
-  context.buffer = ctx->buffer;
-  context.buffer_size = ctx->buffer_size;
-  context.buffer_tail = ctx->buffer_tail;
+  context.arena = ctx->arena;
 
   // targets
   context.ptrs[1] = &schema->data_type;
@@ -457,9 +424,6 @@ static i64 parquet_parse_schema_element(struct parquet_parse_context *ctx, const
   read += result;
   buffer += result;
   buffer_size -= result;
-
-  // restore the context
-  ctx->buffer_tail = context.buffer_tail;
 
   // success
   return read;
@@ -538,9 +502,7 @@ parquet_parse_encoding_stats_element(struct parquet_parse_context *ctx, const ch
 
   // context
   context.target = element;
-  context.buffer = ctx->buffer;
-  context.buffer_size = ctx->buffer_size;
-  context.buffer_tail = ctx->buffer_tail;
+  context.arena = ctx->arena;
 
   // targets
   context.ptrs[1] = &element->page_type;
@@ -558,9 +520,6 @@ parquet_parse_encoding_stats_element(struct parquet_parse_context *ctx, const ch
   read += result;
   buffer += result;
   buffer_size -= result;
-
-  // restore the context
-  ctx->buffer_tail = context.buffer_tail;
 
   // success
   return read;
@@ -617,9 +576,7 @@ static i64 parquet_parse_column_meta_element(struct parquet_parse_context *ctx, 
 
   // context
   context.target = meta;
-  context.buffer = ctx->buffer;
-  context.buffer_size = ctx->buffer_size;
-  context.buffer_tail = ctx->buffer_tail;
+  context.arena = ctx->arena;
 
   // targets
   context.ptrs[1] = &meta->data_type;
@@ -646,9 +603,6 @@ static i64 parquet_parse_column_meta_element(struct parquet_parse_context *ctx, 
   read += result;
   buffer += result;
   buffer_size -= result;
-
-  // restore the context
-  ctx->buffer_tail = context.buffer_tail;
 
   // success
   return read;
@@ -686,9 +640,7 @@ static i64 parquet_parse_column_chunk_element(struct parquet_parse_context *ctx,
 
   // context
   context.target = column_chunk;
-  context.buffer = ctx->buffer;
-  context.buffer_size = ctx->buffer_size;
-  context.buffer_tail = ctx->buffer_tail;
+  context.arena = ctx->arena;
 
   // targets
   context.ptrs[1] = &column_chunk->file_path;
@@ -706,9 +658,6 @@ static i64 parquet_parse_column_chunk_element(struct parquet_parse_context *ctx,
   read += result;
   buffer += result;
   buffer_size -= result;
-
-  // restore the context
-  ctx->buffer_tail = context.buffer_tail;
 
   // success
   return read;
@@ -752,9 +701,7 @@ static i64 parquet_parse_row_group_element(struct parquet_parse_context *ctx, co
 
   // context
   context.target = row_group;
-  context.buffer = ctx->buffer;
-  context.buffer_size = ctx->buffer_size;
-  context.buffer_tail = ctx->buffer_tail;
+  context.arena = ctx->arena;
 
   // targets
   context.ptrs[1] = &row_group->columns;
@@ -774,9 +721,6 @@ static i64 parquet_parse_row_group_element(struct parquet_parse_context *ctx, co
   read += result;
   buffer += result;
   buffer_size -= result;
-
-  // restore the context
-  ctx->buffer_tail = context.buffer_tail;
 
   // success
   return read;
@@ -846,18 +790,9 @@ i64 parquet_parse(struct parquet_file *file, struct parquet_metadata *metadata) 
 
   struct parquet_parse_context ctx;
 
-  // prepare the metadata lease, currently 4 times reflects the need
-  file->metadata_lease.size = 4 * file->buffer_lease.size;
-
-  // acquire memory for the metadata
-  result = malloc_acquire(file->pool, &file->metadata_lease);
-  if (result < 0) return result;
-
   // initialize the context
   ctx.target = metadata;
-  ctx.buffer = file->metadata_lease.ptr;
-  ctx.buffer_size = file->metadata_lease.size;
-  ctx.buffer_tail = 0;
+  ctx.arena = &file->arena;
 
   // initialize
   buffer = file->footer_buffer_start;
@@ -923,8 +858,8 @@ static void can_read_i32_positive() {
   const char buffer[] = {0x02}; // zig-zag encoding of version 1
 
   // defaults
-  ctx.ptrs[1] = &value;
   value = 0;
+  ctx.ptrs[1] = &value;
 
   // read the value from the buffer
   result = parquet_read_i32_positive(&ctx, 1, THRIFT_TYPE_I32, buffer, sizeof(buffer));
@@ -942,8 +877,8 @@ static void can_detect_i32_positive_invalid_type() {
   const char buffer[] = {0x02}; // zig-zag encoding of version 1
 
   // defaults
-  ctx.ptrs[1] = &value;
   value = 0;
+  ctx.ptrs[1] = &value;
 
   // read the value from the buffer
   result = parquet_read_i32_positive(&ctx, 1, THRIFT_TYPE_I16, buffer, sizeof(buffer));
@@ -961,8 +896,8 @@ static void can_detect_i32_positive_invalid_value() {
   const char buffer[] = {0x01}; // zig-zag encoding of version -1
 
   // defaults
-  ctx.ptrs[1] = &value;
   value = 0;
+  ctx.ptrs[1] = &value;
 
   // read the value from the buffer
   result = parquet_read_i32_positive(&ctx, 1, THRIFT_TYPE_I32, buffer, sizeof(buffer));
@@ -980,8 +915,8 @@ static void can_propagate_i32_positive_buffer_overflow() {
   const char buffer[] = {};
 
   // defaults
-  ctx.ptrs[1] = &value;
   value = 0;
+  ctx.ptrs[1] = &value;
 
   // read the value from the buffer
   result = parquet_read_i32_positive(&ctx, 1, THRIFT_TYPE_I32, buffer, sizeof(buffer));
@@ -999,8 +934,8 @@ static void can_read_i64_positive() {
   const char buffer[] = {0xf2, 0x94, 0x12};
 
   // defaults
-  ctx.ptrs[1] = &value;
   value = 0;
+  ctx.ptrs[1] = &value;
 
   // read the value from the buffer
   result = parquet_read_i64_positive(&ctx, 1, THRIFT_TYPE_I64, buffer, sizeof(buffer));
@@ -1018,8 +953,8 @@ static void can_detect_i64_positive_invalid_type() {
   const char buffer[] = {0xf2, 0x94, 0x12};
 
   // defaults
-  ctx.ptrs[1] = &value;
   value = 0;
+  ctx.ptrs[1] = &value;
 
   // read the version from the buffer
   result = parquet_read_i64_positive(&ctx, 1, THRIFT_TYPE_I32, buffer, sizeof(buffer));
@@ -1037,8 +972,8 @@ static void can_detect_i64_positive_invalid_value() {
   const char buffer[] = {0x01};
 
   // defaults
-  ctx.ptrs[1] = &value;
   value = 0;
+  ctx.ptrs[1] = &value;
 
   // read the value from the buffer
   result = parquet_read_i64_positive(&ctx, 1, THRIFT_TYPE_I64, buffer, sizeof(buffer));
@@ -1056,8 +991,8 @@ static void can_propagate_i64_positive_buffer_overflow() {
   const char buffer[] = {0xf1};
 
   // defaults
-  ctx.ptrs[1] = &value;
   value = 0;
+  ctx.ptrs[1] = &value;
 
   // read the value from the buffer
   result = parquet_read_i64_positive(&ctx, 1, THRIFT_TYPE_I64, buffer, sizeof(buffer));
@@ -1068,21 +1003,25 @@ static void can_propagate_i64_positive_buffer_overflow() {
 }
 
 static void can_read_string() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   char *value;
 
   i64 result;
-  u64 output[32];
   const char buffer[] = {0x04, 'i', '1', '3', 'c'};
 
   // defaults
-  ctx.ptrs[1] = &value;
   value = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 256;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // context
+  ctx.arena = &arena;
+  ctx.ptrs[1] = &value;
 
   // read the value from the buffer
   result = parquet_read_string(&ctx, 1, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
@@ -1091,27 +1030,35 @@ static void can_read_string() {
   assert(result == 5, "should read five bytes");
   assert(value != NULL, "should allocate value");
   assert((u64)value % 8 == 0, "should be aligned to 8 bytes");
-  assert_eq_str(value, "i13c", "should read value 'i13c'");
 
-  assert(ctx.buffer_tail == 8, "should update buffer tail to 8");
+  assert_eq_str(value, "i13c", "should read value 'i13c'");
+  assert(arena_occupied(&arena) == 8, "should occupy 8 bytes");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_detect_string_invalid_type() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   char *value;
 
   i64 result;
-  u64 output[32];
   const char buffer[] = {0x05, 'i', '1', '3', 'c'};
 
   // defaults
-  ctx.ptrs[1] = &value;
   value = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 256;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // context
+  ctx.arena = &arena;
+  ctx.ptrs[1] = &value;
 
   // read the value from the buffer
   result = parquet_read_string(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
@@ -1119,52 +1066,73 @@ static void can_detect_string_invalid_type() {
   // assert the result
   assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
   assert(value == NULL, "should not allocate value");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == 0, "shouldn't occupy any bytes");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
-static void can_detect_string_buffer_overflow() {
+static void can_detect_string_arena_overflow() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   char *value;
+  void *ptr;
 
   i64 result;
-  u64 output[32];
+  u64 occupied;
   const char buffer[] = {0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
   // defaults
-  ctx.ptrs[1] = &value;
   value = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 8;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  arena_acquire(&arena, arena_available(&arena) - 8, &ptr);
+  occupied = arena_occupied(&arena);
+
+  // context
+  ctx.arena = &arena;
+  ctx.ptrs[1] = &value;
 
   // read the value from the buffer
   result = parquet_read_string(&ctx, 1, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
 
   // assert the result
-  assert(result == PARQUET_ERROR_BUFFER_OVERFLOW, "should fail with PARQUET_ERROR_BUFFER_OVERFLOW");
+  assert(result == ARENA_ERROR_OUT_OF_MEMORY, "should fail with ARENA_ERROR_OUT_OF_MEMORY");
   assert(value == NULL, "should not allocate value");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == occupied, "shouldn't increase occupied size");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_propagate_string_buffer_overflow_01() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   char *value;
 
   i64 result;
-  u64 output[32];
   const char buffer[] = {0xf0};
 
   // defaults
-  ctx.ptrs[1] = &value;
   value = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 256;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // context
+  ctx.arena = &arena;
+  ctx.ptrs[1] = &value;
 
   // read the value from the buffer
   result = parquet_read_string(&ctx, 1, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
@@ -1172,25 +1140,33 @@ static void can_propagate_string_buffer_overflow_01() {
   // assert the result
   assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
   assert(value == NULL, "should not allocate value");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == 0, "shouldn't occupy any bytes");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_propagate_string_buffer_overflow_02() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   char *value;
 
   i64 result;
-  u64 output[32];
   const char buffer[] = {0x04, 'i', '1', '3'};
 
   // defaults
-  ctx.ptrs[1] = &value;
   value = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 256;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // context
+  ctx.arena = &arena;
+  ctx.ptrs[1] = &value;
 
   // read the value from the buffer
   result = parquet_read_string(&ctx, 1, THRIFT_TYPE_BINARY, buffer, sizeof(buffer));
@@ -1198,7 +1174,11 @@ static void can_propagate_string_buffer_overflow_02() {
   // assert the result
   assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
   assert(value == NULL, "should not allocate value");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == 0, "shouldn't occupy any bytes");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static i64 can_read_list_item(struct parquet_parse_context *ctx, const char *buffer, u64 buffer_size) {
@@ -1210,23 +1190,25 @@ static i64 can_read_list_item(struct parquet_parse_context *ctx, const char *buf
 }
 
 static void can_read_list() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   i64 **values;
 
   i64 result;
-  u64 output[32];
   const char buffer[] = {0x46, 0x02, 0x04, 0x06, 0xf2, 0x14};
 
   // defaults
-  ctx.ptrs[1] = &values;
   values = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 256;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
 
   // context
+  ctx.arena = &arena;
+  ctx.ptrs[1] = &values;
   ctx.target_size = 8;
   ctx.target_fn = (parquet_read_fn)can_read_list_item;
 
@@ -1246,25 +1228,35 @@ static void can_read_list() {
   assert((u64)values[3] % 8 == 0, "should be aligned to 8 bytes");
   assert(*values[3] == 1337, "should read value 1337");
   assert(values[4] == 0, "should be null-terminated");
-  assert(ctx.buffer_tail == 40 + 32, "should update buffer tail to 72");
+  assert(arena_occupied(&arena) == 40 + 32, "should occupy 72 bytes");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_detect_list_invalid_type() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   i64 **values;
 
   i64 result;
-  u64 output[32];
   const char buffer[] = {0x46, 0x02, 0x04, 0x06, 0xf2, 0x14};
 
   // defaults
   ctx.ptrs[1] = &values;
   values = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 256;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // context
+  ctx.arena = &arena;
+  ctx.target_size = 8;
+  ctx.target_fn = (parquet_read_fn)can_read_list_item;
 
   // read the value from the buffer
   result = parquet_read_list(&ctx, 1, THRIFT_TYPE_I32, buffer, sizeof(buffer));
@@ -1272,77 +1264,117 @@ static void can_detect_list_invalid_type() {
   // assert the result
   assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
   assert(values == NULL, "should not allocate values");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == 0, "shouldn't occupy any bytes");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
-static void can_detect_list_buffer_overflow_01() {
+static void can_detect_list_arena_overflow_01() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   i64 **values;
+  void *ptr;
 
   i64 result;
-  u64 output[32];
+  u64 cursor;
   const char buffer[] = {0x46, 0x02, 0x04, 0x06, 0xf2, 0x14};
 
   // defaults
-  ctx.ptrs[1] = &values;
   values = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 8;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  arena_acquire(&arena, arena_available(&arena) - 8, &ptr);
+  cursor = arena_occupied(&arena);
+
+  // context
+  ctx.arena = &arena;
+  ctx.ptrs[1] = &values;
+  ctx.target_size = 8;
+  ctx.target_fn = (parquet_read_fn)can_read_list_item;
 
   // read the value from the buffer
   result = parquet_read_list(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
 
   // assert the result
-  assert(result == PARQUET_ERROR_BUFFER_OVERFLOW, "should fail with PARQUET_ERROR_BUFFER_OVERFLOW");
+  assert(result == ARENA_ERROR_OUT_OF_MEMORY, "should fail with ARENA_ERROR_OUT_OF_MEMORY");
   assert(values == NULL, "should not allocate values");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == cursor, "shouldn't increase occupied size");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_detect_list_buffer_overflow_02() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   i64 **values;
+  void *ptr;
 
   i64 result;
-  u64 output[32];
+  u64 cursor;
   const char buffer[] = {0x46, 0x02, 0x04, 0x06, 0xf2, 0x14};
 
   // defaults
-  ctx.ptrs[1] = &values;
   values = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 56;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  arena_acquire(&arena, arena_available(&arena) - 56, &ptr);
+  cursor = arena_occupied(&arena);
+
+  // context
+  ctx.arena = &arena;
+  ctx.ptrs[1] = &values;
+  ctx.target_size = 8;
+  ctx.target_fn = (parquet_read_fn)can_read_list_item;
 
   // read the value from the buffer
   result = parquet_read_list(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer) - 1);
 
   // assert the result
-  assert(result == PARQUET_ERROR_BUFFER_OVERFLOW, "should fail with PARQUET_ERROR_BUFFER_OVERFLOW");
+  assert(result == ARENA_ERROR_OUT_OF_MEMORY, "should fail with ARENA_ERROR_OUT_OF_MEMORY");
   assert(values == NULL, "should not allocate values");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == cursor, "shouldn't increase occupied size");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_propagate_list_buffer_overflow_01() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   i64 **values;
 
   i64 result;
-  u64 output[32];
   const char buffer[] = {};
 
   // defaults
-  ctx.ptrs[1] = &values;
   values = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 256;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // context
+  ctx.arena = &arena;
+  ctx.ptrs[1] = &values;
+  ctx.target_size = 8;
+  ctx.target_fn = (parquet_read_fn)can_read_list_item;
 
   // read the value from the buffer
   result = parquet_read_list(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
@@ -1350,25 +1382,35 @@ static void can_propagate_list_buffer_overflow_01() {
   // assert the result
   assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
   assert(values == NULL, "should not allocate values");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == 0, "shouldn't occupy any bytes");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_propagate_list_buffer_overflow_02() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   i64 **values;
 
   i64 result;
-  u64 output[32];
   const char buffer[] = {0x46, 0x02, 0x04};
 
   // defaults
-  ctx.ptrs[1] = &values;
   values = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 256;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // context
+  ctx.arena = &arena;
+  ctx.ptrs[1] = &values;
+  ctx.target_size = 8;
+  ctx.target_fn = (parquet_read_fn)can_read_list_item;
 
   // read the value from the buffer
   result = parquet_read_list(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer) - 1);
@@ -1376,7 +1418,11 @@ static void can_propagate_list_buffer_overflow_02() {
   // assert the result
   assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
   assert(values == NULL, "should not allocate values");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == 0, "shouldn't occupy any bytes");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static i64 can_read_struct_item(struct parquet_parse_context *, const char *, u64 buffer_size) {
@@ -1389,22 +1435,24 @@ static void can_read_struct() {
     char **name;
   };
 
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   struct sample *value;
 
   i64 result;
-  u64 output[32];
   const char buffer[] = {0x01};
 
   // defaults
   value = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 256;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
 
   // context
+  ctx.arena = &arena;
   ctx.ptrs[0] = &value;
   ctx.target_size = sizeof(struct sample);
   ctx.target_fn = (parquet_read_fn)can_read_struct_item;
@@ -1415,26 +1463,33 @@ static void can_read_struct() {
   // assert the result
   assert(result == 1, "should read one byte");
   assert(value != NULL, "should allocate value");
-  assert(ctx.buffer_tail == 16, "should update buffer tail to 16");
+  assert((u64)value % 8 == 0, "should be aligned to 8 bytes");
+  assert(arena_occupied(&arena) == 16, "should occupy 16 bytes");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_detect_struct_invalid_type() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   struct sample *value;
 
   i64 result;
-  u64 output[32];
   const char buffer[] = {0x01};
 
   // defaults
   value = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 256;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
 
   // context
+  ctx.arena = &arena;
   ctx.ptrs[0] = &value;
   ctx.target_size = sizeof(value);
   ctx.target_fn = (parquet_read_fn)can_read_struct_item;
@@ -1445,26 +1500,37 @@ static void can_detect_struct_invalid_type() {
   // assert the result
   assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
   assert(value == NULL, "should not allocate value");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == 0, "shouldn't occupy any bytes");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_detect_struct_buffer_overflow() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   struct sample *value;
 
+  void *ptr;
   i64 result;
-  u64 output[32];
+  u64 cursor;
   const char buffer[] = {0x01};
 
   // defaults
   value = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 6;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  arena_acquire(&arena, arena_available(&arena) - 6, &ptr);
+  cursor = arena_occupied(&arena);
 
   // context
+  ctx.arena = &arena;
   ctx.ptrs[0] = &value;
   ctx.target_size = sizeof(value);
   ctx.target_fn = (parquet_read_fn)can_read_struct_item;
@@ -1473,28 +1539,34 @@ static void can_detect_struct_buffer_overflow() {
   result = parquet_read_struct(&ctx, 0, THRIFT_TYPE_STRUCT, buffer, sizeof(buffer));
 
   // assert the result
-  assert(result == PARQUET_ERROR_BUFFER_OVERFLOW, "should fail with PARQUET_ERROR_BUFFER_OVERFLOW");
+  assert(result == ARENA_ERROR_OUT_OF_MEMORY, "should fail with ARENA_ERROR_OUT_OF_MEMORY");
   assert(value == NULL, "should not allocate value");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == cursor, "shouldn't increase occupied size");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_propagate_struct_buffer_overflow() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   struct sample *value;
 
   i64 result;
-  u64 output[32];
   const char buffer[] = {};
 
   // defaults
   value = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 256;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
 
   // context
+  ctx.arena = &arena;
   ctx.ptrs[0] = &value;
   ctx.target_size = sizeof(value);
   ctx.target_fn = (parquet_read_fn)can_read_struct_item;
@@ -1505,25 +1577,33 @@ static void can_propagate_struct_buffer_overflow() {
   // assert the result
   assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
   assert(value == NULL, "should not allocate value");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == 0, "shouldn't occupy any bytes");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_read_list_strings() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   char **values;
 
   i64 result;
-  u64 output[32];
   const char buffer[] = {0x28, 0x03, 'a', 'b', 'c', 0x04, 'i', '1', '3', 'c'};
 
   // defaults
   ctx.ptrs[1] = &values;
   values = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 256;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // context
+  ctx.arena = &arena;
 
   // read the value from the buffer
   result = parquet_read_list_string(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
@@ -1540,25 +1620,33 @@ static void can_read_list_strings() {
   assert_eq_str(values[1], "i13c", "value should be 'i13c'");
 
   assert(values[2] == 0, "should be null-terminated");
-  assert(ctx.buffer_tail == 24 + 8 + 8, "should update buffer tail to 40");
+  assert(arena_occupied(&arena) == 24 + 8 + 8, "should occupy 40 bytes");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_detect_list_strings_invalid_type() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   char **values;
 
   i64 result;
-  u64 output[32];
   const char buffer[] = {0x28, 0x03, 'a', 'b', 'c', 0x04, 'i', '1', '3', 'c'};
 
   // defaults
-  ctx.ptrs[1] = &values;
   values = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 256;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // context
+  ctx.arena = &arena;
+  ctx.ptrs[1] = &values;
 
   // read the value from the buffer
   result = parquet_read_list_string(&ctx, 1, THRIFT_TYPE_I32, buffer, sizeof(buffer));
@@ -1566,51 +1654,72 @@ static void can_detect_list_strings_invalid_type() {
   // assert the result
   assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
   assert(values == NULL, "should not allocate values");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == 0, "shouldn't occupy any bytes");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_detect_list_strings_buffer_overflow() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   char **values;
+  void *ptr;
 
   i64 result;
-  u64 output[32];
+  u64 cursor;
   const char buffer[] = {0x28, 0x03, 'a', 'b', 'c', 0x04, 'i', '1', '3', 'c'};
 
   // defaults
-  ctx.ptrs[1] = &values;
   values = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 8;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  arena_acquire(&arena, arena_available(&arena) - 8, &ptr);
+  cursor = arena_occupied(&arena);
+
+  // context
+  ctx.arena = &arena;
+  ctx.ptrs[1] = &values;
 
   // read the value from the buffer
   result = parquet_read_list_string(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
 
   // assert the result
-  assert(result == PARQUET_ERROR_BUFFER_OVERFLOW, "should fail with PARQUET_ERROR_BUFFER_OVERFLOW");
+  assert(result == ARENA_ERROR_OUT_OF_MEMORY, "should fail with PARQUET_ERROR_BUFFER_OVERFLOW");
   assert(values == NULL, "should not allocate values");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == cursor, "shouldn't increase occupied size");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_propagate_list_strings_buffer_overflow() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   char **values;
 
   i64 result;
-  u64 output[32];
   const char buffer[] = {0x28, 0x03, 'a', 'b', 'c', 0x04, 'i', '1', '3'};
 
   // defaults
-  ctx.ptrs[1] = &values;
   values = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 256;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // context
+  ctx.arena = &arena;
+  ctx.ptrs[1] = &values;
 
   // read the value from the buffer
   result = parquet_read_list_string(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
@@ -1618,25 +1727,33 @@ static void can_propagate_list_strings_buffer_overflow() {
   // assert the result
   assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
   assert(values == NULL, "should not allocate values");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == 0, "shouldn't occupy any bytes");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_read_list_i32_positive() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   i32 **values;
 
   i64 result;
-  u64 output[32];
   const char buffer[] = {0x46, 0x02, 0x04, 0x06, 0xf2, 0x14};
 
   // defaults
-  ctx.ptrs[1] = &values;
   values = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 256;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // context
+  ctx.arena = &arena;
+  ctx.ptrs[1] = &values;
 
   // read the value from the buffer
   result = parquet_read_list_i32_positive(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
@@ -1659,25 +1776,33 @@ static void can_read_list_i32_positive() {
   assert(*values[3] == 1337, "should read value 1337");
 
   assert(values[4] == NULL, "should be null-terminated");
-  assert(ctx.buffer_tail == 40 + 16, "should update buffer tail to 56");
+  assert(arena_occupied(&arena) == 40 + 16, "should occupy 56 bytes");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_detect_list_i32_positive_invalid_type() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   i32 **values;
 
   i64 result;
-  u64 output[32];
   const char buffer[] = {0x46, 0x02, 0x04, 0x06, 0xf2, 0x14};
 
   // defaults
-  ctx.ptrs[1] = &values;
   values = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 256;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // context
+  ctx.arena = &arena;
+  ctx.ptrs[1] = &values;
 
   // read the value from the buffer
   result = parquet_read_list_i32_positive(&ctx, 1, THRIFT_TYPE_I32, buffer, sizeof(buffer));
@@ -1685,51 +1810,72 @@ static void can_detect_list_i32_positive_invalid_type() {
   // assert the result
   assert(result == PARQUET_ERROR_INVALID_TYPE, "should fail with PARQUET_ERROR_INVALID_TYPE");
   assert(values == NULL, "should not allocate values");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == 0, "shouldn't occupy any bytes");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_detect_list_i32_positive_buffer_overflow() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   i32 **values;
+  void *ptr;
 
   i64 result;
-  u64 output[32];
+  u64 cursor;
   const char buffer[] = {0x46, 0x02, 0x04, 0x06, 0xf2, 0x14};
 
   // defaults
-  ctx.ptrs[1] = &values;
   values = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 48;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  arena_acquire(&arena, arena_available(&arena) - 48, &ptr);
+  cursor = arena_occupied(&arena);
+
+  // context
+  ctx.arena = &arena;
+  ctx.ptrs[1] = &values;
 
   // read the value from the buffer
   result = parquet_read_list_i32_positive(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
 
   // assert the result
-  assert(result == PARQUET_ERROR_BUFFER_OVERFLOW, "should fail with PARQUET_ERROR_BUFFER_OVERFLOW");
+  assert(result == ARENA_ERROR_OUT_OF_MEMORY, "should fail with ARENA_ERROR_OUT_OF_MEMORY");
   assert(values == NULL, "should not allocate values");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == cursor, "shouldn't increase occupied size");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 static void can_propagate_list_i32_positive_buffer_overflow() {
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
   struct parquet_parse_context ctx;
   i32 **values;
 
   i64 result;
-  u64 output[32];
   const char buffer[] = {0x46, 0x02, 0x04, 0x06, 0xf2};
 
   // defaults
-  ctx.ptrs[1] = &values;
   values = NULL;
 
-  // buffer
-  ctx.buffer = (char *)output;
-  ctx.buffer_size = 256;
-  ctx.buffer_tail = 0;
+  // arena
+  malloc_init(&pool);
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // context
+  ctx.arena = &arena;
+  ctx.ptrs[1] = &values;
 
   // read the value from the buffer
   result = parquet_read_list_i32_positive(&ctx, 1, THRIFT_TYPE_LIST, buffer, sizeof(buffer));
@@ -1737,7 +1883,11 @@ static void can_propagate_list_i32_positive_buffer_overflow() {
   // assert the result
   assert(result == THRIFT_ERROR_BUFFER_OVERFLOW, "should fail with THRIFT_ERROR_BUFFER_OVERFLOW");
   assert(values == NULL, "should not allocate values");
-  assert(ctx.buffer_tail == 0, "should not change buffer tail");
+  assert(arena_occupied(&arena) == 0, "shouldn't occupy any bytes");
+
+  // release
+  arena_destroy(&arena);
+  malloc_destroy(&pool);
 }
 
 #endif
@@ -3502,14 +3652,14 @@ void parquet_test_cases(struct runner_context *ctx) {
   // string cases
   test_case(ctx, "can read string", can_read_string);
   test_case(ctx, "can detect string invalid type", can_detect_string_invalid_type);
-  test_case(ctx, "can detect string buffer overflow", can_detect_string_buffer_overflow);
+  test_case(ctx, "can detect string buffer overflow", can_detect_string_arena_overflow);
   test_case(ctx, "can propagate string buffer overflow 1", can_propagate_string_buffer_overflow_01);
   test_case(ctx, "can propagate string buffer overflow 2", can_propagate_string_buffer_overflow_02);
 
   // list cases
   test_case(ctx, "can read list", can_read_list);
   test_case(ctx, "can detect list invalid type", can_detect_list_invalid_type);
-  test_case(ctx, "can detect list buffer overflow 1", can_detect_list_buffer_overflow_01);
+  test_case(ctx, "can detect list buffer overflow 1", can_detect_list_arena_overflow_01);
   test_case(ctx, "can detect list buffer overflow 2", can_detect_list_buffer_overflow_02);
   test_case(ctx, "can propagate list buffer overflow 1", can_propagate_list_buffer_overflow_01);
   test_case(ctx, "can propagate list buffer overflow 2", can_propagate_list_buffer_overflow_02);
