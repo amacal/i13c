@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-09-06
+- Incremental memory allocations when parsing with `i13c-parquet`
+
 ## [0.2.0] - 2025-08-31
 - Parquet parser: `i13c-parquet`
 

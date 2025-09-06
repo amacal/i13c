@@ -158,9 +158,15 @@ u32 arena_available(struct arena_allocator *allocator) {
   head = allocator->head;
   limit = allocator->limit;
 
+  // consider current head
+  if (head) {
+    available += (u64)head->data.ptr + head->data.size - allocator->cursor;
+    head = head->next;
+  }
+
   // and sum up all available space
   while (head) {
-    available += (u64)head->data.ptr + head->data.size - allocator->cursor;
+    available += head->data.size - ARENA_NODE_SIZE;
     head = head->next;
   }
 

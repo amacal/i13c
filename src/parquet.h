@@ -174,8 +174,8 @@ struct parquet_metadata {
 };
 
 struct parquet_file {
-  struct malloc_pool *pool; // memory pool for buffer allocation
   u32 fd;                   // file descriptor for the parquet file
+  struct malloc_pool *pool; // memory pool for buffer allocation
 
   struct malloc_lease buffer_lease; // lease for the buffer memory
   struct arena_allocator arena;     // metadata allocator
