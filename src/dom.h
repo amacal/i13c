@@ -15,6 +15,9 @@ enum dom_error {
 
   // indicates that the token op is not expected
   DOM_ERROR_INVALID_OP = DOM_ERROR_BASE - 0x02,
+
+  // indicates that the DOM hierarchy was broken
+  DOM_ERROR_INVALID_HIERARCHY = DOM_ERROR_BASE - 0x03,
 };
 
 enum dom_type {

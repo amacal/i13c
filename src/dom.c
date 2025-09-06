@@ -149,6 +149,11 @@ static i64 write_array_end(struct dom_state *state, struct dom_token *) {
 }
 
 static i64 write_index_start(struct dom_state *state, struct dom_token *token) {
+  // check for hierarchy match
+  if (state->entries[state->entries_indent].op != DOM_OP_ARRAY_START) {
+    return DOM_ERROR_INVALID_HIERARCHY;
+  }
+
   // increase the indent
   state->entries_indent++;
 
@@ -177,6 +182,16 @@ static i64 write_index_start(struct dom_state *state, struct dom_token *token) {
 }
 
 static i64 write_index_end(struct dom_state *state, struct dom_token *) {
+  // check for hierarchy depth
+  if (state->entries_indent < 0) {
+    return DOM_ERROR_INVALID_HIERARCHY;
+  }
+
+  // check for hierarchy match
+  if (state->entries[state->entries_indent].op != DOM_OP_INDEX_START) {
+    return DOM_ERROR_INVALID_HIERARCHY;
+  }
+
   // prepare the format string
   state->format.fmt = "%iindex-end\n";
   state->format.vargs[0] = (void *)(u64)state->entries_indent;
@@ -208,6 +223,16 @@ static i64 write_struct_start(struct dom_state *state, struct dom_token *token) 
 }
 
 static i64 write_struct_end(struct dom_state *state, struct dom_token *) {
+  // check for hierarchy depth
+  if (state->entries_indent < 0) {
+    return DOM_ERROR_INVALID_HIERARCHY;
+  }
+
+  // check for hierarchy match
+  if (state->entries[state->entries_indent].op != DOM_OP_STRUCT_START) {
+    return DOM_ERROR_INVALID_HIERARCHY;
+  }
+
   // prepare the format string
   state->format.fmt = "%istruct-end\n";
   state->format.vargs[0] = (void *)(u64)state->entries_indent;
@@ -221,6 +246,11 @@ static i64 write_struct_end(struct dom_state *state, struct dom_token *) {
 }
 
 static i64 write_key_start(struct dom_state *state, struct dom_token *) {
+  // check for hierarchy match
+  if (state->entries[state->entries_indent].op != DOM_OP_STRUCT_START) {
+    return DOM_ERROR_INVALID_HIERARCHY;
+  }
+
   // increase the indent
   state->entries_indent++;
 
@@ -237,6 +267,16 @@ static i64 write_key_start(struct dom_state *state, struct dom_token *) {
 }
 
 static i64 write_key_end(struct dom_state *state, struct dom_token *) {
+  // check for hierarchy depth
+  if (state->entries_indent < 0) {
+    return DOM_ERROR_INVALID_HIERARCHY;
+  }
+
+  // check for hierarchy match
+  if (state->entries[state->entries_indent].op != DOM_OP_KEY_START) {
+    return DOM_ERROR_INVALID_HIERARCHY;
+  }
+
   // decrease the indent
   state->entries_indent--;
 
@@ -245,6 +285,11 @@ static i64 write_key_end(struct dom_state *state, struct dom_token *) {
 }
 
 static i64 write_value_start(struct dom_state *state, struct dom_token *token) {
+  // check for hierarchy match
+  if (state->entries[state->entries_indent].op != DOM_OP_STRUCT_START) {
+    return DOM_ERROR_INVALID_HIERARCHY;
+  }
+
   // increase the indent
   state->entries_indent++;
 
@@ -261,6 +306,16 @@ static i64 write_value_start(struct dom_state *state, struct dom_token *token) {
 }
 
 static i64 write_value_end(struct dom_state *state, struct dom_token *) {
+  // check for hierarchy depth
+  if (state->entries_indent < 0) {
+    return DOM_ERROR_INVALID_HIERARCHY;
+  }
+
+  // check for hierarchy match
+  if (state->entries[state->entries_indent].op != DOM_OP_VALUE_START) {
+    return DOM_ERROR_INVALID_HIERARCHY;
+  }
+
   // decrease the indent
   state->entries_indent--;
 
@@ -297,6 +352,8 @@ i64 dom_write(struct dom_state *state, struct dom_token *tokens, u32 *count) {
 
     // delegate the call
     result = DOM_WRITE_OP_FN[tokens->op](state, tokens);
+
+    // we treat is as written, because it will be resumed
     if (result == FORMAT_ERROR_BUFFER_TOO_SMALL) {
       written++;
       break;

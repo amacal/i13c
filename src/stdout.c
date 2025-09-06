@@ -12,7 +12,8 @@ i64 stdout_flush(struct format_context *ctx) {
   u32 offset;
   char *buffer;
 
-  // copy the buffer info
+  // default values
+  result = 0;
   buffer = ctx->buffer;
   offset = ctx->buffer_offset;
 
@@ -30,7 +31,7 @@ i64 stdout_flush(struct format_context *ctx) {
   }
 
   // reset the buffer offset
-  ctx->buffer_offset = 0;
+  ctx->buffer_offset = offset;
 
   // success
   return result;

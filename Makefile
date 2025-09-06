@@ -187,6 +187,9 @@ parquet: $(PARQUET_OUTPUT)
 parquet-01: $(PARQUET_OUTPUT)
 	@$(PARQUET_OUTPUT) data/test01.parquet
 
+parquet-02: $(PARQUET_OUTPUT)
+	@$(PARQUET_OUTPUT) data/test02.parquet
+
 .PHONY: debug
 debug: $(BIN_OUTPUT)
 	@edb --run $(BIN_OUTPUT) 2> /dev/null

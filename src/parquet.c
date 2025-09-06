@@ -1894,8 +1894,8 @@ static void can_propagate_list_i32_positive_buffer_overflow() {
 
 #if defined(I13C_PARQUET) || defined(I13C_TESTS)
 
-#define PARQUET_METADATA_TOKENS_SIZE 32
-#define PARQUET_METADATA_QUEUE_SIZE 32
+#define PARQUET_METADATA_TOKENS_SIZE 256
+#define PARQUET_METADATA_QUEUE_SIZE 256
 
 struct parquet_metadata_iterator;
 
@@ -2856,6 +2856,8 @@ static i64 parquet_metadata_next(struct parquet_metadata_iterator *iterator) {
 i32 parquet_main(u32 argc, const char **argv) {
   i64 result;
   u32 tokens;
+  bool small;
+  u32 written;
 
   struct parquet_file file;
   struct malloc_pool pool;
@@ -2864,8 +2866,10 @@ i32 parquet_main(u32 argc, const char **argv) {
   struct parquet_metadata metadata;
   struct parquet_metadata_iterator iterator;
 
-  // check for required arguments
+  // default
   result = 0;
+
+  // check for required arguments
   if (argc < 2) goto cleanup;
 
   // initialize memory and parquet file
@@ -2892,13 +2896,39 @@ i32 parquet_main(u32 argc, const char **argv) {
     result = parquet_metadata_next(&iterator);
     if (result < 0) goto cleanup_buffer;
 
+    // initial counters
+    written = 0;
     tokens = iterator.tokens.count;
-    result = dom_write(&dom, iterator.tokens.items, &tokens);
-    if (result < 0) goto cleanup_buffer;
 
-    result = stdout_flush(&dom.format);
-    if (result < 0) goto cleanup_buffer;
+    while (tokens > 0) {
+      // try to write them
+      result = dom_write(&dom, iterator.tokens.items + written, &tokens);
+
+      // determine new counters
+      written += tokens;
+      tokens = iterator.tokens.count - written;
+
+      // check if we need to retry it later
+      small = result == FORMAT_ERROR_BUFFER_TOO_SMALL;
+      if (result < 0 && !small) goto cleanup_buffer;
+
+      // flush partially written data
+      result = stdout_flush(&dom.format);
+      if (result < 0) goto cleanup_buffer;
+
+      if (small) {
+        result = dom_flush(&dom);
+        if (result < 0) goto cleanup_buffer;
+
+        // clear the flag
+        small = FALSE;
+      }
+    }
+
   } while (iterator.tokens.count > 0);
+
+  result = stdout_flush(&dom.format);
+  if (result < 0) goto cleanup_buffer;
 
   // success
   result = 0;
