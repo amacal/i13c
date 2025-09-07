@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-09-07
+- Improved stdout batching when parsing with `i13c-parquet`
+
 ## [0.3.0] - 2025-09-06
 - Incremental memory allocations when parsing with `i13c-parquet`
 
