@@ -2884,6 +2884,7 @@ i32 parquet_main(u32 argc, const char **argv) {
   result = parquet_parse(&file, &metadata);
   if (result < 0) goto cleanup_file;
 
+  // allocate output buffer
   output.size = 4096;
   result = malloc_acquire(&pool, &output);
   if (result < 0) goto cleanup_file;
@@ -2893,6 +2894,7 @@ i32 parquet_main(u32 argc, const char **argv) {
   parquet_metadata_iter(&iterator, &metadata);
 
   do {
+    // next batch of tokens
     result = parquet_metadata_next(&iterator);
     if (result < 0) goto cleanup_buffer;
 
@@ -2916,6 +2918,7 @@ i32 parquet_main(u32 argc, const char **argv) {
       result = stdout_flush(&dom.format);
       if (result < 0) goto cleanup_buffer;
 
+      // perhaps we need to flush the DOM buffer
       if (small) {
         result = dom_flush(&dom);
         if (result < 0) goto cleanup_buffer;
