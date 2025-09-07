@@ -173,16 +173,21 @@ struct parquet_metadata {
   char *created_by;                        // 6, null-terminated created by string
 };
 
+struct parquet_footer {
+  u64 size; // the size of the footer in bytes
+
+  char *start; // pointer to the start of the footer
+  char *end;   // pointer to the end of the footer
+
+  struct malloc_lease lease; // lease for the footer memory
+};
+
 struct parquet_file {
   u32 fd;                   // file descriptor for the parquet file
   struct malloc_pool *pool; // memory pool for buffer allocation
 
-  struct malloc_lease buffer_lease; // lease for the buffer memory
-  struct arena_allocator arena;     // metadata allocator
-
-  u64 footer_size;           // size of the footer in bytes
-  char *footer_buffer_start; // pointer to the start of the footer
-  char *footer_buffer_end;   // pointer to the end of the footer
+  struct arena_allocator arena; // metadata allocator
+  struct parquet_footer footer; // footer of the parquet file
 };
 
 /// @brief Initializes a parquet file structure.

@@ -34,11 +34,11 @@ void parquet_init(struct parquet_file *file, struct malloc_pool *pool) {
   file->fd = 0;
   file->pool = pool;
 
-  file->buffer_lease.ptr = NULL;
-  file->buffer_lease.size = 0;
+  file->footer.lease.ptr = NULL;
+  file->footer.lease.size = 0;
 
-  file->footer_buffer_start = NULL;
-  file->footer_buffer_end = NULL;
+  file->footer.start = NULL;
+  file->footer.end = NULL;
 
   arena_init(&file->arena, pool, 4096, 32 * 4096);
 }
@@ -66,30 +66,30 @@ i64 parquet_open(struct parquet_file *file, const char *path) {
   }
 
   // set default parameters
-  file->buffer_lease.size = DEFAULT_BUFFER_SIZE;
+  file->footer.lease.size = DEFAULT_BUFFER_SIZE;
 
 alloc:
   // allocate a buffer for the file content
-  result = malloc_acquire(file->pool, &file->buffer_lease);
+  result = malloc_acquire(file->pool, &file->footer.lease);
   if (result < 0) goto cleanup_file;
 
   // adjust buffer pointers
-  if (stat.st_size < (i64)file->buffer_lease.size) {
-    file->footer_buffer_start = file->buffer_lease.ptr + file->buffer_lease.size - stat.st_size;
-    file->footer_buffer_end = file->buffer_lease.ptr + file->buffer_lease.size;
+  if (stat.st_size < (i64)file->footer.lease.size) {
+    file->footer.start = file->footer.lease.ptr + file->footer.lease.size - stat.st_size;
+    file->footer.end = file->footer.lease.ptr + file->footer.lease.size;
   } else {
-    file->footer_buffer_start = file->buffer_lease.ptr;
-    file->footer_buffer_end = file->buffer_lease.ptr + file->buffer_lease.size;
+    file->footer.start = file->footer.lease.ptr;
+    file->footer.end = file->footer.lease.ptr + file->footer.lease.size;
   }
 
   completed = 0;
-  remaining = file->footer_buffer_end - file->footer_buffer_start;
+  remaining = file->footer.end - file->footer.start;
   offset = stat.st_size - remaining;
 
   // fill the buffer
   while (remaining > 0) {
     // read next chunk of the footer
-    result = sys_pread(file->fd, file->footer_buffer_start + completed, remaining, offset);
+    result = sys_pread(file->fd, file->footer.start + completed, remaining, offset);
     if (result < 0) goto cleanup_buffer;
 
     // check if the read was as expected
@@ -105,24 +105,24 @@ alloc:
   }
 
   // recompute buffer boundaries, next op is properly aligned
-  file->footer_size = *(u32 *)(file->footer_buffer_end - 8);
-  file->footer_buffer_end = file->footer_buffer_end - 8;
-  file->footer_buffer_start = file->footer_buffer_end - file->footer_size;
+  file->footer.size = *(u32 *)(file->footer.end - 8);
+  file->footer.end = file->footer.end - 8;
+  file->footer.start = file->footer.end - file->footer.size;
 
   // check if the buffer is too small to handle the footer
-  if (file->footer_buffer_start < (char *)file->buffer_lease.ptr) {
-    if (file->buffer_lease.size > DEFAULT_BUFFER_SIZE) {
+  if (file->footer.start < (char *)file->footer.lease.ptr) {
+    if (file->footer.lease.size > DEFAULT_BUFFER_SIZE) {
       result = PARQUET_ERROR_INVALID_FILE;
       goto cleanup_buffer;
     }
 
     // there is a hope for better buffer size
-    malloc_release(file->pool, &file->buffer_lease);
-    file->footer_buffer_start = NULL;
-    file->footer_buffer_end = NULL;
+    malloc_release(file->pool, &file->footer.lease);
+    file->footer.start = NULL;
+    file->footer.end = NULL;
 
     // set the expected value aligned to the next power of 2
-    file->buffer_lease.size = 1 << (64 - __builtin_clzll(file->footer_size + 7));
+    file->footer.lease.size = 1 << (64 - __builtin_clzll(file->footer.size + 7));
     goto alloc;
   }
 
@@ -131,9 +131,9 @@ alloc:
 
 cleanup_buffer:
   // release the buffer and clear the pointers
-  malloc_release(file->pool, &file->buffer_lease);
-  file->footer_buffer_start = NULL;
-  file->footer_buffer_end = NULL;
+  malloc_release(file->pool, &file->footer.lease);
+  file->footer.start = NULL;
+  file->footer.end = NULL;
 
 cleanup_file:
   // close the file descriptor and clear it
@@ -146,9 +146,9 @@ cleanup:
 
 void parquet_close(struct parquet_file *file) {
   // release the buffer lease using the pool
-  malloc_release(file->pool, &file->buffer_lease);
-  file->footer_buffer_start = NULL;
-  file->footer_buffer_end = NULL;
+  malloc_release(file->pool, &file->footer.lease);
+  file->footer.start = NULL;
+  file->footer.end = NULL;
 
   // close the file descriptor
   sys_close(file->fd);
@@ -795,8 +795,8 @@ i64 parquet_parse(struct parquet_file *file, struct parquet_metadata *metadata) 
   ctx.arena = &file->arena;
 
   // initialize
-  buffer = file->footer_buffer_start;
-  buffer_size = file->footer_size;
+  buffer = file->footer.start;
+  buffer_size = file->footer.size;
 
   // parse the footer as the root structure
   result = parquet_parse_footer(&ctx, buffer, buffer_size);
