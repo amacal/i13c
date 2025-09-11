@@ -1630,7 +1630,7 @@ static const thrift_dump_field_fn THRIFT_DUMP_LIST_FN[THRIFT_TYPE_SIZE] = {
   [THRIFT_TYPE_UUID] = NULL,
 };
 
-static const char *THRIFT_TYPE_TO_NAME[THRIFT_TYPE_SIZE] = {
+static const char *const THRIFT_TYPE_TO_NAME[THRIFT_TYPE_SIZE] = {
   [THRIFT_TYPE_STOP] = "stop",     [THRIFT_TYPE_BOOL_TRUE] = "bool", [THRIFT_TYPE_BOOL_FALSE] = "bool",
   [THRIFT_TYPE_I8] = "i8",         [THRIFT_TYPE_I16] = "i16",        [THRIFT_TYPE_I32] = "i32",
   [THRIFT_TYPE_I64] = "i64",       [THRIFT_TYPE_DOUBLE] = "double",  [THRIFT_TYPE_BINARY] = "binary",

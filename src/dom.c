@@ -46,7 +46,7 @@ static const dom_write_fn DOM_WRITE_OP_FN[DOM_OP_SIZE] = {
 };
 
 // type to string mappings
-static const char *DOM_TYPE_NAMES[DOM_TYPE_SIZE] = {
+static const char *const DOM_TYPE_NAMES[DOM_TYPE_SIZE] = {
   [DOM_TYPE_NULL] = "null", [DOM_TYPE_I8] = "i8",     [DOM_TYPE_I16] = "i16",     [DOM_TYPE_I32] = "i32",
   [DOM_TYPE_I64] = "i64",   [DOM_TYPE_U8] = "u8",     [DOM_TYPE_U16] = "u16",     [DOM_TYPE_U32] = "u32",
   [DOM_TYPE_U64] = "u64",   [DOM_TYPE_TEXT] = "text", [DOM_TYPE_ARRAY] = "array", [DOM_TYPE_STRUCT] = "struct",
