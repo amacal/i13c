@@ -77,9 +77,9 @@ $(THRIFT_OUTPUT): $(OBJDIR_THRIFT)/thrift.s.o $(OBJS_THRIFT)
 	@$(LD) -T src/thrift.ld $(LDFLAGS) -o $@ $^
 	@strip --strip-all $(THRIFT_OUTPUT)
 
-$(PARQUET_OUTPUT): $(OBJDIR_PARQUET)/parquet.s.o $(OBJS_PARQUET)
+$(PARQUET_OUTPUT): $(OBJDIR_PARQUET)/parquet.main.s.o $(OBJS_PARQUET)
 	@mkdir -p bin
-	@$(LD) -T src/parquet.ld $(LDFLAGS) -o $@ $^
+	@$(LD) -T src/parquet.main.ld $(LDFLAGS) -o $@ $^
 	@strip --strip-all $(PARQUET_OUTPUT)
 
 $(OBJDIR_MAIN)/%.c.o: $(SRCDIR)/%.c

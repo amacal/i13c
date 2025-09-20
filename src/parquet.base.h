@@ -3,6 +3,7 @@
 #include "arena.h"
 #include "error.h"
 #include "malloc.h"
+#include "runner.h"
 #include "typing.h"
 
 #define PARQUET_UNKNOWN_VALUE -1
@@ -215,6 +216,6 @@ extern i64 parquet_parse(struct parquet_file *file, struct parquet_metadata *met
 
 /// @brief Registers parquet test cases.
 /// @param ctx Pointer to the runner_context structure.
-extern void parquet_test_cases(struct runner_context *ctx);
+extern void parquet_test_cases_base(struct runner_context *ctx);
 
 #endif
