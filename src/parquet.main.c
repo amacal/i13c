@@ -1,16 +1,16 @@
 #include "argv.h"
 #include "parquet.extract.h"
 #include "parquet.show.h"
-#include "stdout.h"
+#include "stderr.h"
 #include "typing.h"
 
 #if defined(I13C_PARQUET)
 
 #define CMD_SHOW_ID 0
-#define CMD_SHOW "show"
+#define CMD_SHOW "show-metadata"
 
 #define CMD_EXTRACT_ID 1
-#define CMD_EXTRACT "extract"
+#define CMD_EXTRACT "extract-metadata"
 
 #define CMD_LAST_ID 2
 
@@ -42,7 +42,7 @@ i32 parquet_main(u32 argc, const char **argv) {
 cleanup:
   if (result == 0) return 0;
 
-  writef("Something wrong happened; error=%r\n", result);
+  errorf("Something wrong happened; error=%r\n", result);
   return result;
 }
 

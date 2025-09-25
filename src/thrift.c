@@ -1,6 +1,7 @@
 #include "thrift.h"
 #include "malloc.h"
 #include "runner.h"
+#include "stderr.h"
 #include "stdin.h"
 #include "stdout.h"
 #include "typing.h"
@@ -1879,10 +1880,7 @@ i32 thrift_main() {
 
   // acquire memory for the input
   result = malloc_acquire(&pool, &lease);
-  if (result < 0) {
-    writef("Error: Could not acquire memory for input buffer: %x.\n", result);
-    goto clear_memory_init;
-  }
+  if (result < 0) goto clear_memory_init;
 
   read = 0;
   buffer = (char *)lease.ptr;
@@ -1894,10 +1892,7 @@ i32 thrift_main() {
   do {
     // read data from standard input
     result = stdin_read(buffer, buffer_size);
-    if (result < 0) {
-      writef("Error: Could not read data from standard input: %d\n", result);
-      goto clean_memory_alloc;
-    }
+    if (result < 0) goto clean_memory_alloc;
 
     // advance the read pointer
     read += result;
@@ -1906,7 +1901,7 @@ i32 thrift_main() {
   } while (result > 0 && buffer_size > 0);
 
   if (buffer_size == 0) {
-    writef("Error: Buffer would overflow.\n");
+    result = THRIFT_ERROR_BUFFER_OVERFLOW;
     goto clean_memory_alloc;
   }
 
@@ -1917,10 +1912,7 @@ i32 thrift_main() {
 
   // dump the thrift struct
   result = thrift_dump_struct(&ctx, buffer, buffer_size);
-  if (result < 0) {
-    writef("Error: Could not dump thrift struct: %d\n", result);
-    goto clean_memory_alloc;
-  }
+  if (result < 0) goto clean_memory_alloc;
 
   // success
   writef("\n");
@@ -1931,7 +1923,9 @@ clean_memory_alloc:
 
 clear_memory_init:
   malloc_destroy(&pool);
+  if (result == 0) return 0;
 
+  errorf("Something wrong happened; error=%r\n", result);
   return result;
 }
 

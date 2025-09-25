@@ -185,16 +185,16 @@ parquet: $(PARQUET_OUTPUT)
 	@$(PARQUET_OUTPUT) $(ARGS)
 
 parquet-show-01: $(PARQUET_OUTPUT)
-	@$(PARQUET_OUTPUT) show data/test01.parquet
+	@$(PARQUET_OUTPUT) show-metadata data/test01.parquet
 
 parquet-show-02: $(PARQUET_OUTPUT)
-	@$(PARQUET_OUTPUT) show data/test02.parquet
+	@$(PARQUET_OUTPUT) show-metadata data/test02.parquet
 
 parquet-extract-01: $(PARQUET_OUTPUT)
-	@$(PARQUET_OUTPUT) extract data/test01.parquet
+	@$(PARQUET_OUTPUT) extract-metadata data/test01.parquet
 
 parquet-extract-02: $(PARQUET_OUTPUT)
-	@$(PARQUET_OUTPUT) extract data/test02.parquet
+	@$(PARQUET_OUTPUT) extract-metadata data/test02.parquet
 
 .PHONY: debug
 debug: $(BIN_OUTPUT)
