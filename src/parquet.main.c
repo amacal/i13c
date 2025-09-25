@@ -1,14 +1,22 @@
+#include "argv.h"
 #include "dom.h"
 #include "malloc.h"
 #include "parquet.base.h"
 #include "parquet.iter.h"
-#include "runner.h"
 #include "stdout.h"
 #include "typing.h"
 
 #if defined(I13C_PARQUET)
 
-i32 parquet_main(u32 argc, const char **argv) {
+#define CMD_SHOW_ID 0
+#define CMD_SHOW "show"
+
+#define CMD_EXTRACT_ID 1
+#define CMD_EXTRACT "extract"
+
+#define CMD_LAST_ID 2
+
+static i32 parquet_main_show(u32 argc, const char **argv) {
   i64 result;
   u32 tokens;
   bool small;
@@ -25,14 +33,14 @@ i32 parquet_main(u32 argc, const char **argv) {
   result = 0;
 
   // check for required arguments
-  if (argc < 2) goto cleanup;
+  if (argc < 1) goto cleanup;
 
   // initialize memory and parquet file
   malloc_init(&pool);
   parquet_init(&file, &pool);
 
   // try to open parquet file
-  result = parquet_open(&file, argv[1]);
+  result = parquet_open(&file, argv[0]);
   if (result < 0) goto cleanup_memory;
 
   // try to parse metadata
@@ -99,6 +107,38 @@ cleanup_file:
 
 cleanup_memory:
   malloc_destroy(&pool);
+
+cleanup:
+  if (result == 0) return 0;
+
+  writef("Something wrong happened; error=%r\n", result);
+  return result;
+}
+
+i32 parquet_main(u32 argc, const char **argv) {
+  i64 result;
+  u64 selected;
+
+  // prepare commands and their names
+  const char *names[CMD_LAST_ID + 1];
+  argv_match_fn commands[CMD_LAST_ID];
+
+  // first, names
+  names[CMD_SHOW_ID] = CMD_SHOW;
+  names[CMD_EXTRACT_ID] = CMD_EXTRACT;
+  names[CMD_LAST_ID] = NULL;
+
+  // then, commands
+  commands[CMD_SHOW_ID] = parquet_main_show;
+  commands[CMD_EXTRACT_ID] = parquet_main_show;
+
+  // match the command
+  result = argv_match(argc, argv, names, &selected);
+  if (result < 0) goto cleanup;
+
+  // execute the command
+  result = commands[selected](argc - 2, argv + 2);
+  if (result < 0) goto cleanup;
 
 cleanup:
   if (result == 0) return 0;

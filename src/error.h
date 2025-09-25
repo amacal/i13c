@@ -25,7 +25,10 @@
 #define ARENA_ERROR_BASE (ERROR_BASE - 5 * ERROR_BLOCK_SIZE)
 #define ARENA_ERROR_NAME "arena"
 
-#define ERROR_BASE_MAX ARENA_ERROR_BASE
+#define ARGV_ERROR_BASE (ERROR_BASE - 6 * ERROR_BLOCK_SIZE)
+#define ARGV_ERROR_NAME "argv"
+
+#define ERROR_BASE_MAX ARGV_ERROR_BASE
 
 /// @brief Converts a result to a string representation.
 /// @param result Result value to convert.

@@ -184,11 +184,11 @@ thrift: $(THRIFT_OUTPUT)
 parquet: $(PARQUET_OUTPUT)
 	@$(PARQUET_OUTPUT) $(ARGS)
 
-parquet-01: $(PARQUET_OUTPUT)
-	@$(PARQUET_OUTPUT) data/test01.parquet
+parquet-show-01: $(PARQUET_OUTPUT)
+	@$(PARQUET_OUTPUT) show data/test01.parquet
 
-parquet-02: $(PARQUET_OUTPUT)
-	@$(PARQUET_OUTPUT) data/test02.parquet
+parquet-show-02: $(PARQUET_OUTPUT)
+	@$(PARQUET_OUTPUT) show data/test02.parquet
 
 .PHONY: debug
 debug: $(BIN_OUTPUT)
