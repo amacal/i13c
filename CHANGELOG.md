@@ -1,6 +1,9 @@
 # Changelog
 
-## [Unreleased]
+## [0.5.0] - 2025-09-25
+- Added explicit show-metadata command to `i13c-parquet`.
+- Supported extract-metadata command in `i13c-parquet`.
+- Error messages are now written to stdout.
 
 ## [0.4.0] - 2025-09-07
 - Improved stdout batching when parsing with `i13c-parquet`

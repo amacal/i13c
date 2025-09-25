@@ -6,7 +6,9 @@ A collection of ultra-lightweight Linux x86/64 utilities written in pure C. No e
 
 ### **i13c-thrift**
 
-A minimal parser and dumper for Thrift Compact Protocol. Reads binary-encoded Thrift data from standard input and prints a human-readable field structure.
+A minimal parser and dumper for Thrift Compact Protocol.
+
+#### Reads binary-encoded Thrift data from standard input and prints a human-readable field structure
 
 ```bash
 cat data.thrift | i13c-thrift
@@ -33,13 +35,15 @@ Supports: primitive types, nested structs, lists, zigzag decoding.
 
 ### **i13c-parquet**
 
-A minimal parser and dumper for parquet files. Reads metadata section from the file footer and prints a human-readable field structure.
+A minimal parser and dumper for parquet files.
+
+#### Shows metadata section from the parquet files in a human readable form
 
 ```bash
-i13c-parquet data/test01.parquet
+i13c-parquet show-metadata data/test01.parquet | head -n 25
 ```
 
-Example output (truncated):
+Example output:
 
 ```
 struct-start, type=metadata
@@ -69,6 +73,42 @@ struct-start, type=metadata
    index-end
 ```
 
+#### Extracts metadata section from the parquet files and streams it into stdout
+
+```bash
+i13c-parquet extract-metadata data/test01.parquet | i13c-thrift | head -n 25
+```
+
+Example output:
+
+```
+ struct-start
+  field=1, type=i32, value=1
+  field=2, type=list, size=6, item-type=struct
+   list-start
+    index=0, type=struct
+     struct-start
+      field=4, type=binary, size=5, ascii=table
+      field=5, type=i32, value=5
+      field=0, type=stop
+     struct-end
+    index=1, type=struct
+     struct-start
+      field=1, type=i32, value=1
+      field=3, type=i32, value=1
+      field=4, type=binary, size=4, ascii=date
+      field=6, type=i32, value=6
+      field=9, type=i32, value=1
+      field=10, type=struct
+       struct-start
+        field=6, type=struct
+         struct-start
+          field=0, type=stop
+         struct-end
+        field=0, type=stop
+       struct-end
+```
+
 ## development
 
 Everything is wired through the Makefile. The devcontainer provides all tooling, so you can just:
@@ -90,7 +130,7 @@ make fix
 make thrift
 
 # runs i13c-parquet
-make parquet ARGS="file.parquet"
+make parquet ARGS="command file.parquet"
 ```
 
 # license
