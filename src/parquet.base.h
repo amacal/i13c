@@ -10,6 +10,8 @@
 #define PARQUET_NULL_VALUE NULL
 
 enum parquet_error {
+  PARQUET_INVALID_ARGUMENTS = PARQUET_ERROR_BASE - 0x01,
+
   // indicates that the read field type is invalid
   PARQUET_ERROR_INVALID_TYPE = PARQUET_ERROR_BASE - 0x02,
 

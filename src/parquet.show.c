@@ -7,7 +7,7 @@
 
 #if defined(I13C_PARQUET)
 
-extern i32 parquet_show(u32 argc, const char **argv) {
+i32 parquet_show(u32 argc, const char **argv) {
   i64 result;
   u32 tokens;
   bool small;
@@ -20,11 +20,12 @@ extern i32 parquet_show(u32 argc, const char **argv) {
   struct parquet_metadata metadata;
   struct parquet_metadata_iterator iterator;
 
+  // check for required arguments
+  result = PARQUET_INVALID_ARGUMENTS;
+  if (argc < 1) goto cleanup;
+
   // default
   result = 0;
-
-  // check for required arguments
-  if (argc < 1) goto cleanup;
 
   // initialize memory and parquet file
   malloc_init(&pool);

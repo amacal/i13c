@@ -127,7 +127,8 @@ alloc:
   }
 
   // success
-  return 0;
+  result = 0;
+  goto cleanup_file;
 
 cleanup_buffer:
   // release the buffer and clear the pointers
@@ -151,8 +152,10 @@ void parquet_close(struct parquet_file *file) {
   file->footer.end = NULL;
 
   // close the file descriptor
-  sys_close(file->fd);
-  file->fd = 0;
+  if (file->fd > 0) {
+    sys_close(file->fd);
+    file->fd = 0;
+  }
 
   // release arena
   arena_destroy(&file->arena);

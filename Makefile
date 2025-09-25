@@ -190,6 +190,12 @@ parquet-show-01: $(PARQUET_OUTPUT)
 parquet-show-02: $(PARQUET_OUTPUT)
 	@$(PARQUET_OUTPUT) show data/test02.parquet
 
+parquet-extract-01: $(PARQUET_OUTPUT)
+	@$(PARQUET_OUTPUT) extract data/test01.parquet
+
+parquet-extract-02: $(PARQUET_OUTPUT)
+	@$(PARQUET_OUTPUT) extract data/test02.parquet
+
 .PHONY: debug
 debug: $(BIN_OUTPUT)
 	@edb --run $(BIN_OUTPUT) 2> /dev/null

@@ -1,4 +1,5 @@
 #include "argv.h"
+#include "parquet.extract.h"
 #include "parquet.show.h"
 #include "stdout.h"
 #include "typing.h"
@@ -28,7 +29,7 @@ i32 parquet_main(u32 argc, const char **argv) {
 
   // then, commands
   commands[CMD_SHOW_ID] = parquet_show;
-  commands[CMD_EXTRACT_ID] = parquet_show;
+  commands[CMD_EXTRACT_ID] = parquet_extract;
 
   // match the command
   result = argv_match(argc, argv, names, &selected);
