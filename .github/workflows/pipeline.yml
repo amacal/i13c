@@ -68,7 +68,7 @@ jobs:
           name: i13c-binaries
 
       - name: Make Release Package
-        run: make release
+        run: fakeroot make release
 
       - name: Upload Release .tar.gz
         uses: actions/upload-artifact@v4

@@ -142,7 +142,6 @@ $(RELEASE_DIR)/$(DEB_NAME):
 	@cp bin/i13c-parquet $(DEB_DIR)/usr/bin/
 	@chmod 755 $(DEB_DIR)/usr/bin/i13c-thrift
 	@chmod 755 $(DEB_DIR)/usr/bin/i13c-parquet
-	@chown -R root:root $(DEB_DIR)
 	@echo "Package: i13c" >  $(DEB_DIR)/DEBIAN/control
 	@echo "Version: $(VERSION)-1" >> $(DEB_DIR)/DEBIAN/control
 	@echo "Section: utils" >>       $(DEB_DIR)/DEBIAN/control
