@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.6.0] - 2025-09-26
+- Fixed binary permissions in the release artifacts.
+
 ## [0.5.0] - 2025-09-25
 - Added explicit show-metadata command to `i13c-parquet`.
 - Supported extract-metadata command in `i13c-parquet`.
