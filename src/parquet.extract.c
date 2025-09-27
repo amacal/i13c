@@ -32,7 +32,7 @@ i32 parquet_extract(u32 argc, const char **argv) {
   while (remaining > 0) {
     // write to stdout
     result = sys_write(1, file.footer.start + written, remaining);
-    if (result < 0) goto cleanup_memory;
+    if (result < 0) goto cleanup_file;
 
     written += result;
     remaining -= result;
@@ -40,6 +40,9 @@ i32 parquet_extract(u32 argc, const char **argv) {
 
   // success
   result = 0;
+
+cleanup_file:
+  parquet_close(&file);
 
 cleanup_memory:
   malloc_destroy(&pool);
