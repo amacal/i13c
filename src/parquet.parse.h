@@ -1,5 +1,6 @@
 #pragma once
 
+#include "parquet.base.h"
 #include "runner.h"
 #include "typing.h"
 
