@@ -6,6 +6,7 @@
 #include "malloc.h"
 #include "parquet.base.h"
 #include "parquet.iter.h"
+#include "parquet.parse.h"
 #include "stdout.h"
 #include "sys.h"
 #include "thrift.h"
@@ -80,6 +81,7 @@ i32 runner_execute() {
   malloc_test_cases(&ctx);
   parquet_test_cases_base(&ctx);
   parquet_test_cases_iter(&ctx);
+  parquet_test_cases_parse(&ctx);
   runner_test_cases(&ctx);
   format_test_cases(&ctx);
   thrift_test_cases(&ctx);

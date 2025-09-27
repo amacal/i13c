@@ -2,6 +2,7 @@
 #include "malloc.h"
 #include "parquet.base.h"
 #include "parquet.iter.h"
+#include "parquet.parse.h"
 #include "stdout.h"
 #include "typing.h"
 
