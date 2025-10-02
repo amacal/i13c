@@ -41,7 +41,7 @@ struct parquet_file {
   u32 fd;                   // file descriptor for the parquet file
   struct malloc_pool *pool; // memory pool for buffer allocation
 
-  struct arena_allocator arena; // metadata allocator
+  struct arena_allocator arena; // parse/schema allocator
   struct parquet_footer footer; // footer of the parquet file
 };
 
