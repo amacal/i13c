@@ -178,8 +178,73 @@ static void can_open_schema_data01() {
   malloc_destroy(&pool);
 }
 
+static void can_open_schema_data02() {
+  i64 result;
+
+  struct parquet_file file;
+  struct malloc_pool pool;
+
+  struct parquet_metadata metadata;
+  struct parquet_schema schema;
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // initialize the parquet file
+  parquet_init(&file, &pool);
+
+  // open a valid parquet file
+  result = parquet_open(&file, "data/test02.parquet");
+  assert(result == 0, "should open parquet file");
+
+  // parse the metadata
+  result = parquet_parse(&file, &metadata);
+  assert(result == 0, "should parse metadata");
+
+  // and open the schema
+  result = parquet_open_schema(&file, &metadata, &schema);
+  assert(result == 0, "should open schema");
+
+  // assert the schema values
+  assert_eq_str(schema.name, "trino_schema", "should have correct schema name");
+  assert(schema.children.count == 117, "should have 117 children");
+  assert(schema.children.elements != NULL, "should have children elements");
+
+  assert(schema.repeated_type == PARQUET_REPETITION_TYPE_NONE, "should have missing repeated type");
+  assert(schema.converted_type == PARQUET_CONVERTED_TYPE_NONE, "should be missing");
+  assert(schema.data_type == PARQUET_DATA_TYPE_NONE, "should have missing data type");
+  assert(schema.type_length == PARQUET_UNKNOWN_VALUE, "should have unknown type length");
+
+  // assert the 7th child
+  assert_eq_str(schema.children.elements[6][0].name, "id5uidchanged", "should have a name for the 7th child");
+  assert(schema.children.elements[6][0].children.count == 0, "should have no children");
+  assert(schema.children.elements[6][0].children.elements == NULL, "should have no children elements");
+
+  assert(schema.children.elements[6][0].repeated_type == PARQUET_REPETITION_TYPE_OPTIONAL, "should be optional");
+  assert(schema.children.elements[6][0].converted_type == PARQUET_CONVERTED_TYPE_NONE, "should be missing");
+  assert(schema.children.elements[6][0].data_type == PARQUET_DATA_TYPE_BOOLEAN, "should have boolean data type");
+  assert(schema.children.elements[6][0].type_length == PARQUET_UNKNOWN_VALUE, "should have unknown type length");
+
+  // assert the 113th child
+  assert_eq_str(schema.children.elements[112][0].name, "cookie_prediction_probability", "should be cookie...");
+  assert(schema.children.elements[112][0].children.count == 0, "should have no children");
+  assert(schema.children.elements[112][0].children.elements == NULL, "should have no children elements");
+
+  assert(schema.children.elements[112][0].repeated_type == PARQUET_REPETITION_TYPE_OPTIONAL, "should be optional");
+  assert(schema.children.elements[112][0].converted_type == PARQUET_CONVERTED_TYPE_NONE, "should be missing");
+  assert(schema.children.elements[112][0].data_type == PARQUET_DATA_TYPE_FLOAT, "should have float data type");
+  assert(schema.children.elements[112][0].type_length == PARQUET_UNKNOWN_VALUE, "should have unknown type length");
+
+  // close the parquet file
+  parquet_close(&file);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
 void parquet_test_cases_schema(struct runner_context *ctx) {
   test_case(ctx, "can open schema data01", can_open_schema_data01);
+  test_case(ctx, "can open schema data02", can_open_schema_data02);
 }
 
 #endif
