@@ -1,5 +1,6 @@
 #pragma once
 
+#include "arena.h"
 #include "parquet.base.h"
 #include "parquet.parse.h"
 #include "typing.h"
@@ -23,12 +24,13 @@ struct parquet_schema {
 };
 
 /// @brief Opens a parquet schema.
-/// @param file Pointer to the parquet_file structure.
-/// @param metadata Pointer to the parquet_metadata structure.
+/// @param arena Pointer to the arena_allocator structure.
+/// @param metadata Pointer to the parquet_schema_element array.
 /// @param schema Pointer to the parquet_schema structure to fill.
 /// @return 0 on success, or a negative error code on failure.
-extern i64
-parquet_open_schema(struct parquet_file *file, struct parquet_metadata *metadata, struct parquet_schema *schema);
+extern i64 parquet_open_schema(struct arena_allocator *arena,
+                               struct parquet_schema_element **metadata,
+                               struct parquet_schema *schema);
 
 #if defined(I13C_TESTS)
 

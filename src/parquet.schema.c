@@ -5,7 +5,9 @@
 #include "runner.h"
 #include "typing.h"
 
-i64 parquet_open_schema(struct parquet_file *file, struct parquet_metadata *metadata, struct parquet_schema *schema) {
+i64 parquet_open_schema(struct arena_allocator *arena,
+                        struct parquet_schema_element **metadata,
+                        struct parquet_schema *schema) {
   i64 result;
   u32 size, element_index;
 
@@ -20,7 +22,7 @@ i64 parquet_open_schema(struct parquet_file *file, struct parquet_metadata *meta
   depth_children[depth_index] = NULL;
 
   element_index = 0;
-  element = metadata->schemas[0];
+  element = metadata[0];
 
   while (element != NULL) {
     schema->name = element->name;
@@ -31,7 +33,7 @@ i64 parquet_open_schema(struct parquet_file *file, struct parquet_metadata *meta
     size *= sizeof(struct parquet_schema *);
 
     if (size > 1) {
-      result = arena_acquire(&file->arena, size, (void **)&children);
+      result = arena_acquire(arena, size, (void **)&children);
       if (result < 0) return result;
 
       // prepare the children array
@@ -44,6 +46,10 @@ i64 parquet_open_schema(struct parquet_file *file, struct parquet_metadata *meta
       // push to depth
       depth_children[depth_index] = schema;
       depth_queue[depth_index] = element->num_children;
+    } else {
+      // zero out depth
+      depth_queue[depth_index] = 0;
+      depth_children[depth_index] = NULL;
     }
 
     schema->repeated_type = element->repetition_type;
@@ -60,7 +66,7 @@ i64 parquet_open_schema(struct parquet_file *file, struct parquet_metadata *meta
     }
 
     if (depth_queue[depth_index] > 0) {
-      result = arena_acquire(&file->arena, sizeof(struct parquet_schema), (void **)&schema);
+      result = arena_acquire(arena, sizeof(struct parquet_schema), (void **)&schema);
       if (result < 0) return result;
 
       // put the schema in the parent's children array
@@ -75,7 +81,7 @@ i64 parquet_open_schema(struct parquet_file *file, struct parquet_metadata *meta
     }
 
     // move to the next element
-    element = metadata->schemas[++element_index];
+    element = metadata[++element_index];
   }
 
   // success
@@ -108,7 +114,7 @@ static void can_open_schema_data01() {
   assert(result == 0, "should parse metadata");
 
   // and open the schema
-  result = parquet_open_schema(&file, &metadata, &schema);
+  result = parquet_open_schema(&file.arena, metadata.schemas, &schema);
   assert(result == 0, "should open schema");
 
   // assert the schema values
@@ -202,7 +208,7 @@ static void can_open_schema_data02() {
   assert(result == 0, "should parse metadata");
 
   // and open the schema
-  result = parquet_open_schema(&file, &metadata, &schema);
+  result = parquet_open_schema(&file.arena, metadata.schemas, &schema);
   assert(result == 0, "should open schema");
 
   // assert the schema values
@@ -267,7 +273,7 @@ static void can_open_schema_data03() {
   assert(result == 0, "should parse metadata");
 
   // and open the schema
-  result = parquet_open_schema(&file, &metadata, &schema);
+  result = parquet_open_schema(&file.arena, metadata.schemas, &schema);
   assert(result == 0, "should open schema");
 
   // assert the schema values
@@ -357,7 +363,7 @@ static void can_open_schema_data04() {
   assert(result == 0, "should parse metadata");
 
   // and open the schema
-  result = parquet_open_schema(&file, &metadata, &schema);
+  result = parquet_open_schema(&file.arena, metadata.schemas, &schema);
   assert(result == 0, "should open schema");
 
   // assert the schema values
@@ -411,7 +417,7 @@ static void can_open_schema_data05() {
   assert(result == 0, "should parse metadata");
 
   // and open the schema
-  result = parquet_open_schema(&file, &metadata, &schema);
+  result = parquet_open_schema(&file.arena, metadata.schemas, &schema);
   assert(result == 0, "should open schema");
 
   // assert the schema values
