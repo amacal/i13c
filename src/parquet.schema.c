@@ -161,44 +161,44 @@ static void can_open_schema_data01() {
   assert(schema.children.elements[0]->type_length == PARQUET_UNKNOWN_VALUE, "should have unknown type length");
 
   // assert the second child
-  assert_eq_str(schema.children.elements[0][1].name, "hour", "should have a name for the second child");
-  assert(schema.children.elements[0][1].children.count == 0, "should have no children");
-  assert(schema.children.elements[0][1].children.elements == NULL, "should have no children elements");
+  assert_eq_str(schema.children.elements[1]->name, "hour", "should have a name for the second child");
+  assert(schema.children.elements[1]->children.count == 0, "should have no children");
+  assert(schema.children.elements[1]->children.elements == NULL, "should have no children elements");
 
-  assert(schema.children.elements[0][1].repeated_type == PARQUET_REPETITION_TYPE_OPTIONAL, "should be optional");
-  assert(schema.children.elements[0][1].converted_type == PARQUET_CONVERTED_TYPE_NONE, "should be missing");
-  assert(schema.children.elements[0][1].data_type == PARQUET_DATA_TYPE_INT32, "should have int32 data type");
-  assert(schema.children.elements[0][1].type_length == PARQUET_UNKNOWN_VALUE, "should have unknown type length");
+  assert(schema.children.elements[1]->repeated_type == PARQUET_REPETITION_TYPE_OPTIONAL, "should be optional");
+  assert(schema.children.elements[1]->converted_type == PARQUET_CONVERTED_TYPE_NONE, "should be missing");
+  assert(schema.children.elements[1]->data_type == PARQUET_DATA_TYPE_INT32, "should have int32 data type");
+  assert(schema.children.elements[1]->type_length == PARQUET_UNKNOWN_VALUE, "should have unknown type length");
 
   // assert the third child
-  assert_eq_str(schema.children.elements[0][2].name, "ip_country_code", "should have a name for the third child");
-  assert(schema.children.elements[0][2].children.count == 0, "should have no children");
-  assert(schema.children.elements[0][2].children.elements == NULL, "should have no children elements");
+  assert_eq_str(schema.children.elements[2]->name, "ip_country_code", "should have a name for the third child");
+  assert(schema.children.elements[2]->children.count == 0, "should have no children");
+  assert(schema.children.elements[2]->children.elements == NULL, "should have no children elements");
 
-  assert(schema.children.elements[0][2].repeated_type == PARQUET_REPETITION_TYPE_OPTIONAL, "should be optional");
-  assert(schema.children.elements[0][2].converted_type == PARQUET_CONVERTED_TYPE_UTF8, "should be utf8");
-  assert(schema.children.elements[0][2].data_type == PARQUET_DATA_TYPE_BYTE_ARRAY, "should have byte array data type");
-  assert(schema.children.elements[0][2].type_length == PARQUET_UNKNOWN_VALUE, "should have unknown type length");
+  assert(schema.children.elements[2]->repeated_type == PARQUET_REPETITION_TYPE_OPTIONAL, "should be optional");
+  assert(schema.children.elements[2]->converted_type == PARQUET_CONVERTED_TYPE_UTF8, "should be utf8");
+  assert(schema.children.elements[2]->data_type == PARQUET_DATA_TYPE_BYTE_ARRAY, "should have byte array data type");
+  assert(schema.children.elements[2]->type_length == PARQUET_UNKNOWN_VALUE, "should have unknown type length");
 
   // assert the fourth child
-  assert_eq_str(schema.children.elements[0][3].name, "cnt", "should have a name for the fourth child");
-  assert(schema.children.elements[0][3].children.count == 0, "should have no children");
-  assert(schema.children.elements[0][3].children.elements == NULL, "should have no children elements");
+  assert_eq_str(schema.children.elements[3]->name, "cnt", "should have a name for the fourth child");
+  assert(schema.children.elements[3]->children.count == 0, "should have no children");
+  assert(schema.children.elements[3]->children.elements == NULL, "should have no children elements");
 
-  assert(schema.children.elements[0][3].repeated_type == PARQUET_REPETITION_TYPE_OPTIONAL, "should be optional");
-  assert(schema.children.elements[0][3].converted_type == PARQUET_CONVERTED_TYPE_NONE, "should be missing");
-  assert(schema.children.elements[0][3].data_type == PARQUET_DATA_TYPE_INT64, "should have int64 data type");
-  assert(schema.children.elements[0][3].type_length == PARQUET_UNKNOWN_VALUE, "should have unknown type length");
+  assert(schema.children.elements[3]->repeated_type == PARQUET_REPETITION_TYPE_OPTIONAL, "should be optional");
+  assert(schema.children.elements[3]->converted_type == PARQUET_CONVERTED_TYPE_NONE, "should be missing");
+  assert(schema.children.elements[3]->data_type == PARQUET_DATA_TYPE_INT64, "should have int64 data type");
+  assert(schema.children.elements[3]->type_length == PARQUET_UNKNOWN_VALUE, "should have unknown type length");
 
   // assert the fifth child
-  assert_eq_str(schema.children.elements[0][4].name, "bin", "should have a name for the fifth child");
-  assert(schema.children.elements[0][4].children.count == 0, "should have no children");
-  assert(schema.children.elements[0][4].children.elements == NULL, "should have no children elements");
+  assert_eq_str(schema.children.elements[4]->name, "bin", "should have a name for the fifth child");
+  assert(schema.children.elements[4]->children.count == 0, "should have no children");
+  assert(schema.children.elements[4]->children.elements == NULL, "should have no children elements");
 
-  assert(schema.children.elements[0][4].repeated_type == PARQUET_REPETITION_TYPE_OPTIONAL, "should be optional");
-  assert(schema.children.elements[0][4].converted_type == PARQUET_CONVERTED_TYPE_NONE, "should be missing");
-  assert(schema.children.elements[0][4].data_type == PARQUET_DATA_TYPE_INT32, "should have int32 data type");
-  assert(schema.children.elements[0][4].type_length == PARQUET_UNKNOWN_VALUE, "should have unknown type length");
+  assert(schema.children.elements[4]->repeated_type == PARQUET_REPETITION_TYPE_OPTIONAL, "should be optional");
+  assert(schema.children.elements[4]->converted_type == PARQUET_CONVERTED_TYPE_NONE, "should be missing");
+  assert(schema.children.elements[4]->data_type == PARQUET_DATA_TYPE_INT32, "should have int32 data type");
+  assert(schema.children.elements[4]->type_length == PARQUET_UNKNOWN_VALUE, "should have unknown type length");
 
   // close the parquet file
   parquet_close(&file);
