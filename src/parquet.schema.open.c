@@ -1,4 +1,4 @@
-#include "parquet.schema.h"
+#include "parquet.schema.open.h"
 #include "arena.h"
 #include "parquet.base.h"
 #include "parquet.parse.h"
@@ -742,7 +742,7 @@ static void can_detect_nesting_hard_limits() {
   malloc_destroy(&pool);
 }
 
-void parquet_test_cases_schema(struct runner_context *ctx) {
+void parquet_test_cases_schema_open(struct runner_context *ctx) {
   test_case(ctx, "can open schema data01", can_open_schema_data01);
   test_case(ctx, "can open schema data02", can_open_schema_data02);
   test_case(ctx, "can open schema data03", can_open_schema_data03);

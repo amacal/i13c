@@ -15,6 +15,7 @@ struct format_context {
   u32 buffer_size;   // size of the output buffer
   void **vargs;      // variable arguments
   u32 vargs_offset;  // offset in the variable arguments
+  u32 vargs_max;     // maximum number of variable arguments
 };
 
 /// @brief Formats the output.

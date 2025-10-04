@@ -7,6 +7,9 @@
 #define SUBSTITUTION_STRING 's'
 #define SUBSTITUTION_RESULT 'r'
 
+#define SUBSTITUTION_ENDLESS 'e'
+#define SUBSTITUTION_ENDLESS_MAX 64
+
 #define SUBSTITUTION_INDENT 'i'
 #define SUBSTITUTION_INDENT_CHARACTER ' '
 
@@ -209,6 +212,38 @@ static i64 substitute_ascii(struct format_context *ctx, const char **src, u64 *s
   return 0;
 }
 
+static i64 substitute_endless(struct format_context *ctx, const char *src, i64 *count) {
+  char ch;
+  u64 available;
+  const char *current;
+
+  while (*count > 0) {
+    // calculate available space in the buffer
+    current = src;
+    available = ctx->buffer_size - ctx->buffer_offset;
+
+    // if there's not enough space for the substitution
+    if (available < SUBSTITUTION_ENDLESS_MAX) {
+      return FORMAT_ERROR_BUFFER_TOO_SMALL;
+    }
+
+    // copy the string until EOS
+    while (*current && available > 0) {
+      ch = *(current++);
+
+      // append the character to the buffer
+      ctx->buffer[ctx->buffer_offset++] = ch;
+      available--;
+    }
+
+    // decrease the count
+    (*count)--;
+  }
+
+  // success
+  return 0;
+}
+
 i64 format(struct format_context *ctx) {
   i64 result;
 
@@ -219,7 +254,7 @@ i64 format(struct format_context *ctx) {
   while (*ctx->fmt != EOS && result == 0) {
 
     // handle two consecutive substitution markers
-    if (*ctx->fmt == SUBSTITUTION_MARKER && ctx->vargs_offset + 1 < VARGS_MAX) {
+    if (*ctx->fmt == SUBSTITUTION_MARKER && ctx->vargs_offset + 1 < ctx->vargs_max) {
       switch (*(ctx->fmt + 1)) {
         case SUBSTITUTION_ASCII:
           result = substitute_ascii(ctx, (const char **)ctx->vargs + ctx->vargs_offset,
@@ -229,11 +264,20 @@ i64 format(struct format_context *ctx) {
           ctx->vargs_offset += 2;
           ctx->fmt += 2;
           continue;
+
+        case SUBSTITUTION_ENDLESS:
+          result = substitute_endless(ctx, (const char *)ctx->vargs[ctx->vargs_offset],
+                                      (i64 *)ctx->vargs + ctx->vargs_offset + 1);
+          if (result == FORMAT_ERROR_BUFFER_TOO_SMALL) continue;
+
+          ctx->vargs_offset += 2;
+          ctx->fmt += 2;
+          continue;
       }
     }
 
     // handle single substitution markers
-    if (*ctx->fmt == SUBSTITUTION_MARKER && ctx->vargs_offset < VARGS_MAX) {
+    if (*ctx->fmt == SUBSTITUTION_MARKER && ctx->vargs_offset < ctx->vargs_max) {
       switch (*(ctx->fmt + 1)) {
         case SUBSTITUTION_STRING:
           result = substitute_string(ctx, (const char **)ctx->vargs + ctx->vargs_offset);
@@ -336,6 +380,7 @@ static void can_format_with_string_substitution() {
   ctx.fmt = "Hello, %s!";
   ctx.vargs = vargs;
   ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
   ctx.buffer = buffer;
   ctx.buffer_offset = 0;
   ctx.buffer_size = sizeof(buffer) - 2;
@@ -361,6 +406,7 @@ static void can_format_with_hex_substitution() {
   ctx.fmt = "Value: %x";
   ctx.vargs = vargs;
   ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
   ctx.buffer = buffer;
   ctx.buffer_offset = 0;
   ctx.buffer_size = sizeof(buffer) - 2;
@@ -386,6 +432,7 @@ static void can_format_with_decimal_positive() {
   ctx.fmt = "Value: %d";
   ctx.vargs = vargs;
   ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
   ctx.buffer = buffer;
   ctx.buffer_offset = 0;
   ctx.buffer_size = sizeof(buffer) - 2;
@@ -411,6 +458,7 @@ static void can_format_with_decimal_negative() {
   ctx.fmt = "Value: %d";
   ctx.vargs = vargs;
   ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
   ctx.buffer = buffer;
   ctx.buffer_offset = 0;
   ctx.buffer_size = sizeof(buffer) - 2;
@@ -436,6 +484,7 @@ static void can_format_with_decimal_int64_min() {
   ctx.fmt = "Value: %d";
   ctx.vargs = vargs;
   ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
   ctx.buffer = buffer;
   ctx.buffer_offset = 0;
   ctx.buffer_size = sizeof(buffer) - 2;
@@ -461,6 +510,7 @@ static void can_format_with_indent_substitution() {
   ctx.fmt = "%iabcdef";
   ctx.vargs = vargs;
   ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
   ctx.buffer = buffer;
   ctx.buffer_offset = 0;
   ctx.buffer_size = sizeof(buffer) - 2;
@@ -486,6 +536,7 @@ static void can_format_with_ascii_substitution() {
   ctx.fmt = "ASCII: %a";
   ctx.vargs = vargs;
   ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
   ctx.buffer = buffer;
   ctx.buffer_offset = 0;
   ctx.buffer_size = sizeof(buffer) - 2;
@@ -502,6 +553,33 @@ static void can_format_with_ascii_substitution() {
   assert_eq_str(buffer, "ASCII: Hello, ..limak!", "should format 'ASCII: Hello, ..limak!'");
 }
 
+static void can_format_with_endless_substitution() {
+  char buffer[512];
+  struct format_context ctx;
+  void *vargs[VARGS_MAX];
+  i64 offset = 0;
+
+  // initialize the context
+  ctx.fmt = "Endless: %e";
+  ctx.vargs = vargs;
+  ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
+  ctx.buffer = buffer;
+  ctx.buffer_offset = 0;
+  ctx.buffer_size = sizeof(buffer) - 2;
+
+  // not initialize all vargs
+  vargs[0] = "Hello!";
+  vargs[1] = (void *)(u64)3;
+
+  // format a string with endless substitution
+  offset = format(&ctx);
+
+  // assert the result
+  assert(offset == 27, "should write 27 bytes");
+  assert_eq_str(buffer, "Endless: Hello!Hello!Hello!", "should format 'Endless: Hello!x3'");
+}
+
 static void can_format_with_result_substitution() {
   char buffer[64];
   struct format_context ctx;
@@ -512,6 +590,7 @@ static void can_format_with_result_substitution() {
   ctx.fmt = "Result: %r";
   ctx.vargs = vargs;
   ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
   ctx.buffer = buffer;
   ctx.buffer_offset = 0;
   ctx.buffer_size = sizeof(buffer) - 2;
@@ -536,6 +615,7 @@ static void can_format_with_unknown_substitution() {
   ctx.fmt = "Unknown: %z";
   ctx.vargs = NULL;
   ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
   ctx.buffer = buffer;
   ctx.buffer_offset = 0;
   ctx.buffer_size = sizeof(buffer) - 2;
@@ -557,6 +637,7 @@ static void can_format_with_percent_escape() {
   ctx.fmt = "50%% done%";
   ctx.vargs = NULL;
   ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
   ctx.buffer = buffer;
   ctx.buffer_offset = 0;
   ctx.buffer_size = sizeof(buffer) - 2;
@@ -579,6 +660,7 @@ static void can_detect_overflow_in_plain_text() {
   ctx.fmt = "This is a very long string.";
   ctx.vargs = vargs;
   ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
   ctx.buffer = buffer;
   ctx.buffer_offset = 0;
   ctx.buffer_size = sizeof(buffer) - 2;
@@ -613,6 +695,7 @@ static void can_detect_overflow_in_string_substitution() {
   ctx.fmt = "This is a %s.";
   ctx.vargs = vargs;
   ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
   ctx.buffer = buffer;
   ctx.buffer_offset = 0;
   ctx.buffer_size = sizeof(buffer) - 2;
@@ -650,6 +733,7 @@ static void can_detect_overflow_in_hex_substitution() {
   ctx.fmt = "Value: %x";
   ctx.vargs = vargs;
   ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
   ctx.buffer = buffer;
   ctx.buffer_offset = 0;
   ctx.buffer_size = sizeof(buffer) - 2;
@@ -687,6 +771,7 @@ static void can_detect_overflow_with_two_vargs() {
   ctx.fmt = "This is %s and %s.";
   ctx.vargs = vargs;
   ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
   ctx.buffer = buffer;
   ctx.buffer_offset = 0;
   ctx.buffer_size = sizeof(buffer) - 2;
@@ -725,6 +810,7 @@ static void can_detect_overflow_in_long_substitution_1() {
   ctx.fmt = "Value: %s";
   ctx.vargs = vargs;
   ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
   ctx.buffer = buffer;
   ctx.buffer_offset = 0;
   ctx.buffer_size = sizeof(buffer) - 2;
@@ -773,6 +859,7 @@ static void can_detect_overflow_in_long_substitution_2() {
   ctx.fmt = "Value: %a";
   ctx.vargs = vargs;
   ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
   ctx.buffer = buffer;
   ctx.buffer_offset = 0;
   ctx.buffer_size = sizeof(buffer) - 2;
@@ -822,6 +909,7 @@ void format_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can format with decimal int64 min", can_format_with_decimal_int64_min);
   test_case(ctx, "can format with indent substitution", can_format_with_indent_substitution);
   test_case(ctx, "can format with ascii substitution", can_format_with_ascii_substitution);
+  test_case(ctx, "can format with endless substitution", can_format_with_endless_substitution);
   test_case(ctx, "can format with result substitution", can_format_with_result_substitution);
   test_case(ctx, "can format with unknown substitution", can_format_with_unknown_substitution);
   test_case(ctx, "can format with percent escape", can_format_with_percent_escape);

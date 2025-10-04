@@ -51,6 +51,8 @@ void writef(const char *fmt, ...) {
   ctx.fmt = fmt;
   ctx.vargs = vargs;
   ctx.vargs_offset = 0;
+  ctx.vargs_max = VARGS_MAX;
+
   ctx.buffer = buffer;
   ctx.buffer_offset = 0;
   ctx.buffer_size = BUFFER_TRIGGER;

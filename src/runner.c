@@ -7,7 +7,8 @@
 #include "parquet.base.h"
 #include "parquet.iter.h"
 #include "parquet.parse.h"
-#include "parquet.schema.h"
+#include "parquet.schema.open.h"
+#include "parquet.schema.out.h"
 #include "stdout.h"
 #include "sys.h"
 #include "thrift.h"
@@ -83,7 +84,8 @@ i32 runner_execute() {
   parquet_test_cases_base(&ctx);
   parquet_test_cases_iter(&ctx);
   parquet_test_cases_parse(&ctx);
-  parquet_test_cases_schema(&ctx);
+  parquet_test_cases_schema_open(&ctx);
+  parquet_test_cases_schema_out(&ctx);
   runner_test_cases(&ctx);
   format_test_cases(&ctx);
   thrift_test_cases(&ctx);

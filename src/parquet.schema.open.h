@@ -36,6 +36,6 @@ extern i64 parquet_open_schema(struct arena_allocator *arena,
 
 /// @brief Registers parquet test cases.
 /// @param ctx Pointer to the runner_context structure.
-extern void parquet_test_cases_schema(struct runner_context *ctx);
+extern void parquet_test_cases_schema_open(struct runner_context *ctx);
 
 #endif

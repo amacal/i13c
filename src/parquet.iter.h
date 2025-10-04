@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dom.h"
+#include "parquet.parse.h"
 #include "runner.h"
 
 #define PARQUET_METADATA_TOKENS_SIZE 256
@@ -58,6 +59,10 @@ extern void parquet_metadata_iter(struct parquet_metadata_iterator *iterator, st
 /// @param iterator Pointer to the parquet_metadata_iterator structure.
 /// @return Zero on success, or a negative error code.
 extern i64 parquet_metadata_next(struct parquet_metadata_iterator *iterator);
+
+extern const char *const PARQUET_CONVERTED_TYPE_NAMES[PARQUET_CONVERTED_TYPE_SIZE];
+extern const char *const PARQUET_DATA_TYPE_NAMES[PARQUET_DATA_TYPE_SIZE];
+extern const char *const PARQUET_REPETITION_TYPE_NAMES[PARQUET_REPETITION_TYPE_SIZE];
 
 #if defined(I13C_TESTS)
 

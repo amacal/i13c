@@ -57,6 +57,7 @@ static i64 write_null(struct dom_state *state, struct dom_token *) {
   state->format.fmt = "%inull\n";
   state->format.vargs[0] = (void *)(u64)(state->entries_indent + 1);
   state->format.vargs_offset = 0;
+  state->format.vargs_max = VARGS_MAX;
 
   // format the null value
   return format(&state->format);
