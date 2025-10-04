@@ -5,14 +5,16 @@
 #include "runner.h"
 #include "typing.h"
 
+#define SCHEMA_MAX_DEPTH 10
+
 i64 parquet_open_schema(struct arena_allocator *arena,
                         struct parquet_schema_element **metadata,
                         struct parquet_schema *schema) {
   i64 result;
   u32 size, element_index;
 
-  u32 depth_index, depth_queue[10];
-  struct parquet_schema *depth_children[10];
+  u32 depth_index, depth_queue[SCHEMA_MAX_DEPTH];
+  struct parquet_schema *depth_children[SCHEMA_MAX_DEPTH];
 
   struct parquet_schema **children;
   struct parquet_schema_element *element;
@@ -24,6 +26,16 @@ i64 parquet_open_schema(struct arena_allocator *arena,
   element_index = 0;
   element = metadata[0];
 
+  // the schema must have at least one element
+  if (element == NULL) {
+    return PARQUET_ERROR_INVALID_SCHEMA;
+  }
+
+  // the root element must have children
+  if (element->num_children <= 0) {
+    return PARQUET_ERROR_INVALID_SCHEMA;
+  }
+
   while (element != NULL) {
     schema->name = element->name;
     schema->children.elements = NULL;
@@ -32,7 +44,12 @@ i64 parquet_open_schema(struct arena_allocator *arena,
     size = element->num_children + 1;
     size *= sizeof(struct parquet_schema *);
 
-    if (size > 1) {
+    // the schema can only have one root node
+    if (depth_index == 0 && depth_children[0] != NULL) {
+      return PARQUET_ERROR_INVALID_SCHEMA;
+    }
+
+    if (element->num_children > 0) {
       result = arena_acquire(arena, size, (void **)&children);
       if (result < 0) return result;
 
@@ -57,10 +74,6 @@ i64 parquet_open_schema(struct arena_allocator *arena,
     schema->type_length = element->type_length;
     schema->converted_type = element->converted_type;
 
-    if (depth_index > 0 && element->num_children <= 0) {
-      depth_index--;
-    }
-
     while (depth_index > 0 && depth_queue[depth_index] == 0) {
       depth_index--;
     }
@@ -80,8 +93,18 @@ i64 parquet_open_schema(struct arena_allocator *arena,
       depth_index++;
     }
 
+    // ensure we do not exceed hard limits
+    if (depth_index >= SCHEMA_MAX_DEPTH) {
+      return PARQUET_ERROR_LIMITS_REACHED;
+    }
+
     // move to the next element
     element = metadata[++element_index];
+  }
+
+  // indicates that the schema is incomplete
+  if (depth_index > 0) {
+    return PARQUET_ERROR_INVALID_SCHEMA;
   }
 
   // success
@@ -447,12 +470,291 @@ static void can_open_schema_data05() {
   malloc_destroy(&pool);
 }
 
+static void can_detect_empty_schema() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
+  struct parquet_schema schema;
+  struct parquet_schema_element *metadata[1];
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // initialize the arena
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // prepare test case
+  metadata[0] = NULL;
+
+  // and open the schema
+  result = parquet_open_schema(&arena, metadata, &schema);
+  assert(result == PARQUET_ERROR_INVALID_SCHEMA, "should detect invalid schema");
+
+  // destroy the arena
+  arena_destroy(&arena);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_detect_only_root_schema() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
+  struct parquet_schema schema;
+  struct parquet_schema_element elements[1];
+  struct parquet_schema_element *metadata[2];
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // initialize the arena
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // prepare test case
+  elements[0].name = "table";
+  elements[0].num_children = 0;
+  elements[0].repetition_type = PARQUET_REPETITION_TYPE_NONE;
+  elements[0].data_type = PARQUET_DATA_TYPE_NONE;
+  elements[0].type_length = PARQUET_UNKNOWN_VALUE;
+  elements[0].converted_type = PARQUET_CONVERTED_TYPE_NONE;
+
+  metadata[0] = &elements[0];
+  metadata[1] = NULL;
+
+  // and open the schema
+  result = parquet_open_schema(&arena, metadata, &schema);
+  assert(result == PARQUET_ERROR_INVALID_SCHEMA, "should detect only root schema");
+
+  // destroy the arena
+  arena_destroy(&arena);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_detect_too_short_schema() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
+  struct parquet_schema schema;
+  struct parquet_schema_element elements[2];
+  struct parquet_schema_element *metadata[3];
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // initialize the arena
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // prepare test case
+  elements[0].name = "table";
+  elements[0].num_children = 2;
+  elements[0].repetition_type = PARQUET_REPETITION_TYPE_NONE;
+  elements[0].data_type = PARQUET_DATA_TYPE_NONE;
+  elements[0].type_length = PARQUET_UNKNOWN_VALUE;
+  elements[0].converted_type = PARQUET_CONVERTED_TYPE_NONE;
+
+  elements[1].name = "field1";
+  elements[1].num_children = 0;
+  elements[1].repetition_type = PARQUET_REPETITION_TYPE_OPTIONAL;
+  elements[1].data_type = PARQUET_DATA_TYPE_INT32;
+  elements[1].type_length = PARQUET_UNKNOWN_VALUE;
+  elements[1].converted_type = PARQUET_CONVERTED_TYPE_NONE;
+
+  metadata[0] = &elements[0];
+  metadata[1] = &elements[1];
+  metadata[2] = NULL;
+
+  // and open the schema
+  result = parquet_open_schema(&arena, metadata, &schema);
+  assert(result == PARQUET_ERROR_INVALID_SCHEMA, "should detect too short schema");
+
+  // destroy the arena
+  arena_destroy(&arena);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_detect_too_long_schema() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
+  struct parquet_schema schema;
+  struct parquet_schema_element elements[3];
+  struct parquet_schema_element *metadata[4];
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // initialize the arena
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // prepare test case
+  elements[0].name = "table";
+  elements[0].num_children = 1;
+  elements[0].repetition_type = PARQUET_REPETITION_TYPE_NONE;
+  elements[0].data_type = PARQUET_DATA_TYPE_NONE;
+  elements[0].type_length = PARQUET_UNKNOWN_VALUE;
+  elements[0].converted_type = PARQUET_CONVERTED_TYPE_NONE;
+
+  elements[1].name = "field1";
+  elements[1].num_children = 0;
+  elements[1].repetition_type = PARQUET_REPETITION_TYPE_OPTIONAL;
+  elements[1].data_type = PARQUET_DATA_TYPE_INT32;
+  elements[1].type_length = PARQUET_UNKNOWN_VALUE;
+  elements[1].converted_type = PARQUET_CONVERTED_TYPE_NONE;
+
+  elements[2].name = "field2";
+  elements[2].num_children = 0;
+  elements[2].repetition_type = PARQUET_REPETITION_TYPE_OPTIONAL;
+  elements[2].data_type = PARQUET_DATA_TYPE_INT32;
+  elements[2].type_length = PARQUET_UNKNOWN_VALUE;
+  elements[2].converted_type = PARQUET_CONVERTED_TYPE_NONE;
+
+  metadata[0] = &elements[0];
+  metadata[1] = &elements[1];
+  metadata[2] = &elements[2];
+  metadata[3] = NULL;
+
+  // and open the schema
+  result = parquet_open_schema(&arena, metadata, &schema);
+  assert(result == PARQUET_ERROR_INVALID_SCHEMA, "should detect too long schema");
+
+  // destroy the arena
+  arena_destroy(&arena);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_handle_nested_only_schema() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
+  struct parquet_schema schema;
+  struct parquet_schema_element elements[3];
+  struct parquet_schema_element *metadata[4];
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // initialize the arena
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // prepare test case
+  elements[0].name = "table";
+  elements[0].num_children = 1;
+  elements[0].repetition_type = PARQUET_REPETITION_TYPE_NONE;
+  elements[0].data_type = PARQUET_DATA_TYPE_NONE;
+  elements[0].type_length = PARQUET_UNKNOWN_VALUE;
+  elements[0].converted_type = PARQUET_CONVERTED_TYPE_NONE;
+
+  elements[1].name = "field1";
+  elements[1].num_children = 1;
+  elements[1].repetition_type = PARQUET_REPETITION_TYPE_OPTIONAL;
+  elements[1].data_type = PARQUET_DATA_TYPE_INT32;
+  elements[1].type_length = PARQUET_UNKNOWN_VALUE;
+  elements[1].converted_type = PARQUET_CONVERTED_TYPE_NONE;
+
+  elements[2].name = "field2";
+  elements[2].num_children = 0;
+  elements[2].repetition_type = PARQUET_REPETITION_TYPE_OPTIONAL;
+  elements[2].data_type = PARQUET_DATA_TYPE_INT32;
+  elements[2].type_length = PARQUET_UNKNOWN_VALUE;
+  elements[2].converted_type = PARQUET_CONVERTED_TYPE_NONE;
+
+  metadata[0] = &elements[0];
+  metadata[1] = &elements[1];
+  metadata[2] = &elements[2];
+  metadata[3] = NULL;
+
+  // and open the schema
+  result = parquet_open_schema(&arena, metadata, &schema);
+  assert(result == 0, "should return success");
+
+  // destroy the arena
+  arena_destroy(&arena);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_detect_nesting_hard_limits() {
+  i64 result;
+  u32 counter;
+
+  struct malloc_pool pool;
+  struct arena_allocator arena;
+
+  struct parquet_schema schema;
+  struct parquet_schema_element elements[11];
+  struct parquet_schema_element *metadata[12];
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // initialize the arena
+  arena_init(&arena, &pool, 4096, 4096);
+
+  // prepare test case
+  elements[0].name = "table";
+  elements[0].num_children = 1;
+  elements[0].repetition_type = PARQUET_REPETITION_TYPE_NONE;
+  elements[0].data_type = PARQUET_DATA_TYPE_NONE;
+  elements[0].type_length = PARQUET_UNKNOWN_VALUE;
+  elements[0].converted_type = PARQUET_CONVERTED_TYPE_NONE;
+
+  for (counter = 1; counter <= 10; counter++) {
+    elements[counter].name = "field";
+    elements[counter].num_children = (counter < 10) ? 1 : 0;
+    elements[counter].repetition_type = PARQUET_REPETITION_TYPE_OPTIONAL;
+    elements[counter].data_type = PARQUET_DATA_TYPE_INT32;
+    elements[counter].type_length = PARQUET_UNKNOWN_VALUE;
+    elements[counter].converted_type = PARQUET_CONVERTED_TYPE_NONE;
+  }
+
+  for (counter = 0; counter <= 10; counter++) {
+    metadata[counter] = &elements[counter];
+  }
+
+  metadata[11] = NULL;
+
+  // and open the schema
+  result = parquet_open_schema(&arena, metadata, &schema);
+  assert(result == PARQUET_ERROR_LIMITS_REACHED, "should fail with limits reached");
+
+  // destroy the arena
+  arena_destroy(&arena);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
 void parquet_test_cases_schema(struct runner_context *ctx) {
   test_case(ctx, "can open schema data01", can_open_schema_data01);
   test_case(ctx, "can open schema data02", can_open_schema_data02);
   test_case(ctx, "can open schema data03", can_open_schema_data03);
   test_case(ctx, "can open schema data04", can_open_schema_data04);
   test_case(ctx, "can open schema data05", can_open_schema_data05);
+
+  test_case(ctx, "can detect empty schema", can_detect_empty_schema);
+  test_case(ctx, "can detect only root schema", can_detect_only_root_schema);
+  test_case(ctx, "can detect too short schema", can_detect_too_short_schema);
+  test_case(ctx, "can detect too long schema", can_detect_too_long_schema);
+  test_case(ctx, "can handle nested only schema", can_handle_nested_only_schema);
+  test_case(ctx, "can detect nesting hard limits", can_detect_nesting_hard_limits);
 }
 
 #endif

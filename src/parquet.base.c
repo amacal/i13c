@@ -138,6 +138,8 @@ void parquet_close(struct parquet_file *file) {
 #if defined(I13C_TESTS)
 
 static void can_open_and_close_parquet_file() {
+  i64 result;
+
   struct parquet_file file;
   struct malloc_pool pool;
 
@@ -148,7 +150,7 @@ static void can_open_and_close_parquet_file() {
   parquet_init(&file, &pool);
 
   // open a valid parquet file
-  i64 result = parquet_open(&file, "data/test01.parquet");
+  result = parquet_open(&file, "data/test01.parquet");
   assert(result == 0, "should open parquet file");
 
   // close the parquet file

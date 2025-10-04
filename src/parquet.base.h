@@ -21,11 +21,17 @@ enum parquet_error {
   // indicates that the read file is invalid
   PARQUET_ERROR_INVALID_FILE = PARQUET_ERROR_BASE - 0x04,
 
+  // indicates that the read schema is invalid
+  PARQUET_ERROR_INVALID_SCHEMA = PARQUET_ERROR_BASE - 0x05,
+
   // indicates that the buffer is too small to hold the data
-  PARQUET_ERROR_BUFFER_TOO_SMALL = PARQUET_ERROR_BASE - 0x05,
+  PARQUET_ERROR_BUFFER_TOO_SMALL = PARQUET_ERROR_BASE - 0x06,
 
   // indicates that the metadata iterator has reached its capacity
-  PARQUET_ERROR_CAPACITY_OVERFLOW = PARQUET_ERROR_BASE - 0x06,
+  PARQUET_ERROR_CAPACITY_OVERFLOW = PARQUET_ERROR_BASE - 0x07,
+
+  // indicates that some hard limits have been reached
+  PARQUET_ERROR_LIMITS_REACHED = PARQUET_ERROR_BASE - 0x08,
 };
 
 struct parquet_footer {
