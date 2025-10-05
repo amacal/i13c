@@ -100,7 +100,7 @@ i64 parquet_schema_out_next(struct parquet_schema_out_state *state) {
 
     // format the output
     result = format(&state->fmt);
-    if (result < 0) return result;
+    if (result < 0 && result != FORMAT_ERROR_BUFFER_TOO_SMALL) return result;
 
     // go to the next element within the current depth
     state->ctx.indices[state->ctx.depth]++;
@@ -121,6 +121,11 @@ i64 parquet_schema_out_next(struct parquet_schema_out_state *state) {
       schema = state->ctx.stack[state->ctx.depth][state->ctx.indices[state->ctx.depth]];
     }
 
+    // check previously ignored formatting result
+    if (result == FORMAT_ERROR_BUFFER_TOO_SMALL) {
+      return PARQUET_ERROR_BUFFER_TOO_SMALL;
+    }
+
     // we are done
     if (state->ctx.depth == 0 && schema == NULL) {
       return 0;
@@ -131,6 +136,323 @@ i64 parquet_schema_out_next(struct parquet_schema_out_state *state) {
 }
 
 #if defined(I13C_TESTS)
+
+static void can_output_schema_data01() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct malloc_lease buffer;
+
+  struct parquet_file file;
+  struct parquet_metadata metadata;
+  struct parquet_schema schema;
+
+  struct parquet_schema_out_state state;
+
+  // prepare the test
+  buffer.size = 4096;
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // initialize the parquet file
+  parquet_init(&file, &pool);
+
+  // open a valid parquet file
+  result = parquet_open(&file, "data/test01.parquet");
+  assert(result == 0, "should open parquet file");
+
+  // acquire the buffer
+  result = malloc_acquire(&pool, &buffer);
+  assert(result == 0, "should acquire buffer");
+
+  // parse the metadata
+  result = parquet_parse(&file, &metadata);
+  assert(result == 0, "should parse metadata");
+
+  // and open the schema
+  result = parquet_open_schema(&file.arena, metadata.schemas, &schema);
+  assert(result == 0, "should open schema");
+
+  // initialize the state
+  parquet_schema_out_init(&state, &buffer, &schema);
+
+  // output the first and only chunk
+  result = parquet_schema_out_next(&state);
+  assert(result == 0, "should succeed");
+  assert(state.fmt.buffer_offset == 167, "should write 167 bytes to the buffer");
+
+  assert_eq_str(state.fmt.buffer,
+                "table\n"
+                " |-- date, DATE, INT32, OPTIONAL\n"
+                " |-- hour, INT32, OPTIONAL\n"
+                " |-- ip_country_code, UTF8, BYTE_ARRAY, OPTIONAL\n"
+                " |-- cnt, INT64, OPTIONAL\n"
+                " |-- bin, INT32, OPTIONAL\n",
+                "should write exact text");
+
+  // destroy the buffer
+  malloc_release(&pool, &buffer);
+
+  // close the parquet file
+  parquet_close(&file);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_output_schema_data02() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct malloc_lease buffer;
+
+  struct parquet_file file;
+  struct parquet_metadata metadata;
+  struct parquet_schema schema;
+
+  struct parquet_schema_out_state state;
+
+  // prepare the test
+  buffer.size = 4096;
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // initialize the parquet file
+  parquet_init(&file, &pool);
+
+  // open a valid parquet file
+  result = parquet_open(&file, "data/test02.parquet");
+  assert(result == 0, "should open parquet file");
+
+  // acquire the buffer
+  result = malloc_acquire(&pool, &buffer);
+  assert(result == 0, "should acquire buffer");
+
+  // parse the metadata
+  result = parquet_parse(&file, &metadata);
+  assert(result == 0, "should parse metadata");
+
+  // and open the schema
+  result = parquet_open_schema(&file.arena, metadata.schemas, &schema);
+  assert(result == 0, "should open schema");
+
+  // initialize the state
+  parquet_schema_out_init(&state, &buffer, &schema);
+
+  // output the first chunk
+  result = parquet_schema_out_next(&state);
+  assert(result == PARQUET_ERROR_BUFFER_TOO_SMALL, "should fail with buffer too small");
+  assert(state.fmt.buffer_offset == 4002, "should write 4002 bytes to the buffer");
+
+  state.fmt.buffer_offset = 0;
+  result = parquet_schema_out_flush(&state);
+  assert(result == 0, "should flush successfully");
+
+  // output the second chunk
+  result = parquet_schema_out_next(&state);
+  assert(result == 0, "should succeed without buffer too small");
+  assert(state.fmt.buffer_offset == 1603, "should write 1603 bytes to the buffer");
+
+  // destroy the buffer
+  malloc_release(&pool, &buffer);
+
+  // close the parquet file
+  parquet_close(&file);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_output_schema_data03() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct malloc_lease buffer;
+
+  struct parquet_file file;
+  struct parquet_metadata metadata;
+  struct parquet_schema schema;
+
+  struct parquet_schema_out_state state;
+
+  // prepare the test
+  buffer.size = 4096;
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // initialize the parquet file
+  parquet_init(&file, &pool);
+
+  // open a valid parquet file
+  result = parquet_open(&file, "data/test03.parquet");
+  assert(result == 0, "should open parquet file");
+
+  // acquire the buffer
+  result = malloc_acquire(&pool, &buffer);
+  assert(result == 0, "should acquire buffer");
+
+  // parse the metadata
+  result = parquet_parse(&file, &metadata);
+  assert(result == 0, "should parse metadata");
+
+  // and open the schema
+  result = parquet_open_schema(&file.arena, metadata.schemas, &schema);
+  assert(result == 0, "should open schema");
+
+  // initialize the state
+  parquet_schema_out_init(&state, &buffer, &schema);
+
+  // output the first and only chunk
+  result = parquet_schema_out_next(&state);
+  assert(result == 0, "should succeed");
+  assert(state.fmt.buffer_offset == 3138, "should write 3138 bytes to the buffer");
+
+  // destroy the buffer
+  malloc_release(&pool, &buffer);
+
+  // close the parquet file
+  parquet_close(&file);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_output_schema_data04() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct malloc_lease buffer;
+
+  struct parquet_file file;
+  struct parquet_metadata metadata;
+  struct parquet_schema schema;
+
+  struct parquet_schema_out_state state;
+
+  // prepare the test
+  buffer.size = 4096;
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // initialize the parquet file
+  parquet_init(&file, &pool);
+
+  // open a valid parquet file
+  result = parquet_open(&file, "data/test04.parquet");
+  assert(result == 0, "should open parquet file");
+
+  // acquire the buffer
+  result = malloc_acquire(&pool, &buffer);
+  assert(result == 0, "should acquire buffer");
+
+  // parse the metadata
+  result = parquet_parse(&file, &metadata);
+  assert(result == 0, "should parse metadata");
+
+  // and open the schema
+  result = parquet_open_schema(&file.arena, metadata.schemas, &schema);
+  assert(result == 0, "should open schema");
+
+  // initialize the state
+  parquet_schema_out_init(&state, &buffer, &schema);
+
+  // output the first and only chunk
+  result = parquet_schema_out_next(&state);
+  assert(result == 0, "should succeed");
+  assert(state.fmt.buffer_offset == 460, "should write 460 bytes to the buffer");
+
+  assert_eq_str(state.fmt.buffer,
+                "duckdb_schema, REQUIRED\n"
+                " |-- PassengerId, INT64, INT64, OPTIONAL\n"
+                " |-- Survived, INT64, INT64, OPTIONAL\n"
+                " |-- Pclass, INT64, INT64, OPTIONAL\n"
+                " |-- Name, UTF8, BYTE_ARRAY, OPTIONAL\n"
+                " |-- Sex, UTF8, BYTE_ARRAY, OPTIONAL\n"
+                " |-- Age, DOUBLE, OPTIONAL\n"
+                " |-- SibSp, INT64, INT64, OPTIONAL\n"
+                " |-- Parch, INT64, INT64, OPTIONAL\n"
+                " |-- Ticket, UTF8, BYTE_ARRAY, OPTIONAL\n"
+                " |-- Fare, DOUBLE, OPTIONAL\n"
+                " |-- Cabin, UTF8, BYTE_ARRAY, OPTIONAL\n"
+                " |-- Embarked, UTF8, BYTE_ARRAY, OPTIONAL\n",
+                "should write exact text");
+
+  // destroy the buffer
+  malloc_release(&pool, &buffer);
+
+  // close the parquet file
+  parquet_close(&file);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_output_schema_data05() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct malloc_lease buffer;
+
+  struct parquet_file file;
+  struct parquet_metadata metadata;
+  struct parquet_schema schema;
+
+  struct parquet_schema_out_state state;
+
+  // prepare the test
+  buffer.size = 4096;
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // initialize the parquet file
+  parquet_init(&file, &pool);
+
+  // open a valid parquet file
+  result = parquet_open(&file, "data/test05.parquet");
+  assert(result == 0, "should open parquet file");
+
+  // acquire the buffer
+  result = malloc_acquire(&pool, &buffer);
+  assert(result == 0, "should acquire buffer");
+
+  // parse the metadata
+  result = parquet_parse(&file, &metadata);
+  assert(result == 0, "should parse metadata");
+
+  // and open the schema
+  result = parquet_open_schema(&file.arena, metadata.schemas, &schema);
+  assert(result == 0, "should open schema");
+
+  // initialize the state
+  parquet_schema_out_init(&state, &buffer, &schema);
+
+  // output the first and only chunk
+  result = parquet_schema_out_next(&state);
+  assert(result == 0, "should succeed");
+  assert(state.fmt.buffer_offset == 175, "should write 175 bytes to the buffer");
+
+  assert_eq_str(state.fmt.buffer,
+                "spark_schema\n"
+                " |-- ipCountryCode, UTF8, BYTE_ARRAY, OPTIONAL\n"
+                " |-- clid, UTF8, BYTE_ARRAY, OPTIONAL\n"
+                " |-- hid, UTF8, BYTE_ARRAY, OPTIONAL\n"
+                " |-- known_since, DATE, INT32, OPTIONAL\n",
+                "should write exact text");
+
+  // destroy the buffer
+  malloc_release(&pool, &buffer);
+
+  // close the parquet file
+  parquet_close(&file);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
 
 void can_output_one_field_schema() {
   i64 result;
@@ -193,6 +515,12 @@ void can_output_one_field_schema() {
 }
 
 void parquet_test_cases_schema_out(struct runner_context *ctx) {
+  test_case(ctx, "can output schema data01", can_output_schema_data01);
+  test_case(ctx, "can output schema data02", can_output_schema_data02);
+  test_case(ctx, "can output schema data03", can_output_schema_data03);
+  test_case(ctx, "can output schema data04", can_output_schema_data04);
+  test_case(ctx, "can output schema data05", can_output_schema_data05);
+
   test_case(ctx, "can output one field schema", can_output_one_field_schema);
 }
 
