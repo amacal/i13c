@@ -9,10 +9,13 @@
 #define CMD_SHOW_ID 0
 #define CMD_SHOW "show-metadata"
 
-#define CMD_EXTRACT_ID 1
+#define CMD_SHOW_SCHEMA_ID CMD_SHOW_ID + 1
+#define CMD_SHOW_SCHEMA "show-schema"
+
+#define CMD_EXTRACT_ID CMD_SHOW_SCHEMA_ID + 1
 #define CMD_EXTRACT "extract-metadata"
 
-#define CMD_LAST_ID 2
+#define CMD_LAST_ID CMD_EXTRACT_ID + 1
 
 i32 parquet_main(u32 argc, const char **argv) {
   i64 result;
@@ -24,11 +27,13 @@ i32 parquet_main(u32 argc, const char **argv) {
 
   // first, names
   names[CMD_SHOW_ID] = CMD_SHOW;
+  names[CMD_SHOW_SCHEMA_ID] = CMD_SHOW_SCHEMA;
   names[CMD_EXTRACT_ID] = CMD_EXTRACT;
   names[CMD_LAST_ID] = NULL;
 
   // then, commands
   commands[CMD_SHOW_ID] = parquet_show;
+  commands[CMD_SHOW_SCHEMA_ID] = parquet_show_schema;
   commands[CMD_EXTRACT_ID] = parquet_extract;
 
   // match the command

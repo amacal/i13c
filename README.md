@@ -73,6 +73,30 @@ struct-start, type=metadata
    index-end
 ```
 
+#### Shows schema of the parquet file in a spark-like form
+
+```bash
+i13c-parquet show-schema data/test04.parquet
+```
+
+Example output:
+
+```
+duckdb_schema, REQUIRED
+ |-- PassengerId, INT64, INT64, OPTIONAL
+ |-- Survived, INT64, INT64, OPTIONAL
+ |-- Pclass, INT64, INT64, OPTIONAL
+ |-- Name, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- Sex, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- Age, DOUBLE, OPTIONAL
+ |-- SibSp, INT64, INT64, OPTIONAL
+ |-- Parch, INT64, INT64, OPTIONAL
+ |-- Ticket, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- Fare, DOUBLE, OPTIONAL
+ |-- Cabin, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- Embarked, UTF8, BYTE_ARRAY, OPTIONAL
+```
+
 #### Extracts metadata section from the parquet files and streams it into stdout
 
 ```bash

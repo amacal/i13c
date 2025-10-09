@@ -89,7 +89,12 @@ static void parquet_schema_out_format(struct format_context *fmt, struct parquet
 
 i64 parquet_schema_out_next(struct parquet_schema_out_state *state) {
   i64 result;
+  i64 written;
+
   struct parquet_schema *schema;
+
+  // default
+  written = 0;
 
   // fetch the current schema element
   schema = state->ctx.stack[state->ctx.depth][state->ctx.indices[state->ctx.depth]];
@@ -104,6 +109,7 @@ i64 parquet_schema_out_next(struct parquet_schema_out_state *state) {
 
     // go to the next element within the current depth
     state->ctx.indices[state->ctx.depth]++;
+    written += 1;
 
     // if the schema has children, we need to go deeper
     if (schema->children.count > 0) {
@@ -128,11 +134,11 @@ i64 parquet_schema_out_next(struct parquet_schema_out_state *state) {
 
     // we are done
     if (state->ctx.depth == 0 && schema == NULL) {
-      return 0;
+      break;
     }
   }
 
-  return 0;
+  return written;
 }
 
 #if defined(I13C_TESTS)
@@ -179,7 +185,7 @@ static void can_output_schema_data01() {
 
   // output the first and only chunk
   result = parquet_schema_out_next(&state);
-  assert(result == 0, "should succeed");
+  assert(result == 6, "should process 6 nodes");
   assert(state.fmt.buffer_offset == 167, "should write 167 bytes to the buffer");
 
   assert_eq_str(state.fmt.buffer,
@@ -252,7 +258,7 @@ static void can_output_schema_data02() {
 
   // output the second chunk
   result = parquet_schema_out_next(&state);
-  assert(result == 0, "should succeed without buffer too small");
+  assert(result == 31, "should process 31 nodes");
   assert(state.fmt.buffer_offset == 1603, "should write 1603 bytes to the buffer");
 
   // destroy the buffer
@@ -307,7 +313,7 @@ static void can_output_schema_data03() {
 
   // output the first and only chunk
   result = parquet_schema_out_next(&state);
-  assert(result == 0, "should succeed");
+  assert(result == 64, "should process 64 nodes");
   assert(state.fmt.buffer_offset == 3138, "should write 3138 bytes to the buffer");
 
   // destroy the buffer
@@ -362,7 +368,7 @@ static void can_output_schema_data04() {
 
   // output the first and only chunk
   result = parquet_schema_out_next(&state);
-  assert(result == 0, "should succeed");
+  assert(result == 13, "should process 13 nodes");
   assert(state.fmt.buffer_offset == 460, "should write 460 bytes to the buffer");
 
   assert_eq_str(state.fmt.buffer,
@@ -433,7 +439,7 @@ static void can_output_schema_data05() {
 
   // output the first and only chunk
   result = parquet_schema_out_next(&state);
-  assert(result == 0, "should succeed");
+  assert(result == 5, "should process 5 nodes");
   assert(state.fmt.buffer_offset == 175, "should write 175 bytes to the buffer");
 
   assert_eq_str(state.fmt.buffer,
@@ -499,7 +505,7 @@ void can_output_one_field_schema() {
 
   // output the first and only chunk
   result = parquet_schema_out_next(&state);
-  assert(result == 0, "should succeed");
+  assert(result == 2, "should process 2 fields");
   assert(state.fmt.buffer_offset == 50, "should write 50 bytes to the buffer");
 
   assert_eq_str(state.fmt.buffer,

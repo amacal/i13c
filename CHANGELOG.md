@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.7.0] - 2025-10-09
+- Added show-schema command to `i13-parquet`.
+
 ## [0.6.0] - 2025-09-26
 - Fixed binary permissions in the release artifacts.
 
