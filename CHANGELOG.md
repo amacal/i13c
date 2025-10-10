@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.7.2] - 2025-10-10
+- Fixed regression of parsing i64 zigzag thrift values.
+
 ## [0.7.1] - 2025-10-10
 - Fixed regression of show-metadata command in `i13c-parquet`.
 - Added integration tests to avoid obvious regressions.

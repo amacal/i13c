@@ -442,7 +442,7 @@ i64 thrift_read_u32(u32 *target, const char *buffer, u64 buffer_size) {
     buffer_size--;
 
     // accumulate the value (LEB128 encoding)
-    value |= (next & 0x7f) << shift;
+    value |= ((u32)(next & 0x7f)) << shift;
     shift += 7;
   }
 
@@ -488,12 +488,12 @@ i64 thrift_read_i64(i64 *target, const char *buffer, u64 buffer_size) {
   next = 0x80;
 
   // loop until varint ends or buffer is exhausted
-  while (buffer_size && (next & 0x80) && shift <= 56) {
+  while (buffer_size && (next & 0x80) && shift <= 63) {
     next = *buffer++;
     buffer_size--;
 
     // accumulate the value (LEB128 encoding)
-    value |= (next & 0x7f) << shift;
+    value |= ((u64)(next & 0x7f)) << shift;
     shift += 7;
   }
 
@@ -503,7 +503,7 @@ i64 thrift_read_i64(i64 *target, const char *buffer, u64 buffer_size) {
   }
 
   // check for the last byte overflow
-  if (shift >= 56 && (next & 0xf0)) {
+  if (shift >= 64 && (next & 0xfe)) {
     return THRIFT_ERROR_BITS_OVERFLOW;
   }
 
@@ -1413,28 +1413,40 @@ static void can_read_multiple_bytes_i64_negative() {
   assert(value == -148793, "should read value -148793");
 }
 
-static void can_handle_min_i64_value() {
+static void can_read_five_bytes_i64_positive() {
   i64 value;
-  const char buffer[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0f};
+  const char buffer[] = {0x84, 0xaa, 0xf9, 0xb0, 0x0a};
 
   // read the i64 value from the buffer
   i64 result = thrift_read_i64(&value, buffer, sizeof(buffer));
 
   // assert the result
-  assert(result == 8, "should read eight bytes");
+  assert(result == 5, "should read five bytes");
+  assert(value == 1393502850, "should read value 1393502850");
+}
+
+static void can_handle_min_i64_value() {
+  i64 value;
+  const char buffer[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01};
+
+  // read the i64 value from the buffer
+  i64 result = thrift_read_i64(&value, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 10, "should read ten bytes");
   assert(value == -9223372036854775807ll - 1, "should read value -9223372036854775808");
 }
 
 static void can_handle_max_i64_value() {
   i64 value;
-  const char buffer[] = {0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0f};
+  const char buffer[] = {0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01};
 
   // read the i64 value from the buffer
   i64 result = thrift_read_i64(&value, buffer, sizeof(buffer));
 
   // assert the result
-  assert(result == 8, "should read eight bytes");
-  assert(value == 9223372036854775807, "should read value 9223372036854775807");
+  assert(result == 10, "should read ten bytes");
+  assert(value == 9223372036854775807ll, "should read value 9223372036854775807");
 }
 
 static void can_ignore_i64_value() {
@@ -1449,7 +1461,7 @@ static void can_ignore_i64_value() {
 
 static void can_detect_i64_bits_overflow() {
   i64 value;
-  const char buffer[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x1f};
+  const char buffer[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x02};
 
   // read the i64 value from the buffer
   i64 result = thrift_read_i64(&value, buffer, sizeof(buffer));
@@ -1546,6 +1558,7 @@ void thrift_test_cases(struct runner_context *ctx) {
   test_case(ctx, "can read single-byte i64 negative", can_read_single_byte_i64_negative);
   test_case(ctx, "can read multiple bytes i64 positive", can_read_multiple_bytes_i64_positive);
   test_case(ctx, "can read multiple bytes i64 negative", can_read_multiple_bytes_i64_negative);
+  test_case(ctx, "can read five bytes i64 positive", can_read_five_bytes_i64_positive);
   test_case(ctx, "can handle min i64 value", can_handle_min_i64_value);
   test_case(ctx, "can handle max i64 value", can_handle_max_i64_value);
   test_case(ctx, "can detected i64 bits overflow", can_detect_i64_bits_overflow);
