@@ -73,6 +73,23 @@ struct-start, type=metadata
    index-end
 ```
 
+Strace footprint:
+
+```
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 12.19    0.000032           8         4           write
+  8.01    0.000021           7         3           mmap
+  9.56    0.000025           8         3           munmap
+  4.15    0.000011          10         1           open
+  2.70    0.000007           7         1           close
+  2.44    0.000006           6         1           fstat
+  4.37    0.000011          11         1           pread64
+ 56.58    0.000149         148         1           execve
+------ ----------- ----------- --------- --------- ----------------
+100.00    0.000263          17        15           total
+```
+
 #### Shows schema of the parquet file in a spark-like form
 
 ```bash
@@ -95,6 +112,23 @@ duckdb_schema, REQUIRED
  |-- Fare, DOUBLE, OPTIONAL
  |-- Cabin, UTF8, BYTE_ARRAY, OPTIONAL
  |-- Embarked, UTF8, BYTE_ARRAY, OPTIONAL
+```
+
+Strace footprint:
+
+```
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+  8.23    0.000035          11         3           mmap
+  7.27    0.000031          10         3           munmap
+  3.41    0.000015          14         1           write
+  8.81    0.000037          37         1           open
+  1.75    0.000007           7         1           close
+  1.96    0.000008           8         1           fstat
+  3.12    0.000013          13         1           pread64
+ 65.47    0.000278         278         1           execve
+------ ----------- ----------- --------- --------- ----------------
+100.00    0.000425          35        12           total
 ```
 
 #### Extracts metadata section from the parquet files and streams it into stdout
@@ -133,6 +167,23 @@ Example output:
        struct-end
 ```
 
+Strace footprint:
+
+```
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+  3.08    0.000008           8         1           write
+  4.44    0.000012          11         1           open
+  3.41    0.000009           8         1           close
+  2.62    0.000007           6         1           fstat
+  2.99    0.000008           7         1           mmap
+  3.48    0.000009           9         1           munmap
+  4.44    0.000012          11         1           pread64
+ 75.54    0.000199         198         1           execve
+------ ----------- ----------- --------- --------- ----------------
+100.00    0.000263          32         8           total
+```
+
 ## development
 
 Everything is wired through the Makefile. The devcontainer provides all tooling, so you can just:
@@ -141,8 +192,11 @@ Everything is wired through the Makefile. The devcontainer provides all tooling,
 # builds all binaries
 make build
 
-# runs all tests
+# runs all unit tests
 make test
+
+# run all integration test
+make integration
 
 # checks formatting
 make lint
