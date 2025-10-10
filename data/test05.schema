@@ -1,0 +1,5 @@
+spark_schema
+ |-- ipCountryCode, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- clid, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- hid, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- known_since, DATE, INT32, OPTIONAL

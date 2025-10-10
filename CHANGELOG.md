@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.7.1] - 2025-10-10
+- Fixed regression of show-metadata command in `i13c-parquet`.
+- Added integration tests to avoid obvious regressions.
+
 ## [0.7.0] - 2025-10-09
 - Added show-schema command to `i13-parquet`.
 

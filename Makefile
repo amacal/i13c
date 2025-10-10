@@ -177,6 +177,20 @@ run: $(BIN_OUTPUT)
 test: $(TEST_OUTPUT)
 	@$(TEST_OUTPUT)
 
+.PHONY: integration
+integration: $(THRIFT_OUTPUT) $(PARQUET_OUTPUT)
+	@$(PARQUET_OUTPUT) extract-metadata data/test01.parquet | $(THRIFT_OUTPUT) show | diff - data/test01.thrift
+	@$(PARQUET_OUTPUT) extract-metadata data/test02.parquet | $(THRIFT_OUTPUT) show | diff - data/test02.thrift
+	@$(PARQUET_OUTPUT) extract-metadata data/test03.parquet | $(THRIFT_OUTPUT) show | diff - data/test03.thrift
+	@$(PARQUET_OUTPUT) extract-metadata data/test04.parquet | $(THRIFT_OUTPUT) show | diff - data/test04.thrift
+	@$(PARQUET_OUTPUT) extract-metadata data/test05.parquet | $(THRIFT_OUTPUT) show | diff - data/test05.thrift
+	@$(PARQUET_OUTPUT) show-metadata data/test01.parquet | diff - data/test01.metadata
+	@$(PARQUET_OUTPUT) show-metadata data/test02.parquet | diff - data/test02.metadata
+	@$(PARQUET_OUTPUT) show-metadata data/test03.parquet | diff - data/test03.metadata
+	@$(PARQUET_OUTPUT) show-metadata data/test04.parquet | diff - data/test04.metadata
+	@$(PARQUET_OUTPUT) show-metadata data/test05.parquet | diff - data/test05.metadata
+	@$(PARQUET_OUTPUT) show-schema data/test01.parquet | diff - data/test01.schema
+
 .PHONY: thrift
 thrift: $(THRIFT_OUTPUT)
 	@$(THRIFT_OUTPUT)

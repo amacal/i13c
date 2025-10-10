@@ -333,6 +333,7 @@ void dom_init(struct dom_state *state, struct malloc_lease *buffer) {
   state->format.buffer_size = buffer->size - 64;
   state->format.vargs = (void **)&state->vargs;
   state->format.vargs_offset = 0;
+  state->format.vargs_max = VARGS_MAX;
 }
 
 i64 dom_write(struct dom_state *state, struct dom_token *tokens, u32 *count) {

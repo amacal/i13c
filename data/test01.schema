@@ -1,0 +1,6 @@
+table
+ |-- date, DATE, INT32, OPTIONAL
+ |-- hour, INT32, OPTIONAL
+ |-- ip_country_code, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- cnt, INT64, OPTIONAL
+ |-- bin, INT32, OPTIONAL

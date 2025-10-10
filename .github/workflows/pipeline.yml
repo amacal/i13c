@@ -42,7 +42,7 @@ jobs:
           imageName: ghcr.io/amacal/i13c
           imageTag: ${{ steps.hash.outputs.hash }}
           push: always
-          runCmd: make clean build test lint
+          runCmd: make clean build test lint integration
 
       - name: Upload Built Binaries
         uses: actions/upload-artifact@v4

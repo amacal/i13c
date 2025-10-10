@@ -1,0 +1,64 @@
+trino_schema
+ |-- sampling, INT32, INT32, OPTIONAL
+ |-- partnerid, INT64, INT64, OPTIONAL
+ |-- browsertz, INT32, INT32, OPTIONAL
+ |-- pbjsversion, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- auctionid, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- starttimestamp, INT64, INT64, OPTIONAL
+ |-- endtimestamp, INT64, INT64, OPTIONAL
+ |-- bidderrequests, LIST, OPTIONAL
+ |    |-- list, REPEATED
+ |    |    |-- element, OPTIONAL
+ |    |    |    |-- adunitcode, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |    |    |-- biddercode, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |    |    |-- bidid, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |    |    |-- useridproviders, LIST, OPTIONAL
+ |    |    |    |    |-- list, REPEATED
+ |    |    |    |    |    |-- element, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |    |    |-- id5linktype, INT32, INT32, OPTIONAL
+ |    |    |    |-- id5abtesting, BOOLEAN, OPTIONAL
+ |    |    |    |-- id5uidmetadata, OPTIONAL
+ |    |    |    |    |-- hasconsent, BOOLEAN, OPTIONAL
+ |    |    |    |    |-- hasid5id, BOOLEAN, OPTIONAL
+ |    |    |    |    |-- linktype, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |    |    |    |-- linkresolver, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |    |    |    |-- requestidentity, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |    |    |    |-- jurisdiction, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |    |    |    |-- isunrecognized, BOOLEAN, OPTIONAL
+ |    |    |    |    |-- id5uid, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |    |    |    |-- isenriched, BOOLEAN, OPTIONAL
+ |    |    |    |    |-- isenrichmentselected, BOOLEAN, OPTIONAL
+ |    |    |    |    |-- requestid, INT64, INT64, OPTIONAL
+ |-- bidsreceived, LIST, OPTIONAL
+ |    |-- list, REPEATED
+ |    |    |-- element, OPTIONAL
+ |    |    |    |-- adunitcode, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |    |    |-- biddercode, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |    |    |-- requestid, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |    |    |-- creativeid, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |    |    |-- dealid, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |    |    |-- responsetimestamp, INT64, INT64, OPTIONAL
+ |    |    |    |-- requesttimestamp, INT64, INT64, OPTIONAL
+ |    |    |    |-- originalcpm, DOUBLE, OPTIONAL
+ |    |    |    |-- originalcurrency, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |    |    |-- cpm, DOUBLE, OPTIONAL
+ |    |    |    |-- currency, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |    |    |-- netrevenue, BOOLEAN, OPTIONAL
+ |    |    |    |-- width, INT32, INT32, OPTIONAL
+ |    |    |    |-- height, INT32, INT32, OPTIONAL
+ |    |    |    |-- mediatype, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- nobids, LIST, OPTIONAL
+ |    |-- list, REPEATED
+ |    |    |-- element, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- useragent, OPTIONAL
+ |    |-- devicetype, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |-- devicemake, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |-- browservendor, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |-- browsername, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |-- browserversion, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |-- osvendor, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |-- osname, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |-- osfamily, UTF8, BYTE_ARRAY, OPTIONAL
+ |    |-- osversion, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- refererhost, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- ipcountrycode, UTF8, BYTE_ARRAY, OPTIONAL

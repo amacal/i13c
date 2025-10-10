@@ -1,0 +1,117 @@
+trino_schema
+ |-- date, DATE, INT32, OPTIONAL
+ |-- hour, INT64, INT64, OPTIONAL
+ |-- timestamp, INT64, INT64, OPTIONAL
+ |-- linktype, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- linkresolver, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- requestidentity, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- id5uidchanged, BOOLEAN, OPTIONAL
+ |-- signaturecreatedate, INT64, INT64, OPTIONAL
+ |-- id5uidcreatedate, INT64, INT64, OPTIONAL
+ |-- associatedprobabilisticidcreationdate, INT64, INT64, OPTIONAL
+ |-- previousid5uidcreatedate, INT64, INT64, OPTIONAL
+ |-- clusteridcreatedate, INT64, INT64, OPTIONAL
+ |-- rawprobabilisticidcreationdate, INT64, INT64, OPTIONAL
+ |-- id5uid, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- previousid5uid, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- firstpartyuid, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- previousfirstpartyuid, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- currentishardsignalflag, BOOLEAN, OPTIONAL
+ |-- previousishardsignalflag, BOOLEAN, OPTIONAL
+ |-- devicednsid, INT32, INT32, OPTIONAL
+ |-- householddnsid, INT32, INT32, OPTIONAL
+ |-- truelinkid, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- truelinkbooted, BOOLEAN, OPTIONAL
+ |-- truelinkredirected, BOOLEAN, OPTIONAL
+ |-- truelinkoldid, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- truelinkcreatedat, INT64, INT64, OPTIONAL
+ |-- truelinkredirectedat, INT64, INT64, OPTIONAL
+ |-- truelinkoldidcreatedat, INT64, INT64, OPTIONAL
+ |-- clusterid, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- associatedprobabilisticid, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- rawprobabilisticid, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- endpoint, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- ipexclusionlist, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- nppage, INT64, INT64, OPTIONAL
+ |-- ipcountrycode, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- ip, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- ipv6, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- sharedip, BOOLEAN, OPTIONAL
+ |-- origin, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- originversion, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- refererhost, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- referer, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- partnerid, INT64, INT64, OPTIONAL
+ |-- useragent, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- acceptlanguage, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- acceptheader, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- acceptencodingheader, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- ja3signature, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- sslsid, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- maid, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- islocalstorageavailable, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- consent_can_link_identities_in_browser, BOOLEAN, OPTIONAL
+ |-- consent_can_link_identities_cross_browser, BOOLEAN, OPTIONAL
+ |-- consent_can_aggregate_for_analytics, BOOLEAN, OPTIONAL
+ |-- consent_can_use_for_machine_learning, BOOLEAN, OPTIONAL
+ |-- browseracceptscookies, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- previousbrowseracceptscookies, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- cookietype, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- signaturetype, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- decision, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- isnew, BOOLEAN, OPTIONAL
+ |-- isprobabilistic, BOOLEAN, OPTIONAL
+ |-- previousisprobabilistic, BOOLEAN, OPTIONAL
+ |-- probabilisticidversion, INT32, INT32, OPTIONAL
+ |-- previousprobabilisticidversion, INT32, INT32, OPTIONAL
+ |-- bin, INT32, INT32, OPTIONAL
+ |-- isoptout, BOOLEAN, OPTIONAL
+ |-- ishardsignalflag, BOOLEAN, OPTIONAL
+ |-- browsercookiesacceptancetransition, BOOLEAN, OPTIONAL
+ |-- idversion, INT64, INT64, OPTIONAL
+ |-- idtype, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- idcanonicaltype, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- previousidversion, INT64, INT64, OPTIONAL
+ |-- previousidtype, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- previousidcanonicaltype, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- idtypetransition, BOOLEAN, OPTIONAL
+ |-- id5uid_hashed, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- id5uid_cluster, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- id5uid_cookie, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- id5uid_lookup, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- id5uid_shadow, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- id5uid_timestamp, INT64, INT64, OPTIONAL
+ |-- id5uid_hashed_timestamp_signature, INT64, INT64, OPTIONAL
+ |-- id5uid_cluster_timestamp, INT64, INT64, OPTIONAL
+ |-- id5uid_cookie_timestamp, INT64, INT64, OPTIONAL
+ |-- type_0_duplicate, BOOLEAN, OPTIONAL
+ |-- type_1_duplicate, BOOLEAN, OPTIONAL
+ |-- type_2_duplicate, BOOLEAN, OPTIONAL
+ |-- id5uid_shadow_timestamp_signature, INT64, INT64, OPTIONAL
+ |-- referer_info_header_host, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- referer_info_top_most_location_host, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- referer_info_js_host, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- user_info_email, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- user_info_partner_user_id, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- user_info_ipv4, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- udger_device_type, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- udger_device_make, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- udger_browser_vendor, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- udger_browser_name, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- udger_browser_version, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- udger_os_vendor, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- udger_os_name, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- udger_os_family, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- udger_os_version, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- itp_avoided, BOOLEAN, OPTIONAL
+ |-- itp_forwarded_for_0, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- itp_status, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- isp_organization, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- isp_autonomous_system_number, INT32, INT32, OPTIONAL
+ |-- isp_mobile_country_code, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- isp_mobile_network_code, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- cookie_prediction_probability, FLOAT, OPTIONAL
+ |-- cookie_prediction_value, UTF8, BYTE_ARRAY, OPTIONAL
+ |-- is_bot, BOOLEAN, OPTIONAL
+ |-- request_id, BYTE_ARRAY, OPTIONAL
+ |-- udger_id, BYTE_ARRAY, OPTIONAL
