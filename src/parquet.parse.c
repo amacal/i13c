@@ -3,7 +3,7 @@
 #include "malloc.h"
 #include "parquet.base.h"
 #include "runner.h"
-#include "thrift.h"
+#include "thrift.base.h"
 #include "typing.h"
 
 // forward declarations

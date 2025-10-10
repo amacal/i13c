@@ -72,9 +72,9 @@ $(TEST_OUTPUT): $(OBJDIR_TESTS)/runner.s.o $(OBJS_TEST)
 	@mkdir -p bin
 	@$(LD) -T src/runner.ld $(LDFLAGS) -o $@ $^
 
-$(THRIFT_OUTPUT): $(OBJDIR_THRIFT)/thrift.s.o $(OBJS_THRIFT)
+$(THRIFT_OUTPUT): $(OBJDIR_THRIFT)/thrift.main.s.o $(OBJS_THRIFT)
 	@mkdir -p bin
-	@$(LD) -T src/thrift.ld $(LDFLAGS) -o $@ $^
+	@$(LD) -T src/thrift.main.ld $(LDFLAGS) -o $@ $^
 	@strip --strip-all $(THRIFT_OUTPUT)
 
 $(PARQUET_OUTPUT): $(OBJDIR_PARQUET)/parquet.main.s.o $(OBJS_PARQUET)
