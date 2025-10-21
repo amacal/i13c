@@ -512,6 +512,23 @@ i64 thrift_read_i64(i64 *target, const char *buffer, u64 buffer_size) {
 
 #if defined(I13C_TESTS)
 
+static void can_read_struct_header_empty_struct() {
+  struct thrift_struct_header header;
+  const char buffer[] = {0x00};
+  i64 result;
+
+  // initialize
+  header.field = 0;
+
+  // read the struct header from the buffer
+  result = thrift_read_struct_header(&header, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == 1, "should read one byte");
+  assert(header.field == 0, "should read stop field");
+  assert(header.type == THRIFT_TYPE_STOP, "should read type THRIFT_TYPE_STOP");
+}
+
 static void can_read_struct_header_short_version() {
   struct thrift_struct_header header;
   const char buffer[] = {0x35, 0x44, 0x00};
@@ -1485,6 +1502,7 @@ void thrift_test_cases_base(struct runner_context *ctx) {
   test_case(ctx, "can detect list header long buffer overflow", can_detect_list_header_long_buffer_overflow);
 
   // struct header cases
+  test_case(ctx, "can read struct header empty struct", can_read_struct_header_empty_struct);
   test_case(ctx, "can read struct header short version", can_read_struct_header_short_version);
   test_case(ctx, "can detect struct header short buffer overflow", can_detect_struct_header_short_buffer_overflow);
   test_case(ctx, "can read struct header long version", can_read_struct_header_long_version);

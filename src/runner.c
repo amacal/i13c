@@ -12,6 +12,7 @@
 #include "stdout.h"
 #include "sys.h"
 #include "thrift.base.h"
+#include "thrift.iter.h"
 #include "typing.h"
 
 #if defined(I13C_TESTS)
@@ -88,7 +89,9 @@ i32 runner_execute() {
   parquet_test_cases_schema_out(&ctx);
   runner_test_cases(&ctx);
   format_test_cases(&ctx);
+
   thrift_test_cases_base(&ctx);
+  thrift_test_cases_iter(&ctx);
 
   // execute all registered test cases
   for (index = 0; index < ctx.offset; index++) {
