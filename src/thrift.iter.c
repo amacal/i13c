@@ -430,6 +430,7 @@ i64 thrift_iter_next(struct thrift_iter *iter, const char *buffer, u64 buffer_si
   i64 result, consumed, previous;
 
   // default
+  result = 0;
   consumed = 0;
   previous = iter->idx;
 
