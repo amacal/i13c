@@ -13,7 +13,17 @@
 /// @return The number of bytes read from the buffer, or a negative error code.
 typedef i64 (*thrift_delegate_fn)(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
 
-typedef i64 (*thrift_fold_fn)(struct thrift_iter_state *state);
+/// @brief Function type for reading the next element from a Thrift iterator.
+/// @param iter Pointer to the Thrift iterator.
+/// @param buffer Pointer to the buffer containing the Thrift data.
+/// @param buffer_size The number of bytes available in the buffer.
+/// @return The number of bytes read from the buffer, or a negative error code.
+typedef i64 (*thrift_iter_next_fn)(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
+
+/// @brief Function type for folding the iterator state.
+/// @param entry Pointer to the state entry to fold.
+/// @return True if the state can be folded, false otherwise.
+typedef bool (*thrift_iter_fold_fn)(struct thrift_iter_state_entry *entry);
 
 static i64 thrift_delegate_bool(struct thrift_iter *iter, const char *buffer, u64 buffer_size) {
   i64 result;
@@ -226,18 +236,6 @@ void thrift_iter_init(struct thrift_iter *iter, struct malloc_lease *buffer) {
 extern bool thrift_iter_done(struct thrift_iter *) {
   return FALSE;
 }
-
-/// @brief Function type for reading the next element from a Thrift iterator.
-/// @param iter Pointer to the Thrift iterator.
-/// @param buffer Pointer to the buffer containing the Thrift data.
-/// @param buffer_size The number of bytes available in the buffer.
-/// @return The number of bytes read from the buffer, or a negative error code.
-typedef i64 (*thrift_iter_next_fn)(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
-
-/// @brief Function type for folding the iterator state.
-/// @param entry Pointer to the state entry to fold.
-/// @return True if the state can be folded, false otherwise.
-typedef bool (*thrift_iter_fold_fn)(struct thrift_iter_state_entry *entry);
 
 static bool thrift_iter_fold_struct(struct thrift_iter_state_entry *entry) {
   return entry->value.fields.type == THRIFT_TYPE_STOP;
@@ -1330,6 +1328,74 @@ static void can_iterate_over_binary_fragmented() {
   malloc_destroy(&pool);
 }
 
+static void can_detect_list_of_stops() {
+  i64 result;
+  u64 buffer_size;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_iter iter;
+
+  // data
+  const char buffer[] = {0x79, 0x10, 0x00};
+  buffer_size = sizeof(buffer);
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+  assert(result == 0, "should allocate memory");
+
+  // initialize the iterator with the buffer
+  thrift_iter_init(&iter, &lease);
+
+  // iterate over the buffer
+  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  assert(result == THRIFT_ERROR_INVALID_VALUE, "expected THRIFT_ERROR_INVALID_VALUE");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_detect_struct_of_stops() {
+  i64 result;
+  u64 buffer_size;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_iter iter;
+
+  // data
+  const char buffer[] = {0x70, 0x00};
+  buffer_size = sizeof(buffer);
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+  assert(result == 0, "should allocate memory");
+
+  // initialize the iterator with the buffer
+  thrift_iter_init(&iter, &lease);
+
+  // iterate over the buffer
+  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  assert(result == THRIFT_ERROR_INVALID_VALUE, "expected THRIFT_ERROR_INVALID_VALUE");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
 void thrift_test_cases_iter(struct runner_context *ctx) {
   test_case(ctx, "can initialize iterator with single page", can_init_iterator_single_page);
   test_case(ctx, "can initialize iterator with double page", can_init_iterator_double_page);
@@ -1351,6 +1417,9 @@ void thrift_test_cases_iter(struct runner_context *ctx) {
 
   test_case(ctx, "can iterate over binary", can_iterate_over_binary);
   test_case(ctx, "can iterate over binary fragmented", can_iterate_over_binary_fragmented);
+
+  test_case(ctx, "can detect list of stops", can_detect_list_of_stops);
+  test_case(ctx, "can detect struct of stops", can_detect_struct_of_stops);
 }
 
 #endif

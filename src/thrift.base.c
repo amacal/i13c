@@ -209,6 +209,12 @@ i64 thrift_read_struct_header(struct thrift_struct_header *target, const char *b
   buffer += 1;
   buffer_size -= 1;
 
+  // check for invalid STOP with non-zero delta
+  if (type == THRIFT_TYPE_STOP && delta != 0) return THRIFT_ERROR_INVALID_VALUE;
+
+  // check for type out of range
+  if (type >= THRIFT_TYPE_SIZE) return THRIFT_ERROR_INVALID_VALUE;
+
   // check for the last field
   if (type == THRIFT_TYPE_STOP) {
     target->field = 0;
@@ -332,6 +338,12 @@ i64 thrift_read_list_header(struct thrift_list_header *target, const char *buffe
   read = 1;
   buffer += 1;
   buffer_size -= 1;
+
+  // check for invalid type
+  if (type == THRIFT_TYPE_STOP) return THRIFT_ERROR_INVALID_VALUE;
+
+  // check for type out of range
+  if (type >= THRIFT_TYPE_SIZE) return THRIFT_ERROR_INVALID_VALUE;
 
   // if the size is 0x0f, follow long notation
   if (size == 0x0f) {
@@ -626,6 +638,28 @@ static void can_detect_struct_header_long_zero_delta() {
 
   // assert the result
   assert(result == THRIFT_ERROR_INVALID_VALUE, "should fail with THRIFT_ERROR_INVALID_VALUE for zero delta");
+}
+
+static void can_detect_struct_header_stop_with_field_id() {
+  struct thrift_struct_header header;
+  const char buffer[] = {0x50};
+
+  // read the struct header from the buffer
+  i64 result = thrift_read_struct_header(&header, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_INVALID_VALUE, "should fail with THRIFT_ERROR_INVALID_VALUE for wrong stop field");
+}
+
+static void can_detect_struct_header_out_of_order_type() {
+  struct thrift_struct_header header;
+  const char buffer[] = {0x5e};
+
+  // read the struct header from the buffer
+  i64 result = thrift_read_struct_header(&header, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_INVALID_VALUE, "should fail with THRIFT_ERROR_INVALID_VALUE for wrong type");
 }
 
 static void can_detect_struct_header_long_bit_overflow_01() {
@@ -941,6 +975,28 @@ static void can_read_list_header_long_version() {
   assert(result == 2, "should read two bytes");
   assert(header.size == 15, "should read size 15");
   assert(header.type == THRIFT_TYPE_I32, "should read type THRIFT_TYPE_I32");
+}
+
+static void can_detect_list_header_stop_type() {
+  struct thrift_list_header header;
+  const char buffer[] = {0x10};
+
+  // read the list header from the buffer
+  i64 result = thrift_read_list_header(&header, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_INVALID_VALUE, "should fail with THRIFT_ERROR_INVALID_VALUE");
+}
+
+static void can_detect_list_header_out_of_order_type() {
+  struct thrift_list_header header;
+  const char buffer[] = {0x1e};
+
+  // read the list header from the buffer
+  i64 result = thrift_read_list_header(&header, buffer, sizeof(buffer));
+
+  // assert the result
+  assert(result == THRIFT_ERROR_INVALID_VALUE, "should fail with THRIFT_ERROR_INVALID_VALUE");
 }
 
 static void can_detect_list_header_long_buffer_overflow() {
@@ -1499,6 +1555,8 @@ void thrift_test_cases_base(struct runner_context *ctx) {
   test_case(ctx, "can read list header short version", can_read_list_header_short_version);
   test_case(ctx, "can detect list header short buffer overflow", can_detect_list_header_short_buffer_overflow);
   test_case(ctx, "can read list header long version", can_read_list_header_long_version);
+  test_case(ctx, "can detect list header stop type", can_detect_list_header_stop_type);
+  test_case(ctx, "can detect list header out of order type", can_detect_list_header_out_of_order_type);
   test_case(ctx, "can detect list header long buffer overflow", can_detect_list_header_long_buffer_overflow);
 
   // struct header cases
@@ -1508,6 +1566,8 @@ void thrift_test_cases_base(struct runner_context *ctx) {
   test_case(ctx, "can read struct header long version", can_read_struct_header_long_version);
   test_case(ctx, "can detect struct header long buffer overflow", can_detect_struct_header_long_buffer_overflow);
   test_case(ctx, "can detect struct header long zero delta", can_detect_struct_header_long_zero_delta);
+  test_case(ctx, "can detect struct header stop with field id", can_detect_struct_header_stop_with_field_id);
+  test_case(ctx, "can detect struct header out of order type", can_detect_struct_header_out_of_order_type);
   test_case(ctx, "can detect struct header long bit overflow 1", can_detect_struct_header_long_bit_overflow_01);
   test_case(ctx, "can detect struct header long bit overflow 2", can_detect_struct_header_long_bit_overflow_02);
 
