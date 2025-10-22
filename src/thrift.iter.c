@@ -25,6 +25,10 @@ typedef i64 (*thrift_iter_next_fn)(struct thrift_iter *iter, const char *buffer,
 /// @return True if the state can be folded, false otherwise.
 typedef bool (*thrift_iter_fold_fn)(struct thrift_iter_state_entry *entry);
 
+static i64 thrift_delegate_unsupported(struct thrift_iter *, const char *, u64) {
+  return THRIFT_ERROR_UNSUPPORTED_TYPE;
+}
+
 static i64 thrift_delegate_bool(struct thrift_iter *iter, const char *buffer, u64 buffer_size) {
   i64 result;
 
@@ -170,37 +174,30 @@ static i64 thrift_delegate_list(struct thrift_iter *iter, const char *buffer, u6
 static i64 thrift_delegate_struct(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
 
 static const thrift_delegate_fn THRIFT_ITEM_LITERAL_FN[THRIFT_TYPE_SIZE] = {
-  [THRIFT_TYPE_STOP] = NULL,
-  [THRIFT_TYPE_BOOL_TRUE] = thrift_delegate_bool,
-  [THRIFT_TYPE_BOOL_FALSE] = thrift_delegate_bool,
-  [THRIFT_TYPE_I8] = thrift_delegate_i8,
-  [THRIFT_TYPE_I16] = thrift_delegate_i16,
-  [THRIFT_TYPE_I32] = thrift_delegate_i32,
-  [THRIFT_TYPE_I64] = thrift_delegate_i64,
-  [THRIFT_TYPE_DOUBLE] = NULL,
-  [THRIFT_TYPE_BINARY] = thrift_delegate_binary,
-  [THRIFT_TYPE_LIST] = thrift_delegate_list,
-  [THRIFT_TYPE_SET] = NULL,
-  [THRIFT_TYPE_MAP] = NULL,
-  [THRIFT_TYPE_STRUCT] = thrift_delegate_struct,
-  [THRIFT_TYPE_UUID] = NULL,
+  [THRIFT_TYPE_STOP] = thrift_delegate_unsupported, [THRIFT_TYPE_BOOL_TRUE] = thrift_delegate_bool,
+  [THRIFT_TYPE_BOOL_FALSE] = thrift_delegate_bool,  [THRIFT_TYPE_I8] = thrift_delegate_i8,
+  [THRIFT_TYPE_I16] = thrift_delegate_i16,          [THRIFT_TYPE_I32] = thrift_delegate_i32,
+  [THRIFT_TYPE_I64] = thrift_delegate_i64,          [THRIFT_TYPE_DOUBLE] = thrift_delegate_unsupported,
+  [THRIFT_TYPE_BINARY] = thrift_delegate_binary,    [THRIFT_TYPE_LIST] = thrift_delegate_list,
+  [THRIFT_TYPE_SET] = thrift_delegate_unsupported,  [THRIFT_TYPE_MAP] = thrift_delegate_unsupported,
+  [THRIFT_TYPE_STRUCT] = thrift_delegate_struct,    [THRIFT_TYPE_UUID] = thrift_delegate_unsupported,
 };
 
 static const thrift_delegate_fn THRIFT_ITEM_FIELD_FN[THRIFT_TYPE_SIZE] = {
-  [THRIFT_TYPE_STOP] = NULL,
+  [THRIFT_TYPE_STOP] = thrift_delegate_unsupported,
   [THRIFT_TYPE_BOOL_TRUE] = thrift_delegate_bool_true,
   [THRIFT_TYPE_BOOL_FALSE] = thrift_delegate_bool_false,
   [THRIFT_TYPE_I8] = thrift_delegate_i8,
   [THRIFT_TYPE_I16] = thrift_delegate_i16,
   [THRIFT_TYPE_I32] = thrift_delegate_i32,
   [THRIFT_TYPE_I64] = thrift_delegate_i64,
-  [THRIFT_TYPE_DOUBLE] = NULL,
+  [THRIFT_TYPE_DOUBLE] = thrift_delegate_unsupported,
   [THRIFT_TYPE_BINARY] = thrift_delegate_binary,
   [THRIFT_TYPE_LIST] = thrift_delegate_list,
-  [THRIFT_TYPE_SET] = NULL,
-  [THRIFT_TYPE_MAP] = NULL,
+  [THRIFT_TYPE_SET] = thrift_delegate_unsupported,
+  [THRIFT_TYPE_MAP] = thrift_delegate_unsupported,
   [THRIFT_TYPE_STRUCT] = thrift_delegate_struct,
-  [THRIFT_TYPE_UUID] = NULL,
+  [THRIFT_TYPE_UUID] = thrift_delegate_unsupported,
 };
 
 void thrift_iter_init(struct thrift_iter *iter, struct malloc_lease *buffer) {
@@ -1396,6 +1393,278 @@ static void can_detect_struct_of_stops() {
   malloc_destroy(&pool);
 }
 
+static void can_detect_unsupported_double_struct_type() {
+  i64 result;
+  u64 buffer_size;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_iter iter;
+
+  // data
+  const char buffer[] = {0x77, 0x00};
+  buffer_size = sizeof(buffer);
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+  assert(result == 0, "should allocate memory");
+
+  // initialize the iterator with the buffer
+  thrift_iter_init(&iter, &lease);
+
+  // iterate over the buffer
+  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  assert(result == THRIFT_ERROR_UNSUPPORTED_TYPE, "expected THRIFT_ERROR_UNSUPPORTED_TYPE");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_detect_unsupported_double_list_type() {
+  i64 result;
+  u64 buffer_size;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_iter iter;
+
+  // data
+  const char buffer[] = {0x79, 0x17, 0x00};
+  buffer_size = sizeof(buffer);
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+  assert(result == 0, "should allocate memory");
+
+  // initialize the iterator with the buffer
+  thrift_iter_init(&iter, &lease);
+
+  // iterate over the buffer
+  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  assert(result == THRIFT_ERROR_UNSUPPORTED_TYPE, "expected THRIFT_ERROR_UNSUPPORTED_TYPE");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_detect_unsupported_set_struct_type() {
+  i64 result;
+  u64 buffer_size;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_iter iter;
+
+  // data
+  const char buffer[] = {0x7a, 0x00};
+  buffer_size = sizeof(buffer);
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+  assert(result == 0, "should allocate memory");
+
+  // initialize the iterator with the buffer
+  thrift_iter_init(&iter, &lease);
+
+  // iterate over the buffer
+  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  assert(result == THRIFT_ERROR_UNSUPPORTED_TYPE, "expected THRIFT_ERROR_UNSUPPORTED_TYPE");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_detect_unsupported_set_list_type() {
+  i64 result;
+  u64 buffer_size;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_iter iter;
+
+  // data
+  const char buffer[] = {0x79, 0x2a, 0x00};
+  buffer_size = sizeof(buffer);
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+  assert(result == 0, "should allocate memory");
+
+  // initialize the iterator with the buffer
+  thrift_iter_init(&iter, &lease);
+
+  // iterate over the buffer
+  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  assert(result == THRIFT_ERROR_UNSUPPORTED_TYPE, "expected THRIFT_ERROR_UNSUPPORTED_TYPE");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_detect_unsupported_map_struct_type() {
+  i64 result;
+  u64 buffer_size;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_iter iter;
+
+  // data
+  const char buffer[] = {0x7b, 0x00};
+  buffer_size = sizeof(buffer);
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+  assert(result == 0, "should allocate memory");
+
+  // initialize the iterator with the buffer
+  thrift_iter_init(&iter, &lease);
+
+  // iterate over the buffer
+  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  assert(result == THRIFT_ERROR_UNSUPPORTED_TYPE, "expected THRIFT_ERROR_UNSUPPORTED_TYPE");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_detect_unsupported_map_list_type() {
+  i64 result;
+  u64 buffer_size;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_iter iter;
+
+  // data
+  const char buffer[] = {0x79, 0x2b, 0x00};
+  buffer_size = sizeof(buffer);
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+  assert(result == 0, "should allocate memory");
+
+  // initialize the iterator with the buffer
+  thrift_iter_init(&iter, &lease);
+
+  // iterate over the buffer
+  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  assert(result == THRIFT_ERROR_UNSUPPORTED_TYPE, "expected THRIFT_ERROR_UNSUPPORTED_TYPE");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_detect_unsupported_uuid_struct_type() {
+  i64 result;
+  u64 buffer_size;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_iter iter;
+
+  // data
+  const char buffer[] = {0x7d, 0x00};
+  buffer_size = sizeof(buffer);
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+  assert(result == 0, "should allocate memory");
+
+  // initialize the iterator with the buffer
+  thrift_iter_init(&iter, &lease);
+
+  // iterate over the buffer
+  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  assert(result == THRIFT_ERROR_UNSUPPORTED_TYPE, "expected THRIFT_ERROR_UNSUPPORTED_TYPE");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_detect_unsupported_uuid_list_type() {
+  i64 result;
+  u64 buffer_size;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_iter iter;
+
+  // data
+  const char buffer[] = {0x79, 0x2d, 0x00};
+  buffer_size = sizeof(buffer);
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+  assert(result == 0, "should allocate memory");
+
+  // initialize the iterator with the buffer
+  thrift_iter_init(&iter, &lease);
+
+  // iterate over the buffer
+  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  assert(result == THRIFT_ERROR_UNSUPPORTED_TYPE, "expected THRIFT_ERROR_UNSUPPORTED_TYPE");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
 void thrift_test_cases_iter(struct runner_context *ctx) {
   test_case(ctx, "can initialize iterator with single page", can_init_iterator_single_page);
   test_case(ctx, "can initialize iterator with double page", can_init_iterator_double_page);
@@ -1420,6 +1689,15 @@ void thrift_test_cases_iter(struct runner_context *ctx) {
 
   test_case(ctx, "can detect list of stops", can_detect_list_of_stops);
   test_case(ctx, "can detect struct of stops", can_detect_struct_of_stops);
+
+  test_case(ctx, "can detect unsupported double struct type", can_detect_unsupported_double_struct_type);
+  test_case(ctx, "can detect unsupported double list type", can_detect_unsupported_double_list_type);
+  test_case(ctx, "can detect unsupported set struct type", can_detect_unsupported_set_struct_type);
+  test_case(ctx, "can detect unsupported set list type", can_detect_unsupported_set_list_type);
+  test_case(ctx, "can detect unsupported map struct type", can_detect_unsupported_map_struct_type);
+  test_case(ctx, "can detect unsupported map list type", can_detect_unsupported_map_list_type);
+  test_case(ctx, "can detect unsupported uuid struct type", can_detect_unsupported_uuid_struct_type);
+  test_case(ctx, "can detect unsupported uuid list type", can_detect_unsupported_uuid_list_type);
 }
 
 #endif

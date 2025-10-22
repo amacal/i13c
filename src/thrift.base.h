@@ -13,6 +13,9 @@ enum thrift_error {
 
   // indicates that the read value is invalid, e.g., zero delta
   THRIFT_ERROR_INVALID_VALUE = THRIFT_ERROR_BASE - 0x03,
+
+  // indicates that the type is unsupported
+  THRIFT_ERROR_UNSUPPORTED_TYPE = THRIFT_ERROR_BASE - 0x04
 };
 
 enum thrift_type {
