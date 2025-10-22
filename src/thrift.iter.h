@@ -125,9 +125,9 @@ extern bool thrift_iter_done(struct thrift_iter *iter);
 /// @brief Fills the iterator with next entries from the buffer.
 /// @param iter Pointer to the thrift_iter structure.
 /// @param buffer Pointer to the buffer containing the Thrift data.
-/// @param buffer_size Pointer to the size of the buffer; it will be updated to reflect the number of bytes consumed.
+/// @param buffer_size The number of bytes available in the buffer.
 /// @return Zero on success, or a negative error code.
-extern i64 thrift_iter_next(struct thrift_iter *iter, const char *buffer, u64 *buffer_size);
+extern i64 thrift_iter_next(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
 
 #if defined(I13C_TESTS)
 

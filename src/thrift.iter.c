@@ -5,6 +5,10 @@
 
 #define THRIFT_ITER_STATE_INITIAL_SIZE 16
 
+#define PRODUCED(res) ((u32)((res) & 0xFFFFFFFFu))
+#define CONSUMED(res) ((u32)(((res) >> 32) & 0xFFFFFFFFu))
+#define COMBINE(l, r) ((i64)(((u64)(l) << 32) | (u64)(r)))
+
 /// @brief Thrift field type callback function type.
 /// @param token Pointer to the token where the result will be stored.
 /// @param target Pointer to the target struct.
@@ -422,26 +426,33 @@ bool thrift_iter_done(struct thrift_iter *iter) {
   return iter->state.idx == -1;
 }
 
-i64 thrift_iter_next(struct thrift_iter *iter, const char *buffer, u64 *buffer_size) {
+i64 thrift_iter_next(struct thrift_iter *iter, const char *buffer, u64 buffer_size) {
   i64 result, consumed, previous;
 
   // default
   consumed = 0;
   previous = iter->idx;
 
-  while (iter->state.idx >= 0 && iter->idx < iter->size) {
-    // check for too nested structures
+  // the loop produces exactly up to two tokens,
+  // some iterations will produce one token, most of them just one,
+  // but binary may produce exactly two tokens per loop iteration
+
+  // the state index is never incremented by more than one per loop,
+  // so we can safely check for overflow only once per iteration
+
+  while (iter->state.idx >= 0 && iter->idx < iter->size - 1) {
+    // check for too nested structures, it will be valid in the entire loop
     if (iter->state.idx >= iter->state.size) return THRIFT_ERROR_TOO_NESTED;
 
     // call the appropriate function based on the current state type
-    result = THRIFT_ITER_NEXT_FN[iter->state.types[iter->state.idx]](iter, buffer, *buffer_size);
+    result = THRIFT_ITER_NEXT_FN[iter->state.types[iter->state.idx]](iter, buffer, buffer_size);
     if (result == THRIFT_ERROR_BUFFER_OVERFLOW) break;
     if (result < 0) return result;
 
     // update the buffer pointers and sizes
     consumed += result;
     buffer += result;
-    *buffer_size -= result;
+    buffer_size -= result;
 
     // try to fold the state till the bottom if possible
     while (iter->state.idx >= 0 && FOLD_FN[iter->state.types[iter->state.idx]](iter->state.entries + iter->state.idx)) {
@@ -454,11 +465,8 @@ i64 thrift_iter_next(struct thrift_iter *iter, const char *buffer, u64 *buffer_s
     return THRIFT_ERROR_BUFFER_OVERFLOW;
   }
 
-  // update the consumed buffer size
-  *buffer_size = consumed;
-
-  // return the number of produced tokens
-  return iter->idx - previous;
+  // return the combined metrics
+  return COMBINE(consumed, iter->idx - previous);
 }
 
 #if defined(I13C_TESTS)
@@ -577,9 +585,9 @@ static void can_iterate_over_empty_struct() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
-  assert(result == 1, "should produce one token");
-  assert(buffer_size == 1, "should consume one byte");
+  result = thrift_iter_next(&iter, buffer, buffer_size);
+  assert(PRODUCED(result) == 1, "should produce one token");
+  assert(CONSUMED(result) == 1, "should consume one byte");
 
   assert(iter.idx == 1, "iterator idx should be 1");
   assert(iter.state.idx == -1, "state idx should be -1");
@@ -619,9 +627,9 @@ static void can_iterate_over_one_field_struct() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
-  assert(result == 3, "should produce three tokens");
-  assert(buffer_size == 3, "should consume three bytes");
+  result = thrift_iter_next(&iter, buffer, buffer_size);
+  assert(PRODUCED(result) == 3, "should produce three tokens");
+  assert(CONSUMED(result) == 3, "should consume three bytes");
 
   assert(iter.idx == 3, "iterator idx should be 3");
   assert(iter.state.idx == -1, "state idx should be -1");
@@ -668,9 +676,9 @@ static void can_iterate_over_two_fields_struct() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
-  assert(result == 5, "should produce five tokens");
-  assert(buffer_size == 6, "should consume six bytes");
+  result = thrift_iter_next(&iter, buffer, buffer_size);
+  assert(PRODUCED(result) == 5, "should produce five tokens");
+  assert(CONSUMED(result) == 6, "should consume six bytes");
 
   assert(iter.idx == 5, "iterator idx should be 5");
   assert(iter.state.idx == -1, "state idx should be -1");
@@ -724,9 +732,9 @@ static void can_iterate_over_nested_struct() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
-  assert(result == 5, "should produce five tokens");
-  assert(buffer_size == 5, "should consume five bytes");
+  result = thrift_iter_next(&iter, buffer, buffer_size);
+  assert(PRODUCED(result) == 5, "should produce five tokens");
+  assert(CONSUMED(result) == 5, "should consume five bytes");
 
   assert(iter.idx == 5, "iterator idx should be 5");
   assert(iter.state.idx == -1, "state idx should be -1");
@@ -781,9 +789,9 @@ static void can_iterate_over_empty_list() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
-  assert(result == 3, "should produce three tokens");
-  assert(buffer_size == 3, "should consume three bytes");
+  result = thrift_iter_next(&iter, buffer, buffer_size);
+  assert(PRODUCED(result) == 3, "should produce three tokens");
+  assert(CONSUMED(result) == 3, "should consume three bytes");
 
   assert(iter.idx == 3, "iterator idx should be 3");
   assert(iter.state.idx == -1, "state idx should be -1");
@@ -831,9 +839,9 @@ static void can_iterate_over_two_items_list() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
-  assert(result == 5, "should produce five tokens");
-  assert(buffer_size == 5, "should consume five bytes");
+  result = thrift_iter_next(&iter, buffer, buffer_size);
+  assert(PRODUCED(result) == 5, "should produce five tokens");
+  assert(CONSUMED(result) == 5, "should consume five bytes");
 
   assert(iter.idx == 5, "iterator idx should be 5");
   assert(iter.state.idx == -1, "state idx should be -1");
@@ -887,9 +895,9 @@ static void can_iterate_over_nested_list() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
-  assert(result == 6, "should produce six tokens");
-  assert(buffer_size == 6, "should consume six bytes");
+  result = thrift_iter_next(&iter, buffer, buffer_size);
+  assert(PRODUCED(result) == 6, "should produce six tokens");
+  assert(CONSUMED(result) == 6, "should consume six bytes");
 
   assert(iter.idx == 6, "iterator idx should be 6");
   assert(iter.state.idx == -1, "state idx should be -1");
@@ -948,9 +956,9 @@ static void can_iterate_over_list_of_structs() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
-  assert(result == 9, "should produce nine tokens");
-  assert(buffer_size == 7, "should consume seven bytes");
+  result = thrift_iter_next(&iter, buffer, buffer_size);
+  assert(PRODUCED(result) == 9, "should produce nine tokens");
+  assert(CONSUMED(result) == 7, "should consume seven bytes");
 
   assert(iter.idx == 9, "iterator idx should be 9");
   assert(iter.state.idx == -1, "state idx should be -1");
@@ -1020,9 +1028,9 @@ static void can_iterate_over_list_of_bools_01() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
-  assert(result == 6, "should produce six tokens");
-  assert(buffer_size == 6, "should consume six bytes");
+  result = thrift_iter_next(&iter, buffer, buffer_size);
+  assert(PRODUCED(result) == 6, "should produce six tokens");
+  assert(CONSUMED(result) == 6, "should consume six bytes");
 
   assert(iter.idx == 6, "iterator idx should be 6");
   assert(iter.state.idx == -1, "state idx should be -1");
@@ -1079,9 +1087,9 @@ static void can_iterate_over_list_of_bools_02() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
-  assert(result == 6, "should produce six tokens");
-  assert(buffer_size == 6, "should consume six bytes");
+  result = thrift_iter_next(&iter, buffer, buffer_size);
+  assert(PRODUCED(result) == 6, "should produce six tokens");
+  assert(CONSUMED(result) == 6, "should consume six bytes");
 
   assert(iter.idx == 6, "iterator idx should be 6");
   assert(iter.state.idx == -1, "state idx should be -1");
@@ -1138,9 +1146,9 @@ static void can_iterate_over_integers() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
-  assert(result == 9, "should produce nine tokens");
-  assert(buffer_size == 9, "should consume nine bytes");
+  result = thrift_iter_next(&iter, buffer, buffer_size);
+  assert(PRODUCED(result) == 9, "should produce nine tokens");
+  assert(CONSUMED(result) == 9, "should consume nine bytes");
 
   assert(iter.idx == 9, "iterator idx should be 9");
   assert(iter.state.idx == -1, "state idx should be -1");
@@ -1208,9 +1216,9 @@ static void can_iterate_over_bools() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
-  assert(result == 5, "should produce five tokens");
-  assert(buffer_size == 3, "should consume three bytes");
+  result = thrift_iter_next(&iter, buffer, buffer_size);
+  assert(PRODUCED(result) == 5, "should produce five tokens");
+  assert(CONSUMED(result) == 3, "should consume three bytes");
 
   assert(iter.idx == 5, "iterator idx should be 5");
   assert(iter.state.idx == -1, "state idx should be -1");
@@ -1264,9 +1272,9 @@ static void can_iterate_over_binary() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
-  assert(result == 4, "should produce four tokens");
-  assert(buffer_size == 5, "should consume five bytes");
+  result = thrift_iter_next(&iter, buffer, buffer_size);
+  assert(PRODUCED(result) == 4, "should produce four tokens");
+  assert(CONSUMED(result) == 5, "should consume five bytes");
 
   assert(iter.idx == 4, "iterator idx should be 4");
   assert(iter.state.idx == -1, "state idx should be -1");
@@ -1318,13 +1326,14 @@ static void can_iterate_over_binary_fragmented() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer1, &buffer_size);
-  assert(result == 3, "should produce three tokens");
-  assert(buffer_size == 4, "should consume four bytes");
+  result = thrift_iter_next(&iter, buffer1, buffer_size);
+  assert(PRODUCED(result) == 3, "should produce three tokens");
+  assert(CONSUMED(result) == 4, "should consume four bytes");
   assert(iter.idx == 3, "iterator idx should be 3");
 
-  result = thrift_iter_next(&iter, buffer2, &buffer_size);
-  assert(result == 3, "should produce three tokens");
+  result = thrift_iter_next(&iter, buffer2, buffer_size);
+  assert(PRODUCED(result) == 3, "should produce three tokens");
+  assert(CONSUMED(result) == 4, "should consume four bytes");
 
   assert(iter.idx == 6, "iterator idx should be 6");
   assert(iter.state.idx == -1, "state idx should be -1");
@@ -1382,7 +1391,7 @@ static void can_detect_list_of_stops() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  result = thrift_iter_next(&iter, buffer, buffer_size);
   assert(result == THRIFT_ERROR_INVALID_VALUE, "expected THRIFT_ERROR_INVALID_VALUE");
 
   // release the memory
@@ -1416,7 +1425,7 @@ static void can_detect_struct_of_stops() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  result = thrift_iter_next(&iter, buffer, buffer_size);
   assert(result == THRIFT_ERROR_INVALID_VALUE, "expected THRIFT_ERROR_INVALID_VALUE");
 
   // release the memory
@@ -1450,7 +1459,7 @@ static void can_detect_unsupported_double_struct_type() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  result = thrift_iter_next(&iter, buffer, buffer_size);
   assert(result == THRIFT_ERROR_UNSUPPORTED_TYPE, "expected THRIFT_ERROR_UNSUPPORTED_TYPE");
 
   // release the memory
@@ -1484,7 +1493,7 @@ static void can_detect_unsupported_double_list_type() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  result = thrift_iter_next(&iter, buffer, buffer_size);
   assert(result == THRIFT_ERROR_UNSUPPORTED_TYPE, "expected THRIFT_ERROR_UNSUPPORTED_TYPE");
 
   // release the memory
@@ -1518,7 +1527,7 @@ static void can_detect_unsupported_set_struct_type() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  result = thrift_iter_next(&iter, buffer, buffer_size);
   assert(result == THRIFT_ERROR_UNSUPPORTED_TYPE, "expected THRIFT_ERROR_UNSUPPORTED_TYPE");
 
   // release the memory
@@ -1552,7 +1561,7 @@ static void can_detect_unsupported_set_list_type() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  result = thrift_iter_next(&iter, buffer, buffer_size);
   assert(result == THRIFT_ERROR_UNSUPPORTED_TYPE, "expected THRIFT_ERROR_UNSUPPORTED_TYPE");
 
   // release the memory
@@ -1586,7 +1595,7 @@ static void can_detect_unsupported_map_struct_type() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  result = thrift_iter_next(&iter, buffer, buffer_size);
   assert(result == THRIFT_ERROR_UNSUPPORTED_TYPE, "expected THRIFT_ERROR_UNSUPPORTED_TYPE");
 
   // release the memory
@@ -1620,7 +1629,7 @@ static void can_detect_unsupported_map_list_type() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  result = thrift_iter_next(&iter, buffer, buffer_size);
   assert(result == THRIFT_ERROR_UNSUPPORTED_TYPE, "expected THRIFT_ERROR_UNSUPPORTED_TYPE");
 
   // release the memory
@@ -1654,7 +1663,7 @@ static void can_detect_unsupported_uuid_struct_type() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  result = thrift_iter_next(&iter, buffer, buffer_size);
   assert(result == THRIFT_ERROR_UNSUPPORTED_TYPE, "expected THRIFT_ERROR_UNSUPPORTED_TYPE");
 
   // release the memory
@@ -1688,7 +1697,7 @@ static void can_detect_unsupported_uuid_list_type() {
   thrift_iter_init(&iter, &lease);
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  result = thrift_iter_next(&iter, buffer, buffer_size);
   assert(result == THRIFT_ERROR_UNSUPPORTED_TYPE, "expected THRIFT_ERROR_UNSUPPORTED_TYPE");
 
   // release the memory
@@ -1725,10 +1734,11 @@ static void can_stop_when_too_many_tokens() {
   iter.size = 10;
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  result = thrift_iter_next(&iter, buffer, buffer_size);
+  assert(PRODUCED(result) == 9, "expected nine tokens");
+  assert(CONSUMED(result) == 9, "should consume nine bytes");
 
-  assert(result == 10, "expected 10 tokens");
-  assert(iter.idx == 10, "iterator idx should be 10");
+  assert(iter.idx == 9, "iterator idx should be 9");
 
   // release the memory
   malloc_release(&pool, &lease);
@@ -1765,7 +1775,7 @@ static void can_detect_too_nested_structure() {
   iter.state.size = 3;
 
   // iterate over the buffer
-  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  result = thrift_iter_next(&iter, buffer, buffer_size);
   assert(result == THRIFT_ERROR_TOO_NESTED, "expected THRIFT_ERROR_TOO_NESTED");
 
   // release the memory
