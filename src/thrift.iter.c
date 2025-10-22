@@ -25,6 +25,76 @@ typedef i64 (*thrift_iter_next_fn)(struct thrift_iter *iter, const char *buffer,
 /// @return True if the state can be folded, false otherwise.
 typedef bool (*thrift_iter_fold_fn)(struct thrift_iter_state_entry *entry);
 
+// forward declaration
+static i64 thrift_delegate_unsupported(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
+static i64 thrift_delegate_bool(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
+static i64 thrift_delegate_bool_true(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
+static i64 thrift_delegate_bool_false(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
+static i64 thrift_delegate_i8(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
+static i64 thrift_delegate_i16(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
+static i64 thrift_delegate_i32(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
+static i64 thrift_delegate_i64(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
+static i64 thrift_delegate_binary(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
+static i64 thrift_delegate_list(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
+static i64 thrift_delegate_struct(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
+
+// forward declarations
+static bool thrift_iter_fold_struct(struct thrift_iter_state_entry *entry);
+static bool thrift_iter_fold_list(struct thrift_iter_state_entry *entry);
+static bool thrift_iter_fold_literal(struct thrift_iter_state_entry *entry);
+static bool thrift_iter_fold_binary(struct thrift_iter_state_entry *entry);
+
+// forward declarations
+static i64 thrift_iter_next_binary(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
+static i64 thrift_iter_next_struct(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
+static i64 thrift_iter_next_list(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
+static i64 thrift_iter_next_literal(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
+
+// literal dispatch table
+static const thrift_delegate_fn THRIFT_ITEM_LITERAL_FN[THRIFT_TYPE_SIZE] = {
+  [THRIFT_TYPE_STOP] = thrift_delegate_unsupported, [THRIFT_TYPE_BOOL_TRUE] = thrift_delegate_bool,
+  [THRIFT_TYPE_BOOL_FALSE] = thrift_delegate_bool,  [THRIFT_TYPE_I8] = thrift_delegate_i8,
+  [THRIFT_TYPE_I16] = thrift_delegate_i16,          [THRIFT_TYPE_I32] = thrift_delegate_i32,
+  [THRIFT_TYPE_I64] = thrift_delegate_i64,          [THRIFT_TYPE_DOUBLE] = thrift_delegate_unsupported,
+  [THRIFT_TYPE_BINARY] = thrift_delegate_binary,    [THRIFT_TYPE_LIST] = thrift_delegate_list,
+  [THRIFT_TYPE_SET] = thrift_delegate_unsupported,  [THRIFT_TYPE_MAP] = thrift_delegate_unsupported,
+  [THRIFT_TYPE_STRUCT] = thrift_delegate_struct,    [THRIFT_TYPE_UUID] = thrift_delegate_unsupported,
+};
+
+// field dispatch table
+static const thrift_delegate_fn THRIFT_ITEM_FIELD_FN[THRIFT_TYPE_SIZE] = {
+  [THRIFT_TYPE_STOP] = thrift_delegate_unsupported,
+  [THRIFT_TYPE_BOOL_TRUE] = thrift_delegate_bool_true,
+  [THRIFT_TYPE_BOOL_FALSE] = thrift_delegate_bool_false,
+  [THRIFT_TYPE_I8] = thrift_delegate_i8,
+  [THRIFT_TYPE_I16] = thrift_delegate_i16,
+  [THRIFT_TYPE_I32] = thrift_delegate_i32,
+  [THRIFT_TYPE_I64] = thrift_delegate_i64,
+  [THRIFT_TYPE_DOUBLE] = thrift_delegate_unsupported,
+  [THRIFT_TYPE_BINARY] = thrift_delegate_binary,
+  [THRIFT_TYPE_LIST] = thrift_delegate_list,
+  [THRIFT_TYPE_SET] = thrift_delegate_unsupported,
+  [THRIFT_TYPE_MAP] = thrift_delegate_unsupported,
+  [THRIFT_TYPE_STRUCT] = thrift_delegate_struct,
+  [THRIFT_TYPE_UUID] = thrift_delegate_unsupported,
+};
+
+// fold dispatch table
+static const thrift_iter_fold_fn FOLD_FN[THRIFT_ITER_STATE_TYPE_SIZE] = {
+  [THRIFT_ITER_STATE_TYPE_BINARY] = thrift_iter_fold_binary,
+  [THRIFT_ITER_STATE_TYPE_STRUCT] = thrift_iter_fold_struct,
+  [THRIFT_ITER_STATE_TYPE_LIST] = thrift_iter_fold_list,
+  [THRIFT_ITER_STATE_TYPE_LITERAL] = thrift_iter_fold_literal,
+};
+
+// next dispatch table
+static const thrift_iter_next_fn THRIFT_ITER_NEXT_FN[THRIFT_ITER_STATE_TYPE_SIZE] = {
+  [THRIFT_ITER_STATE_TYPE_BINARY] = thrift_iter_next_binary,
+  [THRIFT_ITER_STATE_TYPE_STRUCT] = thrift_iter_next_struct,
+  [THRIFT_ITER_STATE_TYPE_LIST] = thrift_iter_next_list,
+  [THRIFT_ITER_STATE_TYPE_LITERAL] = thrift_iter_next_literal,
+};
+
 static i64 thrift_delegate_unsupported(struct thrift_iter *, const char *, u64) {
   return THRIFT_ERROR_UNSUPPORTED_TYPE;
 }
@@ -170,36 +240,6 @@ static i64 thrift_delegate_list(struct thrift_iter *iter, const char *buffer, u6
   return consumed;
 }
 
-// forward declaration
-static i64 thrift_delegate_struct(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
-
-static const thrift_delegate_fn THRIFT_ITEM_LITERAL_FN[THRIFT_TYPE_SIZE] = {
-  [THRIFT_TYPE_STOP] = thrift_delegate_unsupported, [THRIFT_TYPE_BOOL_TRUE] = thrift_delegate_bool,
-  [THRIFT_TYPE_BOOL_FALSE] = thrift_delegate_bool,  [THRIFT_TYPE_I8] = thrift_delegate_i8,
-  [THRIFT_TYPE_I16] = thrift_delegate_i16,          [THRIFT_TYPE_I32] = thrift_delegate_i32,
-  [THRIFT_TYPE_I64] = thrift_delegate_i64,          [THRIFT_TYPE_DOUBLE] = thrift_delegate_unsupported,
-  [THRIFT_TYPE_BINARY] = thrift_delegate_binary,    [THRIFT_TYPE_LIST] = thrift_delegate_list,
-  [THRIFT_TYPE_SET] = thrift_delegate_unsupported,  [THRIFT_TYPE_MAP] = thrift_delegate_unsupported,
-  [THRIFT_TYPE_STRUCT] = thrift_delegate_struct,    [THRIFT_TYPE_UUID] = thrift_delegate_unsupported,
-};
-
-static const thrift_delegate_fn THRIFT_ITEM_FIELD_FN[THRIFT_TYPE_SIZE] = {
-  [THRIFT_TYPE_STOP] = thrift_delegate_unsupported,
-  [THRIFT_TYPE_BOOL_TRUE] = thrift_delegate_bool_true,
-  [THRIFT_TYPE_BOOL_FALSE] = thrift_delegate_bool_false,
-  [THRIFT_TYPE_I8] = thrift_delegate_i8,
-  [THRIFT_TYPE_I16] = thrift_delegate_i16,
-  [THRIFT_TYPE_I32] = thrift_delegate_i32,
-  [THRIFT_TYPE_I64] = thrift_delegate_i64,
-  [THRIFT_TYPE_DOUBLE] = thrift_delegate_unsupported,
-  [THRIFT_TYPE_BINARY] = thrift_delegate_binary,
-  [THRIFT_TYPE_LIST] = thrift_delegate_list,
-  [THRIFT_TYPE_SET] = thrift_delegate_unsupported,
-  [THRIFT_TYPE_MAP] = thrift_delegate_unsupported,
-  [THRIFT_TYPE_STRUCT] = thrift_delegate_struct,
-  [THRIFT_TYPE_UUID] = thrift_delegate_unsupported,
-};
-
 void thrift_iter_init(struct thrift_iter *iter, struct malloc_lease *buffer) {
   u16 size1, size2;
 
@@ -249,13 +289,6 @@ static bool thrift_iter_fold_literal(struct thrift_iter_state_entry *entry) {
 static bool thrift_iter_fold_binary(struct thrift_iter_state_entry *entry) {
   return entry->value.binary.read == entry->value.binary.size;
 }
-
-static const thrift_iter_fold_fn FOLD_FN[THRIFT_ITER_STATE_TYPE_SIZE] = {
-  [THRIFT_ITER_STATE_TYPE_BINARY] = thrift_iter_fold_binary,
-  [THRIFT_ITER_STATE_TYPE_STRUCT] = thrift_iter_fold_struct,
-  [THRIFT_ITER_STATE_TYPE_LIST] = thrift_iter_fold_list,
-  [THRIFT_ITER_STATE_TYPE_LITERAL] = thrift_iter_fold_literal,
-};
 
 static i64 thrift_iter_next_literal(struct thrift_iter *iter, const char *buffer, u64 buffer_size) {
   u32 item_type;
@@ -387,13 +420,6 @@ static i64 thrift_iter_next_binary(struct thrift_iter *iter, const char *buffer,
   // success
   return read;
 }
-
-static const thrift_iter_next_fn THRIFT_ITER_NEXT_FN[THRIFT_ITER_STATE_TYPE_SIZE] = {
-  [THRIFT_ITER_STATE_TYPE_BINARY] = thrift_iter_next_binary,
-  [THRIFT_ITER_STATE_TYPE_STRUCT] = thrift_iter_next_struct,
-  [THRIFT_ITER_STATE_TYPE_LIST] = thrift_iter_next_list,
-  [THRIFT_ITER_STATE_TYPE_LITERAL] = thrift_iter_next_literal,
-};
 
 i64 thrift_iter_next(struct thrift_iter *iter, const char *buffer, u64 *buffer_size) {
   i64 result, consumed, previous;
