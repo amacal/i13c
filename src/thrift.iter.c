@@ -1786,6 +1786,48 @@ static void can_detect_too_nested_structure() {
   malloc_destroy(&pool);
 }
 
+static void can_iterate_after_completion() {
+  i64 result;
+  u64 buffer_size;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_iter iter;
+
+  // data
+  const char buffer[] = {0x00};
+  buffer_size = sizeof(buffer);
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+  assert(result == 0, "should allocate memory");
+
+  // initialize the iterator with the buffer
+  thrift_iter_init(&iter, &lease);
+
+  // iterate first time till the end
+  result = thrift_iter_next(&iter, buffer, buffer_size);
+  assert(PRODUCED(result) == 1, "should produce one token");
+  assert(CONSUMED(result) == 1, "should consume one byte");
+  assert(iter.state.idx == -1, "state idx should be -1");
+
+  // iterate second time after completion
+  result = thrift_iter_next(&iter, buffer + 1, 0);
+  assert(result == 0, "should not fail after completion");
+  assert(iter.idx == 1, "iterator idx should remain unchanged");
+  assert(iter.state.idx == -1, "state idx should remain -1");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
 void thrift_test_cases_iter(struct runner_context *ctx) {
   test_case(ctx, "can initialize iterator with single page", can_init_iterator_single_page);
   test_case(ctx, "can initialize iterator with double page", can_init_iterator_double_page);
@@ -1822,6 +1864,7 @@ void thrift_test_cases_iter(struct runner_context *ctx) {
 
   test_case(ctx, "can stop when too many tokens", can_stop_when_too_many_tokens);
   test_case(ctx, "can detect too nested structure", can_detect_too_nested_structure);
+  test_case(ctx, "can iterate after completion", can_iterate_after_completion);
 }
 
 #endif
