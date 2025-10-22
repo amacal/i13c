@@ -34,7 +34,7 @@ struct thrift_iter_chunk {
 };
 
 struct thrift_iter_content {
-  char *data;
+  const char *ptr;
 };
 
 struct thrift_iter_field {

@@ -103,6 +103,25 @@ static i64 thrift_delegate_i64(struct thrift_iter *iter, const char *buffer, u64
   return result;
 }
 
+static i64 thrift_delegate_binary(struct thrift_iter *iter, const char *buffer, u64 buffer_size) {
+  i64 result;
+  u32 size;
+
+  // read the binary header containing size
+  result = thrift_read_binary_header(&size, buffer, buffer_size);
+  if (result < 0) return result;
+
+  // increase the state index
+  iter->state.idx++;
+
+  iter->state.types[iter->state.idx] = THRIFT_ITER_STATE_TYPE_BINARY;
+  iter->state.entries[iter->state.idx].value.binary.size = size;
+  iter->state.entries[iter->state.idx].value.binary.read = 0;
+
+  // success
+  return result;
+}
+
 static i64 thrift_delegate_list(struct thrift_iter *iter, const char *buffer, u64 buffer_size) {
   i64 result, consumed;
   struct thrift_list_header header;
@@ -149,7 +168,7 @@ static const thrift_delegate_fn THRIFT_ITEM_LITERAL_FN[THRIFT_TYPE_SIZE] = {
   [THRIFT_TYPE_I32] = thrift_delegate_i32,
   [THRIFT_TYPE_I64] = thrift_delegate_i64,
   [THRIFT_TYPE_DOUBLE] = NULL,
-  [THRIFT_TYPE_BINARY] = NULL,
+  [THRIFT_TYPE_BINARY] = thrift_delegate_binary,
   [THRIFT_TYPE_LIST] = thrift_delegate_list,
   [THRIFT_TYPE_SET] = NULL,
   [THRIFT_TYPE_MAP] = NULL,
@@ -166,7 +185,7 @@ static const thrift_delegate_fn THRIFT_ITEM_FIELD_FN[THRIFT_TYPE_SIZE] = {
   [THRIFT_TYPE_I32] = thrift_delegate_i32,
   [THRIFT_TYPE_I64] = thrift_delegate_i64,
   [THRIFT_TYPE_DOUBLE] = NULL,
-  [THRIFT_TYPE_BINARY] = NULL,
+  [THRIFT_TYPE_BINARY] = thrift_delegate_binary,
   [THRIFT_TYPE_LIST] = thrift_delegate_list,
   [THRIFT_TYPE_SET] = NULL,
   [THRIFT_TYPE_MAP] = NULL,
@@ -341,8 +360,41 @@ static i64 thrift_iter_next_list(struct thrift_iter *iter, const char *buffer, u
   return thrift_iter_next_literal(iter, buffer, buffer_size);
 }
 
+static i64 thrift_iter_next_binary(struct thrift_iter *iter, const char *buffer, u64 buffer_size) {
+  u32 size, done, read;
+
+  // extract the remaining bytes from the current state entry
+  size = iter->state.entries[iter->state.idx].value.binary.size;
+  done = iter->state.entries[iter->state.idx].value.binary.read;
+
+  // calculate how many bytes we can read
+  if (size - done > buffer_size) {
+    read = buffer_size;
+  } else {
+    read = size - done;
+  }
+
+  // check for buffer overflow
+  if (read == 0) return THRIFT_ERROR_BUFFER_OVERFLOW;
+
+  // update the read count
+  iter->state.entries[iter->state.idx].value.binary.read += read;
+
+  // emit BINARY_CHUNK token/entry
+  iter->tokens[iter->idx] = THRIFT_ITER_TOKEN_BINARY_CHUNK;
+  iter->entries[iter->idx].value.chunk.size = read;
+  iter->entries[iter->idx++].value.chunk.offset = done;
+
+  // emit BINARY_CONTENT token/entry
+  iter->tokens[iter->idx] = THRIFT_ITER_TOKEN_BINARY_CONTENT;
+  iter->entries[iter->idx++].value.content.ptr = buffer;
+
+  // success
+  return read;
+}
+
 static const thrift_iter_next_fn THRIFT_ITER_NEXT_FN[THRIFT_ITER_STATE_TYPE_SIZE] = {
-  [THRIFT_ITER_STATE_TYPE_BINARY] = NULL,
+  [THRIFT_ITER_STATE_TYPE_BINARY] = thrift_iter_next_binary,
   [THRIFT_ITER_STATE_TYPE_STRUCT] = thrift_iter_next_struct,
   [THRIFT_ITER_STATE_TYPE_LIST] = thrift_iter_next_list,
   [THRIFT_ITER_STATE_TYPE_LITERAL] = thrift_iter_next_literal,
@@ -1160,6 +1212,124 @@ static void can_iterate_over_bools() {
   malloc_destroy(&pool);
 }
 
+static void can_iterate_over_binary() {
+  i64 result;
+  u64 buffer_size;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_iter iter;
+
+  // data
+  const char buffer[] = {0x78, 0x02, 0x01, 0x02, 0x00};
+  buffer_size = sizeof(buffer);
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+  assert(result == 0, "should allocate memory");
+
+  // initialize the iterator with the buffer
+  thrift_iter_init(&iter, &lease);
+
+  // iterate over the buffer
+  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  assert(result == 4, "should produce four tokens");
+  assert(buffer_size == 5, "should consume five bytes");
+
+  assert(iter.idx == 4, "iterator idx should be 4");
+  assert(iter.state.idx == -1, "state idx should be -1");
+
+  assert(iter.tokens[0] == THRIFT_ITER_TOKEN_STRUCT_FIELD, "token should be STRUCT_FIELD");
+  assert(iter.entries[0].value.field.id == 7, "field id should be 7");
+  assert(iter.entries[0].value.field.type == THRIFT_TYPE_BINARY, "field type should be THRIFT_TYPE_BINARY");
+
+  assert(iter.tokens[1] == THRIFT_ITER_TOKEN_BINARY_CHUNK, "token should be BINARY_CHUNK");
+  assert(iter.entries[1].value.chunk.offset == 0, "chunk offset should be 0");
+  assert(iter.entries[1].value.chunk.size == 2, "chunk size should be 2");
+
+  assert(iter.tokens[2] == THRIFT_ITER_TOKEN_BINARY_CONTENT, "token should be BINARY_CONTENT");
+  assert(iter.entries[2].value.content.ptr == buffer + 2, "content ptr should point to buffer + 2");
+
+  assert(iter.tokens[3] == THRIFT_ITER_TOKEN_STRUCT_FIELD, "token should be STRUCT_FIELD");
+  assert(iter.entries[3].value.field.id == 0, "field id should be 0");
+  assert(iter.entries[3].value.field.type == THRIFT_TYPE_STOP, "field type should be THRIFT_TYPE_STOP");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_iterate_over_binary_fragmented() {
+  i64 result;
+  u64 buffer_size;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_iter iter;
+
+  // data
+  const char buffer1[] = {0x78, 0x05, 0x01, 0x02};
+  const char buffer2[] = {0x03, 0x04, 0x05, 0x00};
+  buffer_size = sizeof(buffer1);
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+  assert(result == 0, "should allocate memory");
+
+  // initialize the iterator with the buffer
+  thrift_iter_init(&iter, &lease);
+
+  // iterate over the buffer
+  result = thrift_iter_next(&iter, buffer1, &buffer_size);
+  assert(result == 3, "should produce three tokens");
+  assert(buffer_size == 4, "should consume four bytes");
+  assert(iter.idx == 3, "iterator idx should be 3");
+
+  result = thrift_iter_next(&iter, buffer2, &buffer_size);
+  assert(result == 3, "should produce three tokens");
+
+  assert(iter.idx == 6, "iterator idx should be 6");
+  assert(iter.state.idx == -1, "state idx should be -1");
+
+  assert(iter.tokens[0] == THRIFT_ITER_TOKEN_STRUCT_FIELD, "token should be STRUCT_FIELD");
+  assert(iter.entries[0].value.field.id == 7, "field id should be 7");
+  assert(iter.entries[0].value.field.type == THRIFT_TYPE_BINARY, "field type should be THRIFT_TYPE_BINARY");
+
+  assert(iter.tokens[1] == THRIFT_ITER_TOKEN_BINARY_CHUNK, "token should be BINARY_CHUNK");
+  assert(iter.entries[1].value.chunk.offset == 0, "chunk offset should be 0");
+  assert(iter.entries[1].value.chunk.size == 2, "chunk size should be 2");
+
+  assert(iter.tokens[2] == THRIFT_ITER_TOKEN_BINARY_CONTENT, "token should be BINARY_CONTENT");
+  assert(iter.entries[2].value.content.ptr == buffer1 + 2, "content ptr should point to buffer1 + 2");
+
+  assert(iter.tokens[3] == THRIFT_ITER_TOKEN_BINARY_CHUNK, "token should be BINARY_CHUNK");
+  assert(iter.entries[3].value.chunk.offset == 2, "chunk offset should be 2");
+  assert(iter.entries[3].value.chunk.size == 3, "chunk size should be 3");
+
+  assert(iter.tokens[4] == THRIFT_ITER_TOKEN_BINARY_CONTENT, "token should be BINARY_CONTENT");
+  assert(iter.entries[4].value.content.ptr == buffer2, "content ptr should point to buffer2");
+
+  assert(iter.tokens[5] == THRIFT_ITER_TOKEN_STRUCT_FIELD, "token should be STRUCT_FIELD");
+  assert(iter.entries[5].value.field.id == 0, "field id should be 0");
+  assert(iter.entries[5].value.field.type == THRIFT_TYPE_STOP, "field type should be THRIFT_TYPE_STOP");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
 void thrift_test_cases_iter(struct runner_context *ctx) {
   test_case(ctx, "can initialize iterator with single page", can_init_iterator_single_page);
   test_case(ctx, "can initialize iterator with double page", can_init_iterator_double_page);
@@ -1178,6 +1348,9 @@ void thrift_test_cases_iter(struct runner_context *ctx) {
 
   test_case(ctx, "can iterate over integers", can_iterate_over_integers);
   test_case(ctx, "can iterate over bools", can_iterate_over_bools);
+
+  test_case(ctx, "can iterate over binary", can_iterate_over_binary);
+  test_case(ctx, "can iterate over binary fragmented", can_iterate_over_binary_fragmented);
 }
 
 #endif
