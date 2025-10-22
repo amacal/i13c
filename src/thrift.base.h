@@ -15,7 +15,10 @@ enum thrift_error {
   THRIFT_ERROR_INVALID_VALUE = THRIFT_ERROR_BASE - 0x03,
 
   // indicates that the type is unsupported
-  THRIFT_ERROR_UNSUPPORTED_TYPE = THRIFT_ERROR_BASE - 0x04
+  THRIFT_ERROR_UNSUPPORTED_TYPE = THRIFT_ERROR_BASE - 0x04,
+
+  // indicates that the nesting level is too deep
+  THRIFT_ERROR_TOO_NESTED = THRIFT_ERROR_BASE - 0x05
 };
 
 enum thrift_type {

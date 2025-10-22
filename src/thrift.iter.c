@@ -240,38 +240,20 @@ static i64 thrift_delegate_list(struct thrift_iter *iter, const char *buffer, u6
   return consumed;
 }
 
-void thrift_iter_init(struct thrift_iter *iter, struct malloc_lease *buffer) {
-  u16 size1, size2;
+static i64 thrift_delegate_struct(struct thrift_iter *iter, const char *, u64) {
+  // the field will be done immediately when struct completed
+  iter->state.entries[iter->state.idx].value.literal.done = TRUE;
 
-  // default values
-  iter->idx = 0;
-  iter->buffer = buffer;
+  // increase the state index
+  iter->state.idx++;
 
-  iter->state.idx = 0;
-  iter->state.size = THRIFT_ITER_STATE_INITIAL_SIZE;
+  // initialize the new state entry as a struct
+  iter->state.entries[iter->state.idx].value.fields.field = 0;
+  iter->state.entries[iter->state.idx].value.fields.type = THRIFT_TYPE_SIZE;
+  iter->state.types[iter->state.idx] = THRIFT_ITER_STATE_TYPE_STRUCT;
 
-  // calculate the size of all dynamic arrays
-  size1 = (sizeof(struct thrift_iter_state_entry) + sizeof(u8)) * THRIFT_ITER_STATE_INITIAL_SIZE;
-  size2 = (u16)((buffer->size - size1) / (sizeof(struct thrift_iter_entry) + sizeof(u8)));
-
-  // first state entries and types
-  iter->state.entries = (struct thrift_iter_state_entry *)buffer->ptr;
-  iter->state.types = (u8 *)(buffer->ptr + THRIFT_ITER_STATE_INITIAL_SIZE * sizeof(struct thrift_iter_state_entry));
-
-  iter->state.types[0] = THRIFT_ITER_STATE_TYPE_STRUCT;
-  iter->state.entries[0].value.fields.field = 0;
-  iter->state.entries[0].value.fields.type = 0xffffffff;
-
-  // then place the entries array to keep mod 16 alignment
-  iter->size = size2;
-  iter->entries = (struct thrift_iter_entry *)(buffer->ptr + size1);
-
-  // tokens can be placed anywhere because they are u8
-  iter->tokens = (u8 *)(buffer->ptr + size1 + size2 * sizeof(struct thrift_iter_entry));
-}
-
-extern bool thrift_iter_done(struct thrift_iter *) {
-  return FALSE;
+  // success
+  return 0;
 }
 
 static bool thrift_iter_fold_struct(struct thrift_iter_state_entry *entry) {
@@ -350,22 +332,7 @@ static i64 thrift_iter_next_struct(struct thrift_iter *iter, const char *buffer,
   return result;
 }
 
-static i64 thrift_delegate_struct(struct thrift_iter *iter, const char *buffer, u64 buffer_size) {
-  // the field will be done immediately when struct completed
-  iter->state.entries[iter->state.idx].value.literal.done = TRUE;
-
-  // increase the state index
-  iter->state.idx++;
-
-  // initialize the new state entry as a struct
-  iter->state.entries[iter->state.idx].value.fields.field = 0;
-  iter->state.types[iter->state.idx] = THRIFT_ITER_STATE_TYPE_STRUCT;
-
-  // delegate to the struct next function
-  return thrift_iter_next_struct(iter, buffer, buffer_size);
-}
-
-static i64 thrift_iter_next_list(struct thrift_iter *iter, const char *buffer, u64 buffer_size) {
+static i64 thrift_iter_next_list(struct thrift_iter *iter, const char *, u64) {
   u32 item_type;
   u32 remaining;
 
@@ -385,7 +352,7 @@ static i64 thrift_iter_next_list(struct thrift_iter *iter, const char *buffer, u
   iter->state.entries[iter->state.idx].value.literal.done = FALSE;
 
   // success
-  return thrift_iter_next_literal(iter, buffer, buffer_size);
+  return 0;
 }
 
 static i64 thrift_iter_next_binary(struct thrift_iter *iter, const char *buffer, u64 buffer_size) {
@@ -421,6 +388,40 @@ static i64 thrift_iter_next_binary(struct thrift_iter *iter, const char *buffer,
   return read;
 }
 
+void thrift_iter_init(struct thrift_iter *iter, struct malloc_lease *buffer) {
+  u16 size1, size2;
+
+  // default values
+  iter->idx = 0;
+  iter->buffer = buffer;
+
+  iter->state.idx = 0;
+  iter->state.size = THRIFT_ITER_STATE_INITIAL_SIZE;
+
+  // calculate the size of all dynamic arrays
+  size1 = (sizeof(struct thrift_iter_state_entry) + sizeof(u8)) * THRIFT_ITER_STATE_INITIAL_SIZE;
+  size2 = (u16)((buffer->size - size1) / (sizeof(struct thrift_iter_entry) + sizeof(u8)));
+
+  // first state entries and types
+  iter->state.entries = (struct thrift_iter_state_entry *)buffer->ptr;
+  iter->state.types = (u8 *)(buffer->ptr + THRIFT_ITER_STATE_INITIAL_SIZE * sizeof(struct thrift_iter_state_entry));
+
+  iter->state.types[0] = THRIFT_ITER_STATE_TYPE_STRUCT;
+  iter->state.entries[0].value.fields.field = 0;
+  iter->state.entries[0].value.fields.type = 0xffffffff;
+
+  // then place the entries array to keep mod 16 alignment
+  iter->size = size2;
+  iter->entries = (struct thrift_iter_entry *)(buffer->ptr + size1);
+
+  // tokens can be placed anywhere because they are u8
+  iter->tokens = (u8 *)(buffer->ptr + size1 + size2 * sizeof(struct thrift_iter_entry));
+}
+
+bool thrift_iter_done(struct thrift_iter *iter) {
+  return iter->state.idx == -1;
+}
+
 i64 thrift_iter_next(struct thrift_iter *iter, const char *buffer, u64 *buffer_size) {
   i64 result, consumed, previous;
 
@@ -428,7 +429,10 @@ i64 thrift_iter_next(struct thrift_iter *iter, const char *buffer, u64 *buffer_s
   consumed = 0;
   previous = iter->idx;
 
-  while (iter->state.idx >= 0) {
+  while (iter->state.idx >= 0 && iter->idx < iter->size) {
+    // check for too nested structures
+    if (iter->state.idx >= iter->state.size) return THRIFT_ERROR_TOO_NESTED;
+
     // call the appropriate function based on the current state type
     result = THRIFT_ITER_NEXT_FN[iter->state.types[iter->state.idx]](iter, buffer, *buffer_size);
     if (result == THRIFT_ERROR_BUFFER_OVERFLOW) break;
@@ -450,7 +454,10 @@ i64 thrift_iter_next(struct thrift_iter *iter, const char *buffer, u64 *buffer_s
     return THRIFT_ERROR_BUFFER_OVERFLOW;
   }
 
+  // update the consumed buffer size
   *buffer_size = consumed;
+
+  // return the number of produced tokens
   return iter->idx - previous;
 }
 
@@ -1691,6 +1698,83 @@ static void can_detect_unsupported_uuid_list_type() {
   malloc_destroy(&pool);
 }
 
+static void can_stop_when_too_many_tokens() {
+  i64 result;
+  u64 buffer_size;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_iter iter;
+
+  // data
+  const char buffer[] = {0x79, 0xa5, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00};
+  buffer_size = sizeof(buffer);
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+  assert(result == 0, "should allocate memory");
+
+  // initialize the iterator with the buffer
+  thrift_iter_init(&iter, &lease);
+
+  // limit the iterator size to 10 tokens
+  iter.size = 10;
+
+  // iterate over the buffer
+  result = thrift_iter_next(&iter, buffer, &buffer_size);
+
+  assert(result == 10, "expected 10 tokens");
+  assert(iter.idx == 10, "iterator idx should be 10");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_detect_too_nested_structure() {
+  i64 result;
+  u64 buffer_size;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_iter iter;
+
+  // data
+  const char buffer[] = {0x79, 0xa5, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00};
+  buffer_size = sizeof(buffer);
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+  assert(result == 0, "should allocate memory");
+
+  // initialize the iterator with the buffer
+  thrift_iter_init(&iter, &lease);
+
+  // limit the iterator size to 3 nested structures,
+  // root struct, field, list, no place for items
+  iter.state.size = 3;
+
+  // iterate over the buffer
+  result = thrift_iter_next(&iter, buffer, &buffer_size);
+  assert(result == THRIFT_ERROR_TOO_NESTED, "expected THRIFT_ERROR_TOO_NESTED");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
 void thrift_test_cases_iter(struct runner_context *ctx) {
   test_case(ctx, "can initialize iterator with single page", can_init_iterator_single_page);
   test_case(ctx, "can initialize iterator with double page", can_init_iterator_double_page);
@@ -1724,6 +1808,9 @@ void thrift_test_cases_iter(struct runner_context *ctx) {
   test_case(ctx, "can detect unsupported map list type", can_detect_unsupported_map_list_type);
   test_case(ctx, "can detect unsupported uuid struct type", can_detect_unsupported_uuid_struct_type);
   test_case(ctx, "can detect unsupported uuid list type", can_detect_unsupported_uuid_list_type);
+
+  test_case(ctx, "can stop when too many tokens", can_stop_when_too_many_tokens);
+  test_case(ctx, "can detect too nested structure", can_detect_too_nested_structure);
 }
 
 #endif
