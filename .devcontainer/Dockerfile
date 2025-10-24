@@ -12,14 +12,14 @@ RUN sudo sed -i 's|http://de.archive.ubuntu.com|http://mirror.ubuntu.com|g' /etc
     && sudo rm -rf /var/lib/apt/lists/*
 
 RUN cd /tmp \
-    && wget https://www.nasm.us/pub/nasm/releasebuilds/2.16.03/nasm-2.16.03.tar.gz \
-    && tar -xvzf nasm-2.16.03.tar.gz \
-    && cd nasm-2.16.03 \
+    && wget https://www.nasm.us/pub/nasm/releasebuilds/3.01/nasm-3.01.tar.gz \
+    && tar -xvzf nasm-3.01.tar.gz \
+    && cd nasm-3.01 \
     && ./configure \
     && make \
     && sudo make install \
     && nasm --version \
-    && sudo rm -rf /tmp/nasm-2.16.03
+    && sudo rm -rf /tmp/nasm-3.01
 
 RUN cd /tmp \
     && wget https://github.com/eteran/edb-debugger/releases/download/1.5.0/edb-debugger-1.5.0.tgz \
