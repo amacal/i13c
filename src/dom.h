@@ -48,7 +48,7 @@ enum dom_op {
   DOM_OP_KEY_END = 0x08,
   DOM_OP_VALUE_START = 0x09,
   DOM_OP_VALUE_END = 0x0a,
-  DOM_OP_SIZE = 0x0b,
+  DOM_OP_SIZE
 };
 
 struct dom_token {

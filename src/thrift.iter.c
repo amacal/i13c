@@ -17,7 +17,7 @@
 /// @return The number of bytes read from the buffer, or a negative error code.
 typedef i64 (*thrift_delegate_fn)(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
 
-/// @brief Function type for reading the next element from a Thrift iterator.
+/// @brief Function type for reading the next element.
 /// @param iter Pointer to the Thrift iterator.
 /// @param buffer Pointer to the buffer containing the Thrift data.
 /// @param buffer_size The number of bytes available in the buffer.
@@ -92,7 +92,7 @@ static const thrift_iter_fold_fn FOLD_FN[THRIFT_ITER_STATE_TYPE_SIZE] = {
 };
 
 // next dispatch table
-static const thrift_iter_next_fn THRIFT_ITER_NEXT_FN[THRIFT_ITER_STATE_TYPE_SIZE] = {
+static const thrift_iter_next_fn NEXT_FN[THRIFT_ITER_STATE_TYPE_SIZE] = {
   [THRIFT_ITER_STATE_TYPE_BINARY] = thrift_iter_next_binary,
   [THRIFT_ITER_STATE_TYPE_STRUCT] = thrift_iter_next_struct,
   [THRIFT_ITER_STATE_TYPE_LIST] = thrift_iter_next_list,
@@ -446,7 +446,7 @@ i64 thrift_iter_next(struct thrift_iter *iter, const char *buffer, u64 buffer_si
     if (iter->state.idx >= iter->state.size) return THRIFT_ERROR_TOO_NESTED;
 
     // call the appropriate function based on the current state type
-    result = THRIFT_ITER_NEXT_FN[iter->state.types[iter->state.idx]](iter, buffer, buffer_size);
+    result = NEXT_FN[iter->state.types[iter->state.idx]](iter, buffer, buffer_size);
     if (result == THRIFT_ERROR_BUFFER_OVERFLOW) break;
     if (result < 0) return result;
 

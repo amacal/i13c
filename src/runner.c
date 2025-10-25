@@ -12,6 +12,7 @@
 #include "stdout.h"
 #include "sys.h"
 #include "thrift.base.h"
+#include "thrift.dom.h"
 #include "thrift.iter.h"
 #include "typing.h"
 
@@ -91,6 +92,7 @@ i32 runner_execute() {
   format_test_cases(&ctx);
 
   thrift_test_cases_base(&ctx);
+  thrift_test_cases_dom(&ctx);
   thrift_test_cases_iter(&ctx);
 
   // execute all registered test cases

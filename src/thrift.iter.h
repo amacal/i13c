@@ -14,8 +14,7 @@ enum thrift_iter_token {
   THRIFT_ITER_TOKEN_BINARY_CHUNK = 6,
   THRIFT_ITER_TOKEN_BINARY_CONTENT = 7,
   THRIFT_ITER_TOKEN_LIST_HEADER = 8,
-  THRIFT_ITER_TOKEN_SET_HEADER = 9,
-  THRIFT_ITER_TOKEN_STRUCT_FIELD = 10,
+  THRIFT_ITER_TOKEN_STRUCT_FIELD = 9,
 };
 
 struct thrift_iter_literal {
@@ -95,10 +94,10 @@ struct thrift_iter_state_entry {
 };
 
 struct thrift_iter_state {
-  i8 idx;    // current index in the types and entries arrays
-  i8 size;   // size of the types and entries arrays
-  u8 *types; // array of types of the entries
+  i8 idx;  // current index in the types and entries arrays
+  i8 size; // size of the types and entries arrays
 
+  u8 *types;                               // array of types of the entries
   struct thrift_iter_state_entry *entries; // array of state entries
 };
 
@@ -126,7 +125,7 @@ extern bool thrift_iter_done(struct thrift_iter *iter);
 /// @param iter Pointer to the thrift_iter structure.
 /// @param buffer Pointer to the buffer containing the Thrift data.
 /// @param buffer_size The number of bytes available in the buffer.
-/// @return Zero on success, or a negative error code.
+/// @return Produced/Consumed on success, or a negative error code.
 extern i64 thrift_iter_next(struct thrift_iter *iter, const char *buffer, u64 buffer_size);
 
 #if defined(I13C_TESTS)
