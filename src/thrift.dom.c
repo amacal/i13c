@@ -93,6 +93,15 @@ static const u8 TYPE_MAPPING[THRIFT_TYPE_SIZE] = {
   [THRIFT_TYPE_STRUCT] = DOM_TYPE_STRUCT,   [THRIFT_TYPE_UUID] = DOM_TYPE_NULL,
 };
 
+// type names
+static const char *const TYPE_NAMES[THRIFT_TYPE_SIZE] = {
+  [THRIFT_TYPE_STOP] = "stop",     [THRIFT_TYPE_BOOL_TRUE] = "bool", [THRIFT_TYPE_BOOL_FALSE] = "bool",
+  [THRIFT_TYPE_I8] = "i8",         [THRIFT_TYPE_I16] = "i16",        [THRIFT_TYPE_I32] = "i32",
+  [THRIFT_TYPE_I64] = "i64",       [THRIFT_TYPE_DOUBLE] = "double",  [THRIFT_TYPE_BINARY] = "binary",
+  [THRIFT_TYPE_LIST] = "list",     [THRIFT_TYPE_SET] = NULL,         [THRIFT_TYPE_MAP] = NULL,
+  [THRIFT_TYPE_STRUCT] = "struct", [THRIFT_TYPE_UUID] = NULL,
+};
+
 // token mapping
 static const u8 TOKEN_MAPPING[THRIFT_TYPE_SIZE] = {
   [THRIFT_TYPE_STOP] = THRIFT_ITER_TOKEN_SIZE,
@@ -161,7 +170,7 @@ thrift_next_struct(struct thrift_dom *iter, const u8 *tokens, const struct thrif
 
   // emit KEY_START token
   iter->tokens[iter->idx].op = DOM_OP_KEY_START;
-  iter->tokens[iter->idx].data = NULL;
+  iter->tokens[iter->idx].data = TYPE_NAMES[entries[0].value.field.type];
   iter->tokens[iter->idx].type = DOM_TYPE_I32;
 
   // advance the iterator
@@ -575,7 +584,7 @@ static void can_write_struct_with_one_field() {
 
   assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
   assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[1].data == 0, "token data should be NULL");
+  assert(iter.tokens[1].data == (u64) "i32", "token data should be NULL");
 
   assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
@@ -660,7 +669,7 @@ static void can_write_struct_with_two_fields() {
 
   assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
   assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[1].data == 0, "token data should be NULL");
+  assert(iter.tokens[1].data == (u64) "i32", "token data should be i32");
 
   assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
@@ -682,7 +691,7 @@ static void can_write_struct_with_two_fields() {
 
   assert(iter.tokens[7].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
   assert(iter.tokens[7].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[7].data == 0, "token data should be NULL");
+  assert(iter.tokens[7].data == (u64) "i16", "token data should be i16");
 
   assert(iter.tokens[8].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[8].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
@@ -760,7 +769,7 @@ static void can_write_struct_with_i8_field_positive() {
 
   assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
   assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[1].data == 0, "token data should be NULL");
+  assert(iter.tokens[1].data == (u64) "i8", "token data should be i8");
 
   assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
@@ -838,7 +847,7 @@ static void can_write_struct_with_i8_field_negative() {
 
   assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
   assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[1].data == 0, "token data should be NULL");
+  assert(iter.tokens[1].data == (u64) "i8", "token data should be i8");
 
   assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
@@ -916,7 +925,7 @@ static void can_write_struct_with_i16_field_positive() {
 
   assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
   assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[1].data == 0, "token data should be NULL");
+  assert(iter.tokens[1].data == (u64) "i16", "token data should be i16");
 
   assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
@@ -994,7 +1003,7 @@ static void can_write_struct_with_i16_field_negative() {
 
   assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
   assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[1].data == 0, "token data should be NULL");
+  assert(iter.tokens[1].data == (u64) "i16", "token data should be i16");
 
   assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
@@ -1072,7 +1081,7 @@ static void can_write_struct_with_i32_field_positive() {
 
   assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
   assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[1].data == 0, "token data should be NULL");
+  assert(iter.tokens[1].data == (u64) "i32", "token data should be i32");
 
   assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
@@ -1150,7 +1159,7 @@ static void can_write_struct_with_i32_field_negative() {
 
   assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
   assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[1].data == 0, "token data should be NULL");
+  assert(iter.tokens[1].data == (u64) "i32", "token data should be i32");
 
   assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
@@ -1228,7 +1237,7 @@ static void can_write_struct_with_i64_field_positive() {
 
   assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
   assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[1].data == 0, "token data should be NULL");
+  assert(iter.tokens[1].data == (u64) "i64", "token data should be i64");
 
   assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
@@ -1306,7 +1315,7 @@ static void can_write_struct_with_i64_field_negative() {
 
   assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
   assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[1].data == 0, "token data should be NULL");
+  assert(iter.tokens[1].data == (u64) "i64", "token data should be i64");
 
   assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
@@ -1384,7 +1393,7 @@ static void can_write_struct_with_bool_field_true() {
 
   assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
   assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[1].data == 0, "token data should be NULL");
+  assert(iter.tokens[1].data == (u64) "bool", "token data should be bool");
 
   assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
@@ -1462,7 +1471,7 @@ static void can_write_struct_with_bool_field_false() {
 
   assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
   assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[1].data == 0, "token data should be NULL");
+  assert(iter.tokens[1].data == (u64) "bool", "token data should be bool");
 
   assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
