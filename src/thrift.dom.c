@@ -215,7 +215,7 @@ thrift_next_value(struct thrift_dom *iter, const u8 *tokens, const struct thrift
   token = TOKEN_MAPPING[type];
 
   // check for the expected token
-  if (tokens[0] != token) {
+  if (*tokens != token) {
     return THRIFT_ERROR_INVALID_IMPLEMENTATION;
   }
 
@@ -265,6 +265,7 @@ static void thrift_literal_bool(struct dom_token *target, const struct thrift_it
 }
 
 static void thrift_literal_i8(struct dom_token *target, const struct thrift_iter_entry *source) {
+  target->data = (u64)source->value.literal.value.v_i8;
 }
 
 static void thrift_literal_i16(struct dom_token *target, const struct thrift_iter_entry *source) {
@@ -276,6 +277,7 @@ static void thrift_literal_i32(struct dom_token *target, const struct thrift_ite
 }
 
 static void thrift_literal_i64(struct dom_token *target, const struct thrift_iter_entry *source) {
+  target->data = (u64)source->value.literal.value.v_i64;
 }
 
 static void thrift_literal_binary(struct dom_token *target, const struct thrift_iter_entry *source) {
@@ -512,10 +514,10 @@ static void can_write_struct_with_no_fields() {
   assert(iter.state.idx == -1, "state idx should be -1");
 
   assert(iter.tokens[0].op == DOM_OP_STRUCT_START, "token op should be STRUCT_START");
-  assert(iter.tokens[0].data == NULL, "token type should be NULL");
+  assert(iter.tokens[0].data == 0, "token type should be NULL");
 
   assert(iter.tokens[1].op == DOM_OP_STRUCT_END, "token op should be STRUCT_END");
-  assert(iter.tokens[1].data == NULL, "token type should be NULL");
+  assert(iter.tokens[1].data == 0, "token type should be NULL");
 
   // release the memory
   malloc_release(&pool, &lease);
@@ -568,32 +570,32 @@ static void can_write_struct_with_one_field() {
   assert(iter.state.idx == -1, "state idx should be -1");
 
   assert(iter.tokens[0].op == DOM_OP_STRUCT_START, "token op should be STRUCT_START");
-  assert(iter.tokens[0].data == NULL, "token type should be NULL");
+  assert(iter.tokens[0].data == 0, "token type should be NULL");
 
   assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
   assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[1].data == NULL, "token data should be NULL");
+  assert(iter.tokens[1].data == 0, "token data should be NULL");
 
   assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
   assert(iter.tokens[2].data == 17, "token data should be 17");
 
   assert(iter.tokens[3].op == DOM_OP_KEY_END, "token op should be DOM_OP_KEY_END");
-  assert(iter.tokens[3].data == NULL, "token type should be NULL");
+  assert(iter.tokens[3].data == 0, "token type should be NULL");
 
   assert(iter.tokens[4].op == DOM_OP_VALUE_START, "token op should be DOM_OP_VALUE_START");
   assert(iter.tokens[4].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[4].data == NULL, "token data should be NULL");
+  assert(iter.tokens[4].data == 0, "token data should be NULL");
 
   assert(iter.tokens[5].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[5].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
   assert(iter.tokens[5].data == 42, "token data should be 42");
 
   assert(iter.tokens[6].op == DOM_OP_VALUE_END, "token op should be DOM_OP_VALUE_END");
-  assert(iter.tokens[6].data == NULL, "token type should be NULL");
+  assert(iter.tokens[6].data == 0, "token type should be NULL");
 
   assert(iter.tokens[7].op == DOM_OP_STRUCT_END, "token op should be DOM_OP_STRUCT_END");
-  assert(iter.tokens[7].data == NULL, "token type should be NULL");
+  assert(iter.tokens[7].data == 0, "token type should be NULL");
 
   // release the memory
   malloc_release(&pool, &lease);
@@ -653,54 +655,678 @@ static void can_write_struct_with_two_fields() {
   assert(iter.state.idx == -1, "state idx should be -1");
 
   assert(iter.tokens[0].op == DOM_OP_STRUCT_START, "token op should be STRUCT_START");
-  assert(iter.tokens[0].data == NULL, "token type should be NULL");
+  assert(iter.tokens[0].data == 0, "token type should be NULL");
 
   assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
   assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[1].data == NULL, "token data should be NULL");
+  assert(iter.tokens[1].data == 0, "token data should be NULL");
 
   assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
   assert(iter.tokens[2].data == 17, "token data should be 17");
 
   assert(iter.tokens[3].op == DOM_OP_KEY_END, "token op should be DOM_OP_KEY_END");
-  assert(iter.tokens[3].data == NULL, "token type should be NULL");
+  assert(iter.tokens[3].data == 0, "token type should be NULL");
 
   assert(iter.tokens[4].op == DOM_OP_VALUE_START, "token op should be DOM_OP_VALUE_START");
   assert(iter.tokens[4].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[4].data == NULL, "token data should be NULL");
+  assert(iter.tokens[4].data == 0, "token data should be NULL");
 
   assert(iter.tokens[5].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[5].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
   assert(iter.tokens[5].data == 42, "token data should be 42");
 
   assert(iter.tokens[6].op == DOM_OP_VALUE_END, "token op should be DOM_OP_VALUE_END");
-  assert(iter.tokens[6].data == NULL, "token type should be NULL");
+  assert(iter.tokens[6].data == 0, "token type should be NULL");
 
   assert(iter.tokens[7].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
   assert(iter.tokens[7].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
-  assert(iter.tokens[7].data == NULL, "token data should be NULL");
+  assert(iter.tokens[7].data == 0, "token data should be NULL");
 
   assert(iter.tokens[8].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[8].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
   assert(iter.tokens[8].data == 19, "token data should be 19");
 
   assert(iter.tokens[9].op == DOM_OP_KEY_END, "token op should be DOM_OP_KEY_END");
-  assert(iter.tokens[9].data == NULL, "token type should be NULL");
+  assert(iter.tokens[9].data == 0, "token type should be NULL");
 
   assert(iter.tokens[10].op == DOM_OP_VALUE_START, "token op should be DOM_OP_VALUE_START");
   assert(iter.tokens[10].type == DOM_TYPE_I16, "token type should be DOM_TYPE_I16");
-  assert(iter.tokens[10].data == NULL, "token data should be NULL");
+  assert(iter.tokens[10].data == 0, "token data should be NULL");
 
   assert(iter.tokens[11].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
   assert(iter.tokens[11].type == DOM_TYPE_I16, "token type should be DOM_TYPE_I16");
   assert(iter.tokens[11].data == 142, "token data should be 142");
 
   assert(iter.tokens[12].op == DOM_OP_VALUE_END, "token op should be DOM_OP_VALUE_END");
-  assert(iter.tokens[12].data == NULL, "token type should be NULL");
+  assert(iter.tokens[12].data == 0, "token type should be NULL");
 
   assert(iter.tokens[13].op == DOM_OP_STRUCT_END, "token op should be DOM_OP_STRUCT_END");
-  assert(iter.tokens[13].data == NULL, "token type should be NULL");
+  assert(iter.tokens[13].data == 0, "token type should be NULL");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_write_struct_with_i8_field_positive() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_dom iter;
+
+  u8 tokens[3];
+  struct thrift_iter_entry entries[3];
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+
+  assert(result == 0, "should allocate memory");
+  assert(lease.ptr != NULL, "lease ptr should be set");
+
+  // initialize the iterator with the buffer
+  thrift_dom_init(&iter, &lease);
+
+  // data
+  tokens[0] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[0].value.field.id = 17;
+  entries[0].value.field.type = THRIFT_TYPE_I8;
+
+  tokens[1] = THRIFT_ITER_TOKEN_I8;
+  entries[1].value.literal.value.v_i8 = 42;
+
+  tokens[2] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[2].value.field.id = 0;
+  entries[2].value.field.type = THRIFT_TYPE_STOP;
+
+  // iterate over the buffer
+  result = thrift_dom_next(&iter, tokens, entries, 3);
+  assert(PRODUCED(result) == 8, "should produce eight tokens");
+  assert(CONSUMED(result) == 3, "should consume three entries");
+
+  assert(iter.idx == 8, "iterator idx should be 8");
+  assert(iter.state.idx == -1, "state idx should be -1");
+
+  assert(iter.tokens[0].op == DOM_OP_STRUCT_START, "token op should be STRUCT_START");
+  assert(iter.tokens[0].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
+  assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[1].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[2].data == 17, "token data should be 17");
+
+  assert(iter.tokens[3].op == DOM_OP_KEY_END, "token op should be DOM_OP_KEY_END");
+  assert(iter.tokens[3].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[4].op == DOM_OP_VALUE_START, "token op should be DOM_OP_VALUE_START");
+  assert(iter.tokens[4].type == DOM_TYPE_I8, "token type should be DOM_TYPE_I8");
+  assert(iter.tokens[4].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[5].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[5].type == DOM_TYPE_I8, "token type should be DOM_TYPE_I8");
+  assert(iter.tokens[5].data == 42, "token data should be 42");
+
+  assert(iter.tokens[6].op == DOM_OP_VALUE_END, "token op should be DOM_OP_VALUE_END");
+  assert(iter.tokens[6].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[7].op == DOM_OP_STRUCT_END, "token op should be DOM_OP_STRUCT_END");
+  assert(iter.tokens[7].data == 0, "token type should be NULL");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_write_struct_with_i8_field_negative() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_dom iter;
+
+  u8 tokens[3];
+  struct thrift_iter_entry entries[3];
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+
+  assert(result == 0, "should allocate memory");
+  assert(lease.ptr != NULL, "lease ptr should be set");
+
+  // initialize the iterator with the buffer
+  thrift_dom_init(&iter, &lease);
+
+  // data
+  tokens[0] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[0].value.field.id = 17;
+  entries[0].value.field.type = THRIFT_TYPE_I8;
+
+  tokens[1] = THRIFT_ITER_TOKEN_I8;
+  entries[1].value.literal.value.v_i8 = -42;
+
+  tokens[2] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[2].value.field.id = 0;
+  entries[2].value.field.type = THRIFT_TYPE_STOP;
+
+  // iterate over the buffer
+  result = thrift_dom_next(&iter, tokens, entries, 3);
+  assert(PRODUCED(result) == 8, "should produce eight tokens");
+  assert(CONSUMED(result) == 3, "should consume three entries");
+
+  assert(iter.idx == 8, "iterator idx should be 8");
+  assert(iter.state.idx == -1, "state idx should be -1");
+
+  assert(iter.tokens[0].op == DOM_OP_STRUCT_START, "token op should be STRUCT_START");
+  assert(iter.tokens[0].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
+  assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[1].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[2].data == 17, "token data should be 17");
+
+  assert(iter.tokens[3].op == DOM_OP_KEY_END, "token op should be DOM_OP_KEY_END");
+  assert(iter.tokens[3].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[4].op == DOM_OP_VALUE_START, "token op should be DOM_OP_VALUE_START");
+  assert(iter.tokens[4].type == DOM_TYPE_I8, "token type should be DOM_TYPE_I8");
+  assert(iter.tokens[4].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[5].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[5].type == DOM_TYPE_I8, "token type should be DOM_TYPE_I8");
+  assert(iter.tokens[5].data == (u64)(i64)-42, "token data should be -42");
+
+  assert(iter.tokens[6].op == DOM_OP_VALUE_END, "token op should be DOM_OP_VALUE_END");
+  assert(iter.tokens[6].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[7].op == DOM_OP_STRUCT_END, "token op should be DOM_OP_STRUCT_END");
+  assert(iter.tokens[7].data == 0, "token type should be NULL");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_write_struct_with_i16_field_positive() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_dom iter;
+
+  u8 tokens[3];
+  struct thrift_iter_entry entries[3];
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+
+  assert(result == 0, "should allocate memory");
+  assert(lease.ptr != NULL, "lease ptr should be set");
+
+  // initialize the iterator with the buffer
+  thrift_dom_init(&iter, &lease);
+
+  // data
+  tokens[0] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[0].value.field.id = 17;
+  entries[0].value.field.type = THRIFT_TYPE_I16;
+
+  tokens[1] = THRIFT_ITER_TOKEN_I16;
+  entries[1].value.literal.value.v_i16 = 42;
+
+  tokens[2] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[2].value.field.id = 0;
+  entries[2].value.field.type = THRIFT_TYPE_STOP;
+
+  // iterate over the buffer
+  result = thrift_dom_next(&iter, tokens, entries, 3);
+  assert(PRODUCED(result) == 8, "should produce eight tokens");
+  assert(CONSUMED(result) == 3, "should consume three entries");
+
+  assert(iter.idx == 8, "iterator idx should be 8");
+  assert(iter.state.idx == -1, "state idx should be -1");
+
+  assert(iter.tokens[0].op == DOM_OP_STRUCT_START, "token op should be STRUCT_START");
+  assert(iter.tokens[0].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
+  assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[1].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[2].data == 17, "token data should be 17");
+
+  assert(iter.tokens[3].op == DOM_OP_KEY_END, "token op should be DOM_OP_KEY_END");
+  assert(iter.tokens[3].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[4].op == DOM_OP_VALUE_START, "token op should be DOM_OP_VALUE_START");
+  assert(iter.tokens[4].type == DOM_TYPE_I16, "token type should be DOM_TYPE_I16");
+  assert(iter.tokens[4].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[5].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[5].type == DOM_TYPE_I16, "token type should be DOM_TYPE_I16");
+  assert(iter.tokens[5].data == 42, "token data should be 42");
+
+  assert(iter.tokens[6].op == DOM_OP_VALUE_END, "token op should be DOM_OP_VALUE_END");
+  assert(iter.tokens[6].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[7].op == DOM_OP_STRUCT_END, "token op should be DOM_OP_STRUCT_END");
+  assert(iter.tokens[7].data == 0, "token type should be NULL");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_write_struct_with_i16_field_negative() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_dom iter;
+
+  u8 tokens[3];
+  struct thrift_iter_entry entries[3];
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+
+  assert(result == 0, "should allocate memory");
+  assert(lease.ptr != NULL, "lease ptr should be set");
+
+  // initialize the iterator with the buffer
+  thrift_dom_init(&iter, &lease);
+
+  // data
+  tokens[0] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[0].value.field.id = 17;
+  entries[0].value.field.type = THRIFT_TYPE_I16;
+
+  tokens[1] = THRIFT_ITER_TOKEN_I16;
+  entries[1].value.literal.value.v_i16 = -42;
+
+  tokens[2] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[2].value.field.id = 0;
+  entries[2].value.field.type = THRIFT_TYPE_STOP;
+
+  // iterate over the buffer
+  result = thrift_dom_next(&iter, tokens, entries, 3);
+  assert(PRODUCED(result) == 8, "should produce eight tokens");
+  assert(CONSUMED(result) == 3, "should consume three entries");
+
+  assert(iter.idx == 8, "iterator idx should be 8");
+  assert(iter.state.idx == -1, "state idx should be -1");
+
+  assert(iter.tokens[0].op == DOM_OP_STRUCT_START, "token op should be STRUCT_START");
+  assert(iter.tokens[0].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
+  assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[1].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[2].data == 17, "token data should be 17");
+
+  assert(iter.tokens[3].op == DOM_OP_KEY_END, "token op should be DOM_OP_KEY_END");
+  assert(iter.tokens[3].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[4].op == DOM_OP_VALUE_START, "token op should be DOM_OP_VALUE_START");
+  assert(iter.tokens[4].type == DOM_TYPE_I16, "token type should be DOM_TYPE_I16");
+  assert(iter.tokens[4].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[5].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[5].type == DOM_TYPE_I16, "token type should be DOM_TYPE_I16");
+  assert(iter.tokens[5].data == (u64)(i64)-42, "token data should be -42");
+
+  assert(iter.tokens[6].op == DOM_OP_VALUE_END, "token op should be DOM_OP_VALUE_END");
+  assert(iter.tokens[6].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[7].op == DOM_OP_STRUCT_END, "token op should be DOM_OP_STRUCT_END");
+  assert(iter.tokens[7].data == 0, "token type should be NULL");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_write_struct_with_i32_field_positive() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_dom iter;
+
+  u8 tokens[3];
+  struct thrift_iter_entry entries[3];
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+
+  assert(result == 0, "should allocate memory");
+  assert(lease.ptr != NULL, "lease ptr should be set");
+
+  // initialize the iterator with the buffer
+  thrift_dom_init(&iter, &lease);
+
+  // data
+  tokens[0] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[0].value.field.id = 17;
+  entries[0].value.field.type = THRIFT_TYPE_I32;
+
+  tokens[1] = THRIFT_ITER_TOKEN_I32;
+  entries[1].value.literal.value.v_i32 = 42;
+
+  tokens[2] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[2].value.field.id = 0;
+  entries[2].value.field.type = THRIFT_TYPE_STOP;
+
+  // iterate over the buffer
+  result = thrift_dom_next(&iter, tokens, entries, 3);
+  assert(PRODUCED(result) == 8, "should produce eight tokens");
+  assert(CONSUMED(result) == 3, "should consume three entries");
+
+  assert(iter.idx == 8, "iterator idx should be 8");
+  assert(iter.state.idx == -1, "state idx should be -1");
+
+  assert(iter.tokens[0].op == DOM_OP_STRUCT_START, "token op should be STRUCT_START");
+  assert(iter.tokens[0].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
+  assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[1].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[2].data == 17, "token data should be 17");
+
+  assert(iter.tokens[3].op == DOM_OP_KEY_END, "token op should be DOM_OP_KEY_END");
+  assert(iter.tokens[3].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[4].op == DOM_OP_VALUE_START, "token op should be DOM_OP_VALUE_START");
+  assert(iter.tokens[4].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[4].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[5].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[5].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[5].data == 42, "token data should be 42");
+
+  assert(iter.tokens[6].op == DOM_OP_VALUE_END, "token op should be DOM_OP_VALUE_END");
+  assert(iter.tokens[6].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[7].op == DOM_OP_STRUCT_END, "token op should be DOM_OP_STRUCT_END");
+  assert(iter.tokens[7].data == 0, "token type should be NULL");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_write_struct_with_i32_field_negative() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_dom iter;
+
+  u8 tokens[3];
+  struct thrift_iter_entry entries[3];
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+
+  assert(result == 0, "should allocate memory");
+  assert(lease.ptr != NULL, "lease ptr should be set");
+
+  // initialize the iterator with the buffer
+  thrift_dom_init(&iter, &lease);
+
+  // data
+  tokens[0] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[0].value.field.id = 17;
+  entries[0].value.field.type = THRIFT_TYPE_I32;
+
+  tokens[1] = THRIFT_ITER_TOKEN_I32;
+  entries[1].value.literal.value.v_i32 = -42;
+
+  tokens[2] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[2].value.field.id = 0;
+  entries[2].value.field.type = THRIFT_TYPE_STOP;
+
+  // iterate over the buffer
+  result = thrift_dom_next(&iter, tokens, entries, 3);
+  assert(PRODUCED(result) == 8, "should produce eight tokens");
+  assert(CONSUMED(result) == 3, "should consume three entries");
+
+  assert(iter.idx == 8, "iterator idx should be 8");
+  assert(iter.state.idx == -1, "state idx should be -1");
+
+  assert(iter.tokens[0].op == DOM_OP_STRUCT_START, "token op should be STRUCT_START");
+  assert(iter.tokens[0].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
+  assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[1].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[2].data == 17, "token data should be 17");
+
+  assert(iter.tokens[3].op == DOM_OP_KEY_END, "token op should be DOM_OP_KEY_END");
+  assert(iter.tokens[3].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[4].op == DOM_OP_VALUE_START, "token op should be DOM_OP_VALUE_START");
+  assert(iter.tokens[4].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[4].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[5].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[5].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[5].data == (u64)(i64)-42, "token data should be -42");
+
+  assert(iter.tokens[6].op == DOM_OP_VALUE_END, "token op should be DOM_OP_VALUE_END");
+  assert(iter.tokens[6].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[7].op == DOM_OP_STRUCT_END, "token op should be DOM_OP_STRUCT_END");
+  assert(iter.tokens[7].data == 0, "token type should be NULL");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_write_struct_with_i64_field_positive() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_dom iter;
+
+  u8 tokens[3];
+  struct thrift_iter_entry entries[3];
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+
+  assert(result == 0, "should allocate memory");
+  assert(lease.ptr != NULL, "lease ptr should be set");
+
+  // initialize the iterator with the buffer
+  thrift_dom_init(&iter, &lease);
+
+  // data
+  tokens[0] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[0].value.field.id = 17;
+  entries[0].value.field.type = THRIFT_TYPE_I64;
+
+  tokens[1] = THRIFT_ITER_TOKEN_I64;
+  entries[1].value.literal.value.v_i64 = 42;
+
+  tokens[2] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[2].value.field.id = 0;
+  entries[2].value.field.type = THRIFT_TYPE_STOP;
+
+  // iterate over the buffer
+  result = thrift_dom_next(&iter, tokens, entries, 3);
+  assert(PRODUCED(result) == 8, "should produce eight tokens");
+  assert(CONSUMED(result) == 3, "should consume three entries");
+
+  assert(iter.idx == 8, "iterator idx should be 8");
+  assert(iter.state.idx == -1, "state idx should be -1");
+
+  assert(iter.tokens[0].op == DOM_OP_STRUCT_START, "token op should be STRUCT_START");
+  assert(iter.tokens[0].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
+  assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[1].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[2].data == 17, "token data should be 17");
+
+  assert(iter.tokens[3].op == DOM_OP_KEY_END, "token op should be DOM_OP_KEY_END");
+  assert(iter.tokens[3].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[4].op == DOM_OP_VALUE_START, "token op should be DOM_OP_VALUE_START");
+  assert(iter.tokens[4].type == DOM_TYPE_I64, "token type should be DOM_TYPE_I64");
+  assert(iter.tokens[4].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[5].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[5].type == DOM_TYPE_I64, "token type should be DOM_TYPE_I64");
+  assert(iter.tokens[5].data == 42, "token data should be 42");
+
+  assert(iter.tokens[6].op == DOM_OP_VALUE_END, "token op should be DOM_OP_VALUE_END");
+  assert(iter.tokens[6].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[7].op == DOM_OP_STRUCT_END, "token op should be DOM_OP_STRUCT_END");
+  assert(iter.tokens[7].data == 0, "token type should be NULL");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
+static void can_write_struct_with_i64_field_negative() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_dom iter;
+
+  u8 tokens[3];
+  struct thrift_iter_entry entries[3];
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+
+  assert(result == 0, "should allocate memory");
+  assert(lease.ptr != NULL, "lease ptr should be set");
+
+  // initialize the iterator with the buffer
+  thrift_dom_init(&iter, &lease);
+
+  // data
+  tokens[0] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[0].value.field.id = 17;
+  entries[0].value.field.type = THRIFT_TYPE_I64;
+
+  tokens[1] = THRIFT_ITER_TOKEN_I64;
+  entries[1].value.literal.value.v_i64 = -42;
+
+  tokens[2] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[2].value.field.id = 0;
+  entries[2].value.field.type = THRIFT_TYPE_STOP;
+
+  // iterate over the buffer
+  result = thrift_dom_next(&iter, tokens, entries, 3);
+  assert(PRODUCED(result) == 8, "should produce eight tokens");
+  assert(CONSUMED(result) == 3, "should consume three entries");
+
+  assert(iter.idx == 8, "iterator idx should be 8");
+  assert(iter.state.idx == -1, "state idx should be -1");
+
+  assert(iter.tokens[0].op == DOM_OP_STRUCT_START, "token op should be STRUCT_START");
+  assert(iter.tokens[0].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
+  assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[1].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[2].data == 17, "token data should be 17");
+
+  assert(iter.tokens[3].op == DOM_OP_KEY_END, "token op should be DOM_OP_KEY_END");
+  assert(iter.tokens[3].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[4].op == DOM_OP_VALUE_START, "token op should be DOM_OP_VALUE_START");
+  assert(iter.tokens[4].type == DOM_TYPE_I64, "token type should be DOM_TYPE_I64");
+  assert(iter.tokens[4].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[5].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[5].type == DOM_TYPE_I64, "token type should be DOM_TYPE_I64");
+  assert(iter.tokens[5].data == (u64)(i64)-42, "token data should be -42");
+
+  assert(iter.tokens[6].op == DOM_OP_VALUE_END, "token op should be DOM_OP_VALUE_END");
+  assert(iter.tokens[6].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[7].op == DOM_OP_STRUCT_END, "token op should be DOM_OP_STRUCT_END");
+  assert(iter.tokens[7].data == 0, "token type should be NULL");
 
   // release the memory
   malloc_release(&pool, &lease);
@@ -716,6 +1342,18 @@ void thrift_test_cases_dom(struct runner_context *ctx) {
   test_case(ctx, "can write struct with no fields", can_write_struct_with_no_fields);
   test_case(ctx, "can write struct with one field", can_write_struct_with_one_field);
   test_case(ctx, "can write struct with two fields", can_write_struct_with_two_fields);
+
+  test_case(ctx, "can write struct with i8 field positive", can_write_struct_with_i8_field_positive);
+  test_case(ctx, "can write struct with i8 field negative", can_write_struct_with_i8_field_negative);
+
+  test_case(ctx, "can write struct with i16 field positive", can_write_struct_with_i16_field_positive);
+  test_case(ctx, "can write struct with i16 field negative", can_write_struct_with_i16_field_negative);
+
+  test_case(ctx, "can write struct with i32 field positive", can_write_struct_with_i32_field_positive);
+  test_case(ctx, "can write struct with i32 field negative", can_write_struct_with_i32_field_negative);
+
+  test_case(ctx, "can write struct with i64 field positive", can_write_struct_with_i64_field_positive);
+  test_case(ctx, "can write struct with i64 field negative", can_write_struct_with_i64_field_negative);
 }
 
 #endif
