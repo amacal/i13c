@@ -15,6 +15,7 @@ enum thrift_iter_token {
   THRIFT_ITER_TOKEN_BINARY_CONTENT = 7,
   THRIFT_ITER_TOKEN_LIST_HEADER = 8,
   THRIFT_ITER_TOKEN_STRUCT_FIELD = 9,
+  THRIFT_ITER_TOKEN_SIZE,
 };
 
 struct thrift_iter_literal {
