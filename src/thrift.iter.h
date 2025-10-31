@@ -29,8 +29,8 @@ struct thrift_iter_literal {
 };
 
 struct thrift_iter_chunk {
-  u32 size;
-  u32 offset;
+  u32 size;   // the size of the chunk, can be zero
+  u32 offset; // the offset of the chunk in the binary data
 };
 
 struct thrift_iter_content {

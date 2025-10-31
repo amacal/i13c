@@ -28,8 +28,8 @@ typedef bool (*thrift_iter_fold_fn)(struct thrift_dom_state_entry *entry);
 /// @brief Function type for reading a literal value.
 /// @param target Pointer to the target Thrift DOM token.
 /// @param source Pointer to the Thrift iterator entry.
-/// @return The number of tokens read from the stream, or a negative error code.
-typedef void (*thrift_iter_literal_fn)(struct dom_token *target, const struct thrift_iter_entry *source);
+/// @return Zero on success, or a negative error code.
+typedef i64 (*thrift_iter_literal_fn)(struct dom_token *target, const struct thrift_iter_entry *source);
 
 // forward declarations
 static i64 thrift_next_init(struct thrift_dom *, const u8 *, const struct thrift_iter_entry *, u64);
@@ -39,16 +39,18 @@ static i64 thrift_next_key(struct thrift_dom *, const u8 *, const struct thrift_
 static i64 thrift_next_value(struct thrift_dom *, const u8 *, const struct thrift_iter_entry *, u64);
 static i64 thrift_next_index(struct thrift_dom *, const u8 *, const struct thrift_iter_entry *, u64);
 static i64 thrift_next_literal(struct thrift_dom *, const u8 *, const struct thrift_iter_entry *, u64);
+static i64 thrift_next_binary(struct thrift_dom *, const u8 *, const struct thrift_iter_entry *, u64);
+static i64 thrift_next_pointer(struct thrift_dom *, const u8 *, const struct thrift_iter_entry *, u64);
 
 // forward declarations
-static void thrift_literal_bool(struct dom_token *, const struct thrift_iter_entry *);
-static void thrift_literal_i8(struct dom_token *, const struct thrift_iter_entry *);
-static void thrift_literal_i16(struct dom_token *, const struct thrift_iter_entry *);
-static void thrift_literal_i32(struct dom_token *, const struct thrift_iter_entry *);
-static void thrift_literal_i64(struct dom_token *, const struct thrift_iter_entry *);
-static void thrift_literal_binary(struct dom_token *, const struct thrift_iter_entry *);
-static void thrift_literal_list(struct dom_token *, const struct thrift_iter_entry *);
-static void thrift_literal_struct(struct dom_token *, const struct thrift_iter_entry *);
+static i64 thrift_literal_bool(struct dom_token *, const struct thrift_iter_entry *);
+static i64 thrift_literal_i8(struct dom_token *, const struct thrift_iter_entry *);
+static i64 thrift_literal_i16(struct dom_token *, const struct thrift_iter_entry *);
+static i64 thrift_literal_i32(struct dom_token *, const struct thrift_iter_entry *);
+static i64 thrift_literal_i64(struct dom_token *, const struct thrift_iter_entry *);
+static i64 thrift_literal_list(struct dom_token *, const struct thrift_iter_entry *);
+static i64 thrift_literal_struct(struct dom_token *, const struct thrift_iter_entry *);
+static i64 thrift_literal_fail(struct dom_token *, const struct thrift_iter_entry *);
 
 // forward declarations
 static bool thrift_fold_init(struct thrift_dom_state_entry *);
@@ -58,13 +60,16 @@ static bool thrift_fold_key(struct thrift_dom_state_entry *);
 static bool thrift_fold_value(struct thrift_dom_state_entry *);
 static bool thrift_fold_index(struct thrift_dom_state_entry *);
 static bool thrift_fold_literal(struct thrift_dom_state_entry *);
+static bool thrift_fold_binary(struct thrift_dom_state_entry *);
+static bool thrift_fold_pointer(struct thrift_dom_state_entry *);
 
 // fold dispatch table
 static const thrift_iter_fold_fn FOLD_FN[THRIFT_DOM_STATE_TYPE_SIZE] = {
   [THRIFT_DOM_STATE_TYPE_INIT] = thrift_fold_init,       [THRIFT_DOM_STATE_TYPE_STRUCT] = thrift_fold_struct,
   [THRIFT_DOM_STATE_TYPE_ARRAY] = thrift_fold_array,     [THRIFT_DOM_STATE_TYPE_KEY] = thrift_fold_key,
   [THRIFT_DOM_STATE_TYPE_VALUE] = thrift_fold_value,     [THRIFT_DOM_STATE_TYPE_INDEX] = thrift_fold_index,
-  [THRIFT_DOM_STATE_TYPE_LITERAL] = thrift_fold_literal,
+  [THRIFT_DOM_STATE_TYPE_LITERAL] = thrift_fold_literal, [THRIFT_DOM_STATE_TYPE_BINARY] = thrift_fold_binary,
+  [THRIFT_DOM_STATE_TYPE_POINTER] = thrift_fold_pointer,
 };
 
 // next dispatch table
@@ -72,14 +77,20 @@ static const thrift_iter_next_fn NEXT_FN[THRIFT_DOM_STATE_TYPE_SIZE] = {
   [THRIFT_DOM_STATE_TYPE_INIT] = thrift_next_init,       [THRIFT_DOM_STATE_TYPE_STRUCT] = thrift_next_struct,
   [THRIFT_DOM_STATE_TYPE_ARRAY] = thrift_next_array,     [THRIFT_DOM_STATE_TYPE_KEY] = thrift_next_key,
   [THRIFT_DOM_STATE_TYPE_VALUE] = thrift_next_value,     [THRIFT_DOM_STATE_TYPE_INDEX] = thrift_next_index,
-  [THRIFT_DOM_STATE_TYPE_LITERAL] = thrift_next_literal,
+  [THRIFT_DOM_STATE_TYPE_LITERAL] = thrift_next_literal, [THRIFT_DOM_STATE_TYPE_BINARY] = thrift_next_binary,
+  [THRIFT_DOM_STATE_TYPE_POINTER] = thrift_next_pointer,
 };
 
 static const thrift_iter_literal_fn LITERAL_FN[THRIFT_ITER_TOKEN_SIZE] = {
-  [THRIFT_ITER_TOKEN_BOOL] = thrift_literal_bool,        [THRIFT_ITER_TOKEN_I8] = thrift_literal_i8,
-  [THRIFT_ITER_TOKEN_I16] = thrift_literal_i16,          [THRIFT_ITER_TOKEN_I32] = thrift_literal_i32,
-  [THRIFT_ITER_TOKEN_I64] = thrift_literal_i64,          [THRIFT_ITER_TOKEN_BINARY_CHUNK] = thrift_literal_binary,
-  [THRIFT_ITER_TOKEN_LIST_HEADER] = thrift_literal_list, [THRIFT_ITER_TOKEN_STRUCT_FIELD] = thrift_literal_struct,
+  [THRIFT_ITER_TOKEN_BOOL] = thrift_literal_bool,
+  [THRIFT_ITER_TOKEN_I8] = thrift_literal_i8,
+  [THRIFT_ITER_TOKEN_I16] = thrift_literal_i16,
+  [THRIFT_ITER_TOKEN_I32] = thrift_literal_i32,
+  [THRIFT_ITER_TOKEN_I64] = thrift_literal_i64,
+  [THRIFT_ITER_TOKEN_BINARY_CHUNK] = thrift_literal_fail,
+  [THRIFT_ITER_TOKEN_BINARY_CONTENT] = thrift_literal_fail,
+  [THRIFT_ITER_TOKEN_LIST_HEADER] = thrift_literal_list,
+  [THRIFT_ITER_TOKEN_STRUCT_FIELD] = thrift_literal_struct,
 };
 
 // type mapping
@@ -120,10 +131,10 @@ static const u8 TOKEN_MAPPING[THRIFT_TYPE_SIZE] = {
   [THRIFT_TYPE_UUID] = THRIFT_ITER_TOKEN_SIZE,
 };
 
-static i64 thrift_next_init(struct thrift_dom *iter, const u8 *tokens, const struct thrift_iter_entry *, u64) {
+static i64 thrift_next_init(struct thrift_dom *iter, const u8 *, const struct thrift_iter_entry *, u64) {
   // emit STRUCT_START token
   iter->tokens[0].op = DOM_OP_STRUCT_START;
-  iter->tokens[0].data = NULL;
+  iter->tokens[0].data = 0;
 
   // advance the iterator
   iter->idx++;
@@ -160,7 +171,7 @@ thrift_next_struct(struct thrift_dom *iter, const u8 *tokens, const struct thrif
 
     // emit STRUCT_END token
     iter->tokens[iter->idx].op = DOM_OP_STRUCT_END;
-    iter->tokens[iter->idx].data = NULL;
+    iter->tokens[iter->idx].data = 0;
 
     // advance the iterator
     iter->idx++;
@@ -170,7 +181,7 @@ thrift_next_struct(struct thrift_dom *iter, const u8 *tokens, const struct thrif
 
   // emit KEY_START token
   iter->tokens[iter->idx].op = DOM_OP_KEY_START;
-  iter->tokens[iter->idx].data = TYPE_NAMES[entries[0].value.field.type];
+  iter->tokens[iter->idx].data = (u64)TYPE_NAMES[entries[0].value.field.type];
   iter->tokens[iter->idx].type = DOM_TYPE_I32;
 
   // advance the iterator
@@ -186,7 +197,7 @@ thrift_next_struct(struct thrift_dom *iter, const u8 *tokens, const struct thrif
 
   // emit KEY_END token
   iter->tokens[iter->idx].op = DOM_OP_KEY_END;
-  iter->tokens[iter->idx].data = NULL;
+  iter->tokens[iter->idx].data = 0;
 
   // advance the iterator
   iter->idx++;
@@ -194,26 +205,30 @@ thrift_next_struct(struct thrift_dom *iter, const u8 *tokens, const struct thrif
   // advance the state
   iter->state.idx++;
 
-  // set the new state
-  iter->state.types[iter->state.idx] = THRIFT_DOM_STATE_TYPE_VALUE;
-  iter->state.entries[iter->state.idx].value.value.type = entries[0].value.field.type;
+  // binary types have to be handled differently
+  if (entries[0].value.field.type == THRIFT_TYPE_BINARY) {
+    iter->state.types[iter->state.idx] = THRIFT_DOM_STATE_TYPE_BINARY;
+    iter->state.entries[iter->state.idx].value.binary.done = FALSE;
+  } else {
+    iter->state.types[iter->state.idx] = THRIFT_DOM_STATE_TYPE_VALUE;
+    iter->state.entries[iter->state.idx].value.value.type = entries[0].value.field.type;
+  }
 
   // success
   return 1;
 }
 
-static i64
-thrift_next_array(struct thrift_dom *iter, const u8 *tokens, const struct thrift_iter_entry *entries, u64 size) {
+static i64 thrift_next_array(struct thrift_dom *, const u8 *, const struct thrift_iter_entry *, u64) {
   return -1;
 }
 
-static i64
-thrift_next_key(struct thrift_dom *iter, const u8 *tokens, const struct thrift_iter_entry *entries, u64 size) {
+static i64 thrift_next_key(struct thrift_dom *, const u8 *, const struct thrift_iter_entry *, u64) {
   return -1;
 }
 
 static i64
 thrift_next_value(struct thrift_dom *iter, const u8 *tokens, const struct thrift_iter_entry *entries, u64 size) {
+  i64 result;
   u32 type, token;
 
   // check for size
@@ -230,7 +245,7 @@ thrift_next_value(struct thrift_dom *iter, const u8 *tokens, const struct thrift
 
   // emit VALUE_START token
   iter->tokens[iter->idx].op = DOM_OP_VALUE_START;
-  iter->tokens[iter->idx].data = NULL;
+  iter->tokens[iter->idx].data = 0;
   iter->tokens[iter->idx].type = TYPE_MAPPING[type];
 
   // advance the iterator
@@ -241,14 +256,15 @@ thrift_next_value(struct thrift_dom *iter, const u8 *tokens, const struct thrift
   iter->tokens[iter->idx].type = TYPE_MAPPING[type];
 
   // fill the literal value
-  LITERAL_FN[token](iter->tokens + iter->idx, entries);
+  result = LITERAL_FN[token](iter->tokens + iter->idx, entries);
+  if (result < 0) return result;
 
   // advance the iterator
   iter->idx++;
 
   // emit VALUE_END token
   iter->tokens[iter->idx].op = DOM_OP_VALUE_END;
-  iter->tokens[iter->idx].data = NULL;
+  iter->tokens[iter->idx].data = 0;
 
   // advance the iterator
   iter->idx++;
@@ -260,43 +276,102 @@ thrift_next_value(struct thrift_dom *iter, const u8 *tokens, const struct thrift
   return 1;
 }
 
-static i64
-thrift_next_index(struct thrift_dom *iter, const u8 *tokens, const struct thrift_iter_entry *entries, u64 size) {
+static i64 thrift_next_index(struct thrift_dom *, const u8 *, const struct thrift_iter_entry *, u64) {
   return -1;
 }
 
-static i64
-thrift_next_literal(struct thrift_dom *iter, const u8 *tokens, const struct thrift_iter_entry *entries, u64 size) {
+static i64 thrift_next_literal(struct thrift_dom *, const u8 *, const struct thrift_iter_entry *, u64) {
   return -1;
 }
 
-static void thrift_literal_bool(struct dom_token *target, const struct thrift_iter_entry *source) {
+static i64 thrift_next_binary(struct thrift_dom *iter, const u8 *, const struct thrift_iter_entry *entries, u64 size) {
+  // check for size
+  if (size == 0) return THRIFT_ERROR_BUFFER_OVERFLOW;
+
+  // emit VALUE_START token
+  iter->tokens[iter->idx].op = DOM_OP_VALUE_START;
+  iter->tokens[iter->idx].data = entries->value.chunk.size;
+  iter->tokens[iter->idx].type = TYPE_MAPPING[THRIFT_TYPE_BINARY];
+
+  // advance the iterator
+  iter->idx++;
+
+  // complete the binary state
+  iter->state.entries[iter->state.idx].value.binary.done = TRUE;
+
+  // advance the state
+  iter->state.idx++;
+
+  // set the new state
+  iter->state.types[iter->state.idx] = THRIFT_DOM_STATE_TYPE_POINTER;
+  iter->state.entries[iter->state.idx].value.pointer.done = FALSE;
+
+  // success
+  return 1;
+}
+
+static i64 thrift_next_pointer(struct thrift_dom *iter, const u8 *, const struct thrift_iter_entry *entries, u64 size) {
+
+  // check for size
+  if (size == 0) return THRIFT_ERROR_BUFFER_OVERFLOW;
+
+  // emit LITERAL token
+  iter->tokens[iter->idx].op = DOM_OP_LITERAL;
+  iter->tokens[iter->idx].data = (u64)entries->value.content.ptr;
+  iter->tokens[iter->idx].type = TYPE_MAPPING[THRIFT_TYPE_BINARY];
+
+  // advance the iterator
+  iter->idx++;
+
+  // emit VALUE_END token
+  iter->tokens[iter->idx].op = DOM_OP_VALUE_END;
+  iter->tokens[iter->idx].data = 0;
+
+  // advance the iterator
+  iter->idx++;
+
+  // complete the value state
+  iter->state.entries[iter->state.idx].value.pointer.done = TRUE;
+
+  // success
+  return 1;
+}
+
+static i64 thrift_literal_bool(struct dom_token *target, const struct thrift_iter_entry *source) {
   target->data = source->value.literal.value.v_bool ? (u64) "true" : (u64) "false";
+  return 0;
 }
 
-static void thrift_literal_i8(struct dom_token *target, const struct thrift_iter_entry *source) {
+static i64 thrift_literal_i8(struct dom_token *target, const struct thrift_iter_entry *source) {
   target->data = (u64)source->value.literal.value.v_i8;
+  return 0;
 }
 
-static void thrift_literal_i16(struct dom_token *target, const struct thrift_iter_entry *source) {
+static i64 thrift_literal_i16(struct dom_token *target, const struct thrift_iter_entry *source) {
   target->data = (u64)source->value.literal.value.v_i16;
+  return 0;
 }
 
-static void thrift_literal_i32(struct dom_token *target, const struct thrift_iter_entry *source) {
+static i64 thrift_literal_i32(struct dom_token *target, const struct thrift_iter_entry *source) {
   target->data = (u64)source->value.literal.value.v_i32;
+  return 0;
 }
 
-static void thrift_literal_i64(struct dom_token *target, const struct thrift_iter_entry *source) {
+static i64 thrift_literal_i64(struct dom_token *target, const struct thrift_iter_entry *source) {
   target->data = (u64)source->value.literal.value.v_i64;
+  return 0;
 }
 
-static void thrift_literal_binary(struct dom_token *target, const struct thrift_iter_entry *source) {
+static i64 thrift_literal_list(struct dom_token *, const struct thrift_iter_entry *) {
+  return 0;
 }
 
-static void thrift_literal_list(struct dom_token *target, const struct thrift_iter_entry *source) {
+static i64 thrift_literal_struct(struct dom_token *, const struct thrift_iter_entry *) {
+  return 0;
 }
 
-static void thrift_literal_struct(struct dom_token *target, const struct thrift_iter_entry *source) {
+static i64 thrift_literal_fail(struct dom_token *, const struct thrift_iter_entry *) {
+  return THRIFT_ERROR_INVALID_IMPLEMENTATION;
 }
 
 static bool thrift_fold_init(struct thrift_dom_state_entry *entry) {
@@ -307,11 +382,11 @@ static bool thrift_fold_struct(struct thrift_dom_state_entry *entry) {
   return entry->value.fields.field == 0;
 }
 
-static bool thrift_fold_array(struct thrift_dom_state_entry *entry) {
+static bool thrift_fold_array(struct thrift_dom_state_entry *) {
   return FALSE;
 }
 
-static bool thrift_fold_key(struct thrift_dom_state_entry *entry) {
+static bool thrift_fold_key(struct thrift_dom_state_entry *) {
   return FALSE;
 }
 
@@ -319,12 +394,20 @@ static bool thrift_fold_value(struct thrift_dom_state_entry *entry) {
   return entry->value.value.type == 0;
 }
 
-static bool thrift_fold_index(struct thrift_dom_state_entry *entry) {
+static bool thrift_fold_index(struct thrift_dom_state_entry *) {
   return FALSE;
 }
 
-static bool thrift_fold_literal(struct thrift_dom_state_entry *entry) {
+static bool thrift_fold_literal(struct thrift_dom_state_entry *) {
   return FALSE;
+}
+
+static bool thrift_fold_binary(struct thrift_dom_state_entry *entry) {
+  return entry->value.binary.done == TRUE;
+}
+
+static bool thrift_fold_pointer(struct thrift_dom_state_entry *entry) {
+  return entry->value.pointer.done == TRUE;
 }
 
 void thrift_dom_init(struct thrift_dom *iter, struct malloc_lease *buffer) {
@@ -353,7 +436,7 @@ void thrift_dom_init(struct thrift_dom *iter, struct malloc_lease *buffer) {
   iter->tokens = (struct dom_token *)(buffer->ptr + size1);
 }
 
-bool thrift_dom_done(struct thrift_dom *iter) {
+bool thrift_dom_done(struct thrift_dom *) {
   return FALSE;
 }
 
@@ -1371,7 +1454,7 @@ static void can_write_struct_with_bool_field_true() {
   // data
   tokens[0] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
   entries[0].value.field.id = 17;
-  entries[0].value.field.type = THRIFT_ITER_TOKEN_BOOL;
+  entries[0].value.field.type = THRIFT_TYPE_BOOL_TRUE;
 
   tokens[1] = THRIFT_ITER_TOKEN_BOOL;
   entries[1].value.literal.value.v_bool = TRUE;
@@ -1449,7 +1532,7 @@ static void can_write_struct_with_bool_field_false() {
   // data
   tokens[0] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
   entries[0].value.field.id = 17;
-  entries[0].value.field.type = THRIFT_ITER_TOKEN_BOOL;
+  entries[0].value.field.type = THRIFT_TYPE_BOOL_FALSE;
 
   tokens[1] = THRIFT_ITER_TOKEN_BOOL;
   entries[1].value.literal.value.v_bool = FALSE;
@@ -1501,6 +1584,88 @@ static void can_write_struct_with_bool_field_false() {
   malloc_destroy(&pool);
 }
 
+static void can_write_struct_with_binary_field() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_dom iter;
+
+  u8 tokens[4];
+  struct thrift_iter_entry entries[4];
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+
+  assert(result == 0, "should allocate memory");
+  assert(lease.ptr != NULL, "lease ptr should be set");
+
+  // initialize the iterator with the buffer
+  thrift_dom_init(&iter, &lease);
+
+  // data
+  tokens[0] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[0].value.field.id = 17;
+  entries[0].value.field.type = THRIFT_TYPE_BINARY;
+
+  tokens[1] = THRIFT_ITER_TOKEN_BINARY_CHUNK;
+  entries[1].value.chunk.size = 5;
+  entries[1].value.chunk.offset = 0;
+
+  tokens[2] = THRIFT_ITER_TOKEN_BINARY_CONTENT;
+  entries[2].value.content.ptr = "hello";
+
+  tokens[3] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[3].value.field.id = 0;
+  entries[3].value.field.type = THRIFT_TYPE_STOP;
+
+  // iterate over the buffer
+  result = thrift_dom_next(&iter, tokens, entries, 4);
+  assert(PRODUCED(result) == 8, "should produce eight tokens");
+  assert(CONSUMED(result) == 4, "should consume four entries");
+
+  assert(iter.idx == 8, "iterator idx should be 8");
+  assert(iter.state.idx == -1, "state idx should be -1");
+
+  assert(iter.tokens[0].op == DOM_OP_STRUCT_START, "token op should be STRUCT_START");
+  assert(iter.tokens[0].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
+  assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[1].data == (u64) "binary", "token data should be binary");
+
+  assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[2].data == 17, "token data should be 17");
+
+  assert(iter.tokens[3].op == DOM_OP_KEY_END, "token op should be DOM_OP_KEY_END");
+  assert(iter.tokens[3].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[4].op == DOM_OP_VALUE_START, "token op should be DOM_OP_VALUE_START");
+  assert(iter.tokens[4].type == DOM_TYPE_TEXT, "token type should be DOM_TYPE_TEXT");
+  assert(iter.tokens[4].data == 5, "token data should be 5, the size of the binary");
+
+  assert(iter.tokens[5].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[5].type == DOM_TYPE_TEXT, "token type should be DOM_TYPE_TEXT");
+  assert(iter.tokens[5].data == (u64) "hello", "token data should be 'hello'");
+
+  assert(iter.tokens[6].op == DOM_OP_VALUE_END, "token op should be DOM_OP_VALUE_END");
+  assert(iter.tokens[6].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[7].op == DOM_OP_STRUCT_END, "token op should be DOM_OP_STRUCT_END");
+  assert(iter.tokens[7].data == 0, "token type should be NULL");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
 void thrift_test_cases_dom(struct runner_context *ctx) {
   test_case(ctx, "can initialize iterator with single page", can_init_iterator_single_page);
   test_case(ctx, "can initialize iterator with double page", can_init_iterator_double_page);
@@ -1523,6 +1688,8 @@ void thrift_test_cases_dom(struct runner_context *ctx) {
 
   test_case(ctx, "can write struct with bool field true", can_write_struct_with_bool_field_true);
   test_case(ctx, "can write struct with bool field false", can_write_struct_with_bool_field_false);
+
+  test_case(ctx, "can write struct with binary field", can_write_struct_with_binary_field);
 }
 
 #endif
