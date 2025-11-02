@@ -16,6 +16,7 @@ enum thrift_dom_state_type {
   THRIFT_DOM_STATE_TYPE_LITERAL = 6,
   THRIFT_DOM_STATE_TYPE_BINARY = 7,
   THRIFT_DOM_STATE_TYPE_POINTER = 8,
+  THRIFT_DOM_STATE_TYPE_MAYBE = 9,
   THRIFT_DOM_STATE_TYPE_SIZE
 };
 
@@ -35,17 +36,12 @@ struct thrift_dom_state_binary {
   u32 done;
 };
 
-struct thrift_dom_state_pointer {
-  u32 done;
-};
-
 struct thrift_dom_state_entry {
   union {
     struct thrift_dom_state_init init;
     struct thrift_dom_state_struct fields;
     struct thrift_dom_state_value value;
     struct thrift_dom_state_binary binary;
-    struct thrift_dom_state_pointer pointer;
   } value;
 };
 
