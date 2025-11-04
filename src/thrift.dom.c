@@ -30,10 +30,10 @@ typedef i64 (*thrift_iter_next_fn)(struct thrift_dom *iter,
 typedef bool (*thrift_iter_fold_fn)(struct thrift_dom_state_entry *entry);
 
 /// @brief Function type for reading a literal value.
-/// @param target Pointer to the target Thrift DOM token.
+/// @param iter Pointer to the Thrift iterator.
 /// @param source Pointer to the Thrift iterator entry.
 /// @return Zero on success, or a negative error code.
-typedef i64 (*thrift_iter_literal_fn)(struct dom_token *target, const struct thrift_iter_entry *source);
+typedef i64 (*thrift_iter_literal_fn)(struct thrift_dom *iter, const struct thrift_iter_entry *source);
 
 // forward declarations
 static i64 thrift_next_init(struct thrift_dom *, const u8 *, const struct thrift_iter_entry *, u64);
@@ -48,14 +48,14 @@ static i64 thrift_next_pointer(struct thrift_dom *, const u8 *, const struct thr
 static i64 thrift_next_maybe(struct thrift_dom *, const u8 *, const struct thrift_iter_entry *, u64);
 
 // forward declarations
-static i64 thrift_literal_bool(struct dom_token *, const struct thrift_iter_entry *);
-static i64 thrift_literal_i8(struct dom_token *, const struct thrift_iter_entry *);
-static i64 thrift_literal_i16(struct dom_token *, const struct thrift_iter_entry *);
-static i64 thrift_literal_i32(struct dom_token *, const struct thrift_iter_entry *);
-static i64 thrift_literal_i64(struct dom_token *, const struct thrift_iter_entry *);
-static i64 thrift_literal_list(struct dom_token *, const struct thrift_iter_entry *);
-static i64 thrift_literal_struct(struct dom_token *, const struct thrift_iter_entry *);
-static i64 thrift_literal_fail(struct dom_token *, const struct thrift_iter_entry *);
+static i64 thrift_literal_bool(struct thrift_dom *, const struct thrift_iter_entry *);
+static i64 thrift_literal_i8(struct thrift_dom *, const struct thrift_iter_entry *);
+static i64 thrift_literal_i16(struct thrift_dom *, const struct thrift_iter_entry *);
+static i64 thrift_literal_i32(struct thrift_dom *, const struct thrift_iter_entry *);
+static i64 thrift_literal_i64(struct thrift_dom *, const struct thrift_iter_entry *);
+static i64 thrift_literal_list(struct thrift_dom *, const struct thrift_iter_entry *);
+static i64 thrift_literal_struct(struct thrift_dom *, const struct thrift_iter_entry *);
+static i64 thrift_literal_fail(struct thrift_dom *, const struct thrift_iter_entry *);
 
 // forward declarations
 static bool thrift_fold_init(struct thrift_dom_state_entry *);
@@ -114,7 +114,7 @@ static const u8 TYPE_MAPPING[THRIFT_TYPE_SIZE] = {
 static const char *const TYPE_NAMES[THRIFT_TYPE_SIZE] = {
   [THRIFT_TYPE_STOP] = "stop",     [THRIFT_TYPE_BOOL_TRUE] = "bool", [THRIFT_TYPE_BOOL_FALSE] = "bool",
   [THRIFT_TYPE_I8] = "i8",         [THRIFT_TYPE_I16] = "i16",        [THRIFT_TYPE_I32] = "i32",
-  [THRIFT_TYPE_I64] = "i64",       [THRIFT_TYPE_DOUBLE] = "double",  [THRIFT_TYPE_BINARY] = "binary",
+  [THRIFT_TYPE_I64] = "i64",       [THRIFT_TYPE_DOUBLE] = NULL,      [THRIFT_TYPE_BINARY] = "binary",
   [THRIFT_TYPE_LIST] = "list",     [THRIFT_TYPE_SET] = NULL,         [THRIFT_TYPE_MAP] = NULL,
   [THRIFT_TYPE_STRUCT] = "struct", [THRIFT_TYPE_UUID] = NULL,
 };
@@ -139,8 +139,8 @@ static const u8 TOKEN_MAPPING[THRIFT_TYPE_SIZE] = {
 
 static i64 thrift_next_init(struct thrift_dom *iter, const u8 *, const struct thrift_iter_entry *, u64) {
   // emit STRUCT_START token
-  iter->tokens[0].op = DOM_OP_STRUCT_START;
-  iter->tokens[0].data = 0;
+  iter->tokens[iter->idx].op = DOM_OP_STRUCT_START;
+  iter->tokens[iter->idx].data = 0;
 
   // advance the iterator
   iter->idx++;
@@ -161,6 +161,7 @@ static i64 thrift_next_init(struct thrift_dom *iter, const u8 *, const struct th
 
 static i64
 thrift_next_struct(struct thrift_dom *iter, const u8 *tokens, const struct thrift_iter_entry *entries, u64 size) {
+
   // check for size
   if (size == 0) return THRIFT_ERROR_BUFFER_OVERFLOW;
 
@@ -237,6 +238,14 @@ thrift_next_value(struct thrift_dom *iter, const u8 *tokens, const struct thrift
   i64 result;
   u32 type, token;
 
+  // default
+  result = 0;
+
+  // check if we are resuming a literal
+  if (iter->state.entries[iter->state.idx].value.value.type == 0xffffffff) {
+    goto complete;
+  }
+
   // check for size
   if (size == 0) return THRIFT_ERROR_BUFFER_OVERFLOW;
 
@@ -261,12 +270,23 @@ thrift_next_value(struct thrift_dom *iter, const u8 *tokens, const struct thrift
   iter->tokens[iter->idx].op = DOM_OP_LITERAL;
   iter->tokens[iter->idx].type = TYPE_MAPPING[type];
 
+  // mark the value state as in-progress
+  iter->state.entries[iter->state.idx].value.value.type = 0xffffffff;
+
   // fill the literal value
-  result = LITERAL_FN[token](iter->tokens + iter->idx, entries);
+  result = LITERAL_FN[token](iter, entries);
   if (result < 0) return result;
+
+  // pretend nothing happened
+  if (result == 1) return 0;
 
   // advance the iterator
   iter->idx++;
+
+  // set number of consumed entries
+  result = 1;
+
+complete:
 
   // emit VALUE_END token
   iter->tokens[iter->idx].op = DOM_OP_VALUE_END;
@@ -279,7 +299,7 @@ thrift_next_value(struct thrift_dom *iter, const u8 *tokens, const struct thrift
   iter->state.entries[iter->state.idx].value.value.type = 0;
 
   // success
-  return 1;
+  return result;
 }
 
 static i64 thrift_next_index(struct thrift_dom *, const u8 *, const struct thrift_iter_entry *, u64) {
@@ -338,8 +358,7 @@ static i64 thrift_next_pointer(struct thrift_dom *iter, const u8 *, const struct
   return 2;
 }
 
-static i64
-thrift_next_maybe(struct thrift_dom *iter, const u8 *tokens, const struct thrift_iter_entry *entries, u64 size) {
+static i64 thrift_next_maybe(struct thrift_dom *iter, const u8 *tokens, const struct thrift_iter_entry *, u64 size) {
 
   // check for size, we expect one entry
   if (size == 0) return THRIFT_ERROR_BUFFER_OVERFLOW;
@@ -364,55 +383,71 @@ thrift_next_maybe(struct thrift_dom *iter, const u8 *tokens, const struct thrift
   return 0;
 }
 
-static i64 thrift_literal_bool(struct dom_token *target, const struct thrift_iter_entry *source) {
+static i64 thrift_literal_bool(struct thrift_dom *iter, const struct thrift_iter_entry *source) {
   // copy bool value
-  target->data = source->value.literal.value.v_bool ? (u64) "true" : (u64) "false";
+  iter->tokens[iter->idx].data = source->value.literal.value.v_bool ? (u64) "true" : (u64) "false";
 
   // success
   return 0;
 }
 
-static i64 thrift_literal_i8(struct dom_token *target, const struct thrift_iter_entry *source) {
+static i64 thrift_literal_i8(struct thrift_dom *iter, const struct thrift_iter_entry *source) {
   // copy i8 value then sign extend to u64
-  target->data = (u64)source->value.literal.value.v_i8;
+  iter->tokens[iter->idx].data = (u64)source->value.literal.value.v_i8;
 
   // success
   return 0;
 }
 
-static i64 thrift_literal_i16(struct dom_token *target, const struct thrift_iter_entry *source) {
+static i64 thrift_literal_i16(struct thrift_dom *iter, const struct thrift_iter_entry *source) {
   // copy i16 value then sign extend to u64
-  target->data = (u64)source->value.literal.value.v_i16;
+  iter->tokens[iter->idx].data = (u64)source->value.literal.value.v_i16;
 
   // success
   return 0;
 }
 
-static i64 thrift_literal_i32(struct dom_token *target, const struct thrift_iter_entry *source) {
+static i64 thrift_literal_i32(struct thrift_dom *iter, const struct thrift_iter_entry *source) {
   // copy i32 value then sign extend to u64
-  target->data = (u64)source->value.literal.value.v_i32;
+  iter->tokens[iter->idx].data = (u64)source->value.literal.value.v_i32;
 
   // success
   return 0;
 }
 
-static i64 thrift_literal_i64(struct dom_token *target, const struct thrift_iter_entry *source) {
+static i64 thrift_literal_i64(struct thrift_dom *iter, const struct thrift_iter_entry *source) {
   // copy i64 value then cast to u64
-  target->data = (u64)source->value.literal.value.v_i64;
+  iter->tokens[iter->idx].data = (u64)source->value.literal.value.v_i64;
 
   // success
   return 0;
 }
 
-static i64 thrift_literal_list(struct dom_token *, const struct thrift_iter_entry *) {
+static i64 thrift_literal_list(struct thrift_dom *, const struct thrift_iter_entry *) {
   return 0;
 }
 
-static i64 thrift_literal_struct(struct dom_token *, const struct thrift_iter_entry *) {
-  return 0;
+static i64 thrift_literal_struct(struct thrift_dom *iter, const struct thrift_iter_entry *) {
+
+  // emit STRUCT_START token
+  iter->tokens[iter->idx].op = DOM_OP_STRUCT_START;
+  iter->tokens[iter->idx].data = 0;
+
+  // advance the iterator
+  iter->idx++;
+
+  // advance the state
+  iter->state.idx++;
+
+  // set the new state
+  iter->state.types[iter->state.idx] = THRIFT_DOM_STATE_TYPE_STRUCT;
+  iter->state.entries[iter->state.idx].value.fields.field = 0xffffffff;
+
+  // success
+  return 1;
 }
 
-static i64 thrift_literal_fail(struct dom_token *, const struct thrift_iter_entry *) {
+static i64 thrift_literal_fail(struct thrift_dom *, const struct thrift_iter_entry *) {
   return THRIFT_ERROR_INVALID_IMPLEMENTATION;
 }
 
@@ -448,12 +483,12 @@ static bool thrift_fold_binary(struct thrift_dom_state_entry *entry) {
   return entry->value.binary.done == TRUE;
 }
 
-static bool thrift_fold_pointer(struct thrift_dom_state_entry *entry) {
+static bool thrift_fold_pointer(struct thrift_dom_state_entry *) {
   // released explicitly
   return FALSE;
 }
 
-static bool thrift_fold_maybe(struct thrift_dom_state_entry *entry) {
+static bool thrift_fold_maybe(struct thrift_dom_state_entry *) {
   // released explicitly
   return FALSE;
 }
@@ -1807,6 +1842,116 @@ static void can_write_struct_with_binary_field_2nd_piece() {
   malloc_destroy(&pool);
 }
 
+static void can_write_struct_with_struct_field() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_dom iter;
+
+  u8 tokens[5];
+  struct thrift_iter_entry entries[5];
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+
+  assert(result == 0, "should allocate memory");
+  assert(lease.ptr != NULL, "lease ptr should be set");
+
+  // initialize the iterator with the buffer
+  thrift_dom_init(&iter, &lease);
+
+  // data
+  tokens[0] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[0].value.field.id = 17;
+  entries[0].value.field.type = THRIFT_TYPE_STRUCT;
+
+  tokens[1] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[1].value.field.id = 7;
+  entries[1].value.field.type = THRIFT_TYPE_I32;
+
+  tokens[2] = THRIFT_ITER_TOKEN_I32;
+  entries[2].value.literal.value.v_i32 = 13;
+
+  tokens[3] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[3].value.field.id = 0;
+  entries[3].value.field.type = THRIFT_TYPE_STOP;
+
+  tokens[4] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[4].value.field.id = 0;
+  entries[4].value.field.type = THRIFT_TYPE_STOP;
+
+  // iterate over the buffer
+  result = thrift_dom_next(&iter, tokens, entries, 5);
+  assert(PRODUCED(result) == 15, "should produce fifteen tokens");
+  assert(CONSUMED(result) == 5, "should consume five entries");
+
+  assert(iter.idx == 15, "iterator idx should be 15");
+  assert(iter.state.idx == -1, "state idx should be -1");
+
+  assert(iter.tokens[0].op == DOM_OP_STRUCT_START, "token op should be STRUCT_START");
+  assert(iter.tokens[0].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
+  assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[1].data == (u64) "struct", "token data should be 'struct'");
+
+  assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[2].data == 17, "token data should be 17");
+
+  assert(iter.tokens[3].op == DOM_OP_KEY_END, "token op should be DOM_OP_KEY_END");
+  assert(iter.tokens[3].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[4].op == DOM_OP_VALUE_START, "token op should be DOM_OP_VALUE_START");
+  assert(iter.tokens[4].type == DOM_TYPE_STRUCT, "token type should be DOM_TYPE_STRUCT");
+  assert(iter.tokens[4].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[5].op == DOM_OP_STRUCT_START, "token op should be DOM_OP_STRUCT_START");
+  assert(iter.tokens[5].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[6].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
+  assert(iter.tokens[6].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[6].data == (u64) "i32", "token data should be 'i32'");
+
+  assert(iter.tokens[7].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[7].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[7].data == 7, "token data should be 7");
+
+  assert(iter.tokens[8].op == DOM_OP_KEY_END, "token op should be DOM_OP_KEY_END");
+  assert(iter.tokens[8].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[9].op == DOM_OP_VALUE_START, "token op should be DOM_OP_VALUE_START");
+  assert(iter.tokens[9].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[9].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[10].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[10].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[10].data == (u64)13, "token data should be 13");
+
+  assert(iter.tokens[11].op == DOM_OP_VALUE_END, "token op should be DOM_OP_VALUE_END");
+  assert(iter.tokens[11].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[12].op == DOM_OP_STRUCT_END, "token op should be DOM_OP_STRUCT_END");
+  assert(iter.tokens[12].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[13].op == DOM_OP_VALUE_END, "token op should be DOM_OP_VALUE_END");
+  assert(iter.tokens[13].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[14].op == DOM_OP_STRUCT_END, "token op should be DOM_OP_STRUCT_END");
+  assert(iter.tokens[14].data == 0, "token type should be NULL");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
 void thrift_test_cases_dom(struct runner_context *ctx) {
   test_case(ctx, "can initialize iterator with single page", can_init_iterator_single_page);
   test_case(ctx, "can initialize iterator with double page", can_init_iterator_double_page);
@@ -1832,6 +1977,8 @@ void thrift_test_cases_dom(struct runner_context *ctx) {
 
   test_case(ctx, "can write struct with binary field", can_write_struct_with_binary_field);
   test_case(ctx, "can write struct with binary field 2nd piece", can_write_struct_with_binary_field_2nd_piece);
+
+  test_case(ctx, "can write struct with struct field", can_write_struct_with_struct_field);
 }
 
 #endif
