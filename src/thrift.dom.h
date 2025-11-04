@@ -36,12 +36,17 @@ struct thrift_dom_state_binary {
   u32 done;
 };
 
+struct thrift_dom_state_array {
+  u32 size;
+};
+
 struct thrift_dom_state_entry {
   union {
     struct thrift_dom_state_init init;
     struct thrift_dom_state_struct fields;
     struct thrift_dom_state_value value;
     struct thrift_dom_state_binary binary;
+    struct thrift_dom_state_array array;
   } value;
 };
 
