@@ -96,7 +96,7 @@ static const u8 TYPE_MAPPING[THRIFT_TYPE_SIZE] = {
   [THRIFT_TYPE_BOOL_FALSE] = DOM_TYPE_TEXT, [THRIFT_TYPE_I8] = DOM_TYPE_I8,
   [THRIFT_TYPE_I16] = DOM_TYPE_I16,         [THRIFT_TYPE_I32] = DOM_TYPE_I32,
   [THRIFT_TYPE_I64] = DOM_TYPE_I64,         [THRIFT_TYPE_DOUBLE] = DOM_TYPE_NULL,
-  [THRIFT_TYPE_BINARY] = DOM_TYPE_TEXT,     [THRIFT_TYPE_LIST] = DOM_TYPE_ARRAY,
+  [THRIFT_TYPE_BINARY] = DOM_TYPE_ASCII,    [THRIFT_TYPE_LIST] = DOM_TYPE_ARRAY,
   [THRIFT_TYPE_SET] = DOM_TYPE_NULL,        [THRIFT_TYPE_MAP] = DOM_TYPE_NULL,
   [THRIFT_TYPE_STRUCT] = DOM_TYPE_STRUCT,   [THRIFT_TYPE_UUID] = DOM_TYPE_NULL,
 };
@@ -1866,11 +1866,11 @@ static void can_write_struct_with_binary_field() {
   assert(iter.tokens[3].data == 0, "token type should be NULL");
 
   assert(iter.tokens[4].op == DOM_OP_VALUE_START, "token op should be DOM_OP_VALUE_START");
-  assert(iter.tokens[4].type == DOM_TYPE_TEXT, "token type should be DOM_TYPE_TEXT");
+  assert(iter.tokens[4].type == DOM_TYPE_ASCII, "token type should be DOM_TYPE_ASCII");
   assert(iter.tokens[4].data == 0, "token data should be NULL");
 
   assert(iter.tokens[5].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
-  assert(iter.tokens[5].type == DOM_TYPE_TEXT, "token type should be DOM_TYPE_TEXT");
+  assert(iter.tokens[5].type == DOM_TYPE_ASCII, "token type should be DOM_TYPE_ASCII");
   assert(iter.tokens[5].data == PACK(5, (u64) "hello"), "token data should be 'hello' + 5 length");
 
   assert(iter.tokens[6].op == DOM_OP_VALUE_END, "token op should be DOM_OP_VALUE_END");
@@ -1955,15 +1955,15 @@ static void can_write_struct_with_binary_field_2nd_piece() {
   assert(iter.tokens[3].data == 0, "token type should be NULL");
 
   assert(iter.tokens[4].op == DOM_OP_VALUE_START, "token op should be DOM_OP_VALUE_START");
-  assert(iter.tokens[4].type == DOM_TYPE_TEXT, "token type should be DOM_TYPE_TEXT");
+  assert(iter.tokens[4].type == DOM_TYPE_ASCII, "token type should be DOM_TYPE_ASCII");
   assert(iter.tokens[4].data == 0, "token data should be NULL");
 
   assert(iter.tokens[5].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
-  assert(iter.tokens[5].type == DOM_TYPE_TEXT, "token type should be DOM_TYPE_TEXT");
+  assert(iter.tokens[5].type == DOM_TYPE_ASCII, "token type should be DOM_TYPE_ASCII");
   assert(iter.tokens[5].data == PACK(5, (u64) "hello"), "token data should be 'hello' + 5 length");
 
   assert(iter.tokens[6].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
-  assert(iter.tokens[6].type == DOM_TYPE_TEXT, "token type should be DOM_TYPE_TEXT");
+  assert(iter.tokens[6].type == DOM_TYPE_ASCII, "token type should be DOM_TYPE_ASCII");
   assert(iter.tokens[6].data == PACK(5, (u64) "world"), "token data should be 'world' + 5 length");
 
   assert(iter.tokens[7].op == DOM_OP_VALUE_END, "token op should be DOM_OP_VALUE_END");

@@ -31,9 +31,10 @@ enum dom_type {
   DOM_TYPE_U32 = 0x07,
   DOM_TYPE_U64 = 0x08,
   DOM_TYPE_TEXT = 0x09,
-  DOM_TYPE_ARRAY = 0x0a,
-  DOM_TYPE_STRUCT = 0x0b,
-  DOM_TYPE_SIZE = 0x0c,
+  DOM_TYPE_ASCII = 0x0a,
+  DOM_TYPE_ARRAY = 0x0b,
+  DOM_TYPE_STRUCT = 0x0c,
+  DOM_TYPE_SIZE = 0x0d,
 };
 
 enum dom_op {
