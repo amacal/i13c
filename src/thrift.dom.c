@@ -225,7 +225,7 @@ thrift_next_struct(struct thrift_dom *iter, const u8 *tokens, const struct thrif
   return 1;
 }
 
-static i64 thrift_next_array(struct thrift_dom *iter, const u8 *, const struct thrift_iter_entry *, u64) {
+static i64 thrift_next_array(struct thrift_dom *iter, const u8 *, const struct thrift_iter_entry *entries, u64 size) {
 
   // check for the last item
   if (iter->state.entries[iter->state.idx].value.array.size == 0) {
@@ -241,10 +241,35 @@ static i64 thrift_next_array(struct thrift_dom *iter, const u8 *, const struct t
     iter->state.idx--;
 
     // success
-    return 0;
+    return 1;
   }
 
-  return -1;
+  // check for size
+  if (size == 0) return THRIFT_ERROR_BUFFER_OVERFLOW;
+
+  // emit INDEX_START token
+  iter->tokens[iter->idx].op = DOM_OP_INDEX_START;
+  iter->tokens[iter->idx].data = (u64)TYPE_NAMES[entries->value.list.type];
+
+  // advance the iterator
+  iter->idx++;
+
+  // advance the state
+  iter->state.idx++;
+
+  // set the new state
+  iter->state.types[iter->state.idx] = THRIFT_DOM_STATE_TYPE_VALUE;
+  iter->state.entries[iter->state.idx].value.value.type = entries->value.list.type;
+
+  // advance the state
+  iter->state.idx++;
+
+  // set the new state
+  iter->state.types[iter->state.idx] = THRIFT_DOM_STATE_TYPE_INDEX;
+  iter->state.entries[iter->state.idx].value.index.offset = 0;
+
+  // success
+  return 1;
 }
 
 static i64 thrift_next_key(struct thrift_dom *, const u8 *, const struct thrift_iter_entry *, u64) {
@@ -320,8 +345,64 @@ complete:
   return result;
 }
 
-static i64 thrift_next_index(struct thrift_dom *, const u8 *, const struct thrift_iter_entry *, u64) {
-  return -1;
+static i64 thrift_next_index(struct thrift_dom *iter, const u8 *, const struct thrift_iter_entry *entries, u64) {
+  i64 result;
+  u32 token, type;
+  u32 offset, size;
+
+  // default
+  offset = iter->state.entries[iter->state.idx].value.index.offset;
+  size = iter->state.entries[iter->state.idx - 2].value.array.size;
+
+  // if we completed the index
+  if (offset == size) {
+
+    // emit INDEX_END token
+    iter->tokens[iter->idx].op = DOM_OP_INDEX_END;
+    iter->tokens[iter->idx].data = 0;
+
+    // advance the iterator
+    iter->idx++;
+
+    // emit ARRAY_END token
+    iter->tokens[iter->idx].op = DOM_OP_ARRAY_END;
+    iter->tokens[iter->idx].data = 0;
+
+    // advance the iterator
+    iter->idx++;
+
+    // remove index, value and array
+    iter->state.idx -= 3;
+
+    // success
+    return 0;
+  }
+
+  // iter->state.entries[iter->state.idx].value.index.offset = 0xffffffff;
+
+  // get the type and the token
+  type = iter->state.entries[iter->state.idx - 1].value.value.type;
+  token = TOKEN_MAPPING[type];
+
+  // emit LITERAL token
+  iter->tokens[iter->idx].op = DOM_OP_LITERAL;
+  iter->tokens[iter->idx].type = TYPE_MAPPING[type];
+
+  // fill the literal value
+  result = LITERAL_FN[token](iter, entries);
+  if (result < 0) return result;
+
+  // recover from the early write
+  if (result > 0) return result - 1;
+
+  // advance the iterator
+  iter->idx++;
+
+  // increase the offset
+  iter->state.entries[iter->state.idx].value.index.offset++;
+
+  // success
+  return 1;
 }
 
 static i64 thrift_next_literal(struct thrift_dom *, const u8 *, const struct thrift_iter_entry *, u64) {
@@ -445,7 +526,7 @@ static i64 thrift_literal_list(struct thrift_dom *iter, const struct thrift_iter
 
   // emit ARRAY_START token
   iter->tokens[iter->idx].op = DOM_OP_ARRAY_START;
-  iter->tokens[iter->idx].data = 0;
+  iter->tokens[iter->idx].data = source->value.list.size;
 
   // advance the iterator
   iter->idx++;
@@ -458,7 +539,7 @@ static i64 thrift_literal_list(struct thrift_dom *iter, const struct thrift_iter
   iter->state.entries[iter->state.idx].value.array.size = source->value.list.size;
 
   // success
-  return 2;
+  return 1;
 }
 
 static i64 thrift_literal_struct(struct thrift_dom *iter, const struct thrift_iter_entry *) {
@@ -2067,6 +2148,100 @@ static void can_write_struct_with_empty_list() {
   malloc_destroy(&pool);
 }
 
+static void can_write_struct_with_one_list_item() {
+  i64 result;
+
+  struct malloc_pool pool;
+  struct malloc_lease lease;
+  struct thrift_dom iter;
+
+  u8 tokens[4];
+  struct thrift_iter_entry entries[4];
+
+  // initialize the pool
+  malloc_init(&pool);
+
+  // acquire memory
+  lease.size = 4096;
+  result = malloc_acquire(&pool, &lease);
+
+  assert(result == 0, "should allocate memory");
+  assert(lease.ptr != NULL, "lease ptr should be set");
+
+  // initialize the iterator with the buffer
+  thrift_dom_init(&iter, &lease);
+
+  // data
+  tokens[0] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[0].value.field.id = 17;
+  entries[0].value.field.type = THRIFT_TYPE_LIST;
+
+  tokens[1] = THRIFT_ITER_TOKEN_LIST_HEADER;
+  entries[1].value.list.type = THRIFT_TYPE_I32;
+  entries[1].value.list.size = 1;
+
+  tokens[2] = THRIFT_ITER_TOKEN_I32;
+  entries[2].value.literal.value.v_i32 = 42;
+
+  tokens[3] = THRIFT_ITER_TOKEN_STRUCT_FIELD;
+  entries[3].value.field.id = 0;
+  entries[3].value.field.type = THRIFT_TYPE_STOP;
+
+  // iterate over the buffer
+  result = thrift_dom_next(&iter, tokens, entries, 4);
+  assert(PRODUCED(result) == 12, "should produce twelve tokens");
+  assert(CONSUMED(result) == 4, "should consume four entries");
+
+  assert(iter.idx == 12, "iterator idx should be 12");
+  assert(iter.state.idx == -1, "state idx should be -1");
+
+  assert(iter.tokens[0].op == DOM_OP_STRUCT_START, "token op should be STRUCT_START");
+  assert(iter.tokens[0].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[1].op == DOM_OP_KEY_START, "token op should be DOM_OP_KEY_START");
+  assert(iter.tokens[1].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[1].data == (u64) "list", "token data should be 'list'");
+
+  assert(iter.tokens[2].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[2].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[2].data == 17, "token data should be 17");
+
+  assert(iter.tokens[3].op == DOM_OP_KEY_END, "token op should be DOM_OP_KEY_END");
+  assert(iter.tokens[3].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[4].op == DOM_OP_VALUE_START, "token op should be DOM_OP_VALUE_START");
+  assert(iter.tokens[4].type == DOM_TYPE_STRUCT, "token type should be DOM_TYPE_STRUCT");
+  assert(iter.tokens[4].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[5].op == DOM_OP_ARRAY_START, "token op should be DOM_OP_ARRAY_START");
+  assert(iter.tokens[5].data == 1, "token data should be 1");
+
+  assert(iter.tokens[6].op == DOM_OP_INDEX_START, "token op should be DOM_OP_INDEX_START");
+  assert(iter.tokens[6].data == (u64) "i32", "token data should be 'i32'");
+
+  assert(iter.tokens[7].op == DOM_OP_LITERAL, "token op should be DOM_OP_LITERAL");
+  assert(iter.tokens[7].type == DOM_TYPE_I32, "token type should be DOM_TYPE_I32");
+  assert(iter.tokens[7].data == (u64)42, "token data should be 42");
+
+  assert(iter.tokens[8].op == DOM_OP_INDEX_END, "token op should be DOM_OP_INDEX_END");
+  assert(iter.tokens[8].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[9].op == DOM_OP_ARRAY_END, "token op should be DOM_OP_ARRAY_END");
+  assert(iter.tokens[9].data == 0, "token data should be NULL");
+
+  assert(iter.tokens[10].op == DOM_OP_VALUE_END, "token op should be DOM_OP_VALUE_END");
+  assert(iter.tokens[10].data == 0, "token type should be NULL");
+
+  assert(iter.tokens[11].op == DOM_OP_STRUCT_END, "token op should be DOM_OP_STRUCT_END");
+  assert(iter.tokens[11].data == 0, "token type should be NULL");
+
+  // release the memory
+  malloc_release(&pool, &lease);
+
+  // destroy the pool
+  malloc_destroy(&pool);
+}
+
 void thrift_test_cases_dom(struct runner_context *ctx) {
   test_case(ctx, "can initialize iterator with single page", can_init_iterator_single_page);
   test_case(ctx, "can initialize iterator with double page", can_init_iterator_double_page);
@@ -2095,6 +2270,7 @@ void thrift_test_cases_dom(struct runner_context *ctx) {
 
   test_case(ctx, "can write struct with struct field", can_write_struct_with_struct_field);
   test_case(ctx, "can write struct with empty list", can_write_struct_with_empty_list);
+  test_case(ctx, "can write struct with one list item", can_write_struct_with_one_list_item);
 }
 
 #endif

@@ -40,6 +40,10 @@ struct thrift_dom_state_array {
   u32 size;
 };
 
+struct thrift_dom_state_index {
+  u32 offset;
+};
+
 struct thrift_dom_state_entry {
   union {
     struct thrift_dom_state_init init;
@@ -47,6 +51,7 @@ struct thrift_dom_state_entry {
     struct thrift_dom_state_value value;
     struct thrift_dom_state_binary binary;
     struct thrift_dom_state_array array;
+    struct thrift_dom_state_index index;
   } value;
 };
 
