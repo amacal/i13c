@@ -419,6 +419,8 @@ i64 dom_write(struct dom_state *state, struct dom_token *tokens, u32 *count) {
   // update the count
   *count = written;
 
+  if (written > 0) result = 0;
+
   // success
   return result;
 }
@@ -830,7 +832,7 @@ static void can_resume_write_on_u64() {
   result = dom_write(&state, tokens, &size);
 
   // assert the result
-  assert(result == FORMAT_ERROR_BUFFER_TOO_SMALL, "should fail");
+  assert(result == 0, "should succeed");
   assert(size == 3, "should consume only three tokens");
   assert(state.format.buffer_offset == 46, "should write 46 bytes to the buffer");
 
@@ -900,7 +902,7 @@ static void can_resume_write_on_text() {
   result = dom_write(&state, tokens, &size);
 
   // assert the result
-  assert(result == FORMAT_ERROR_BUFFER_TOO_SMALL, "should fail");
+  assert(result == 0, "should succeed");
   assert(size == 3, "should consume only three tokens");
   assert(state.format.buffer_offset == 64, "should write 64 bytes to the buffer");
 
@@ -970,7 +972,7 @@ static void can_resume_write_on_ascii() {
   result = dom_write(&state, tokens, &size);
 
   // assert the result
-  assert(result == FORMAT_ERROR_BUFFER_TOO_SMALL, "should fail");
+  assert(result == 0, "should succeed");
   assert(size == 3, "should consume only three tokens");
   assert(state.format.buffer_offset == 64, "should write 64 bytes to the buffer");
 
@@ -1050,7 +1052,7 @@ static void can_resume_write_on_ascii_multipart() {
   result = dom_write(&state, tokens, &size);
 
   // assert the result
-  assert(result == FORMAT_ERROR_BUFFER_TOO_SMALL, "should fail");
+  assert(result == 0, "should succeed");
   assert(size == 4, "should consume only four tokens");
   assert(state.format.buffer_offset == 64, "should write 64 bytes to the buffer");
 
