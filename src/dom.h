@@ -81,9 +81,9 @@ extern void dom_init(struct dom_state *state, struct malloc_lease *buffer);
 /// @brief Write a DOM token stream to the stdout.
 /// @param state Pointer to the DOM state passed between calls.
 /// @param tokens Pointer to the array of DOM tokens to write.
-/// @param count Pointer to the number of tokens to write and written.
-/// @return Zero on success, or a negative error code.
-extern i64 dom_write(struct dom_state *state, struct dom_token *tokens, u32 *count);
+/// @param count The number of tokens to write.
+/// @return Produced/Consumed on success, or a negative error code.
+extern i64 dom_write(struct dom_state *state, struct dom_token *tokens, u32 count);
 
 /// @brief Flushes the DOM state.
 /// @param state Pointer to the DOM state to flush.

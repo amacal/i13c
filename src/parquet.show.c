@@ -10,6 +10,9 @@
 
 #if defined(I13C_PARQUET)
 
+#define PRODUCED(res) ((u32)((res) & 0xFFFFFFFFu))
+#define CONSUMED(res) ((u32)(((res) >> 32) & 0xFFFFFFFFu))
+
 i32 parquet_show(u32 argc, const char **argv) {
   i64 result;
   u32 tokens;
@@ -61,12 +64,12 @@ i32 parquet_show(u32 argc, const char **argv) {
 
     while (tokens > 0) {
       // try to write them
-      result = dom_write(&dom, iterator.tokens.items + written, &tokens);
+      result = dom_write(&dom, iterator.tokens.items + written, tokens);
       if (result < 0 && result != FORMAT_ERROR_BUFFER_TOO_SMALL) goto cleanup_buffer;
 
       // determine new counters
-      written += tokens;
-      tokens = iterator.tokens.count - written;
+      written += CONSUMED(result);
+      tokens -= CONSUMED(result);
 
       // flush partially written data
       result = stdout_flush(&dom.format);

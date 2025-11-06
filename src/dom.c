@@ -2,6 +2,10 @@
 #include "stdout.h"
 #include "typing.h"
 
+#define PRODUCED(res) ((u32)((res) & 0xFFFFFFFFu))
+#define CONSUMED(res) ((u32)(((res) >> 32) & 0xFFFFFFFFu))
+#define COMBINE(l, r) ((i64)(((u64)(l) << 32) | (u64)(r)))
+
 #define PACK(len, ptr) ((u64)(((u64)(len) << 48) | (u64)(ptr)))
 #define UNPACK(res) ((u64)((res) & 0xFFFFFFFFFFFFu))
 #define COUNT(res) ((u32)(((res) >> 48) & 0xFFFFu))
@@ -382,16 +386,20 @@ void dom_init(struct dom_state *state, struct malloc_lease *buffer) {
   state->format.vargs_max = VARGS_MAX;
 }
 
-i64 dom_write(struct dom_state *state, struct dom_token *tokens, u32 *count) {
+i64 dom_write(struct dom_state *state, struct dom_token *tokens, u32 count) {
   u32 written;
+  u32 offset;
   i64 result;
 
   // default
   result = 0;
   written = 0;
 
+  // remember the offset
+  offset = state->format.buffer_offset;
+
   // loop through the tokens until we reach the end
-  while (written < *count) {
+  while (written < count) {
     // check if the operation is valid
     if (tokens->op >= DOM_OP_SIZE) {
       result = DOM_ERROR_INVALID_OP;
@@ -416,13 +424,11 @@ i64 dom_write(struct dom_state *state, struct dom_token *tokens, u32 *count) {
     result = 0;
   }
 
-  // update the count
-  *count = written;
-
-  if (written > 0) result = 0;
+  // if nothing was written and error happened, return it
+  if (written == 0 && result < 0) return result;
 
   // success
-  return result;
+  return COMBINE(written, state->format.buffer_offset - offset);
 }
 
 i64 dom_flush(struct dom_state *state) {
@@ -462,12 +468,11 @@ static void can_write_array_with_no_items() {
   tokens[1].op = DOM_OP_ARRAY_END;
 
   // write the tokens
-  result = dom_write(&state, tokens, &size);
+  result = dom_write(&state, tokens, size);
 
   // assert the result
-  assert(result == 0, "should succeed");
-  assert(size == 2, "should consume all tokens");
-  assert(state.format.buffer_offset == 22, "should write 22 bytes to the buffer");
+  assert(CONSUMED(result) == size, "should consume all tokens");
+  assert(PRODUCED(result) == 22, "should write 22 bytes to the buffer");
 
   const char *expected = "array-start\n"
                          "array-end\n";
@@ -507,12 +512,11 @@ static void can_write_array_with_one_item() {
   tokens[4].op = DOM_OP_ARRAY_END;
 
   // write the tokens
-  result = dom_write(&state, tokens, &size);
+  result = dom_write(&state, tokens, size);
 
   // assert the result
-  assert(result == 0, "should succeed");
-  assert(size == 5, "should consume all tokens");
-  assert(state.format.buffer_offset == 69, "should write 69 bytes to the buffer");
+  assert(CONSUMED(result) == size, "should consume all tokens");
+  assert(PRODUCED(result) == 69, "should write 69 bytes to the buffer");
 
   const char *expected = "array-start\n"
                          " index-start, index=0, type=u32\n"
@@ -563,12 +567,11 @@ static void can_write_array_with_two_items() {
   tokens[7].op = DOM_OP_ARRAY_END;
 
   // write the tokens
-  result = dom_write(&state, tokens, &size);
+  result = dom_write(&state, tokens, size);
 
   // assert the result
-  assert(result == 0, "should succeed");
-  assert(size == 8, "should consume all tokens");
-  assert(state.format.buffer_offset == 116, "should write 116 bytes to the buffer");
+  assert(CONSUMED(result) == size, "should consume all tokens");
+  assert(PRODUCED(result) == 116, "should write 116 bytes to the buffer");
 
   const char *expected = "array-start\n"
                          " index-start, index=0, type=u16\n"
@@ -622,12 +625,11 @@ static void can_write_array_with_type_id() {
   tokens[7].op = DOM_OP_ARRAY_END;
 
   // write the tokens
-  result = dom_write(&state, tokens, &size);
+  result = dom_write(&state, tokens, size);
 
   // assert the result
-  assert(result == 0, "should succeed");
-  assert(size == 8, "should consume all tokens");
-  assert(state.format.buffer_offset == 116, "should write 116 bytes to the buffer");
+  assert(CONSUMED(result) == size, "should consume all tokens");
+  assert(PRODUCED(result) == 116, "should write 116 bytes to the buffer");
 
   const char *expected = "array-start\n"
                          " index-start, index=0, type=u16\n"
@@ -664,12 +666,11 @@ static void can_write_struct_with_no_fields() {
   tokens[1].op = DOM_OP_STRUCT_END;
 
   // write the tokens
-  result = dom_write(&state, tokens, &size);
+  result = dom_write(&state, tokens, size);
 
   // assert the result
-  assert(result == 0, "should succeed");
-  assert(size == 2, "should consume all tokens");
-  assert(state.format.buffer_offset == 34, "should write 34 bytes to the buffer");
+  assert(CONSUMED(result) == size, "should consume all tokens");
+  assert(PRODUCED(result) == 34, "should write 34 bytes to the buffer");
 
   const char *expected = "struct-start, type=abc\n"
                          "struct-end\n";
@@ -714,12 +715,11 @@ static void can_write_struct_with_one_field() {
   tokens[7].op = DOM_OP_STRUCT_END;
 
   // write the tokens
-  result = dom_write(&state, tokens, &size);
+  result = dom_write(&state, tokens, size);
 
   // assert the result
-  assert(result == 0, "should succeed");
-  assert(size == 8, "should consume all tokens");
-  assert(state.format.buffer_offset == 55, "should write 55 bytes to the buffer");
+  assert(CONSUMED(result) == size, "should consume all tokens");
+  assert(PRODUCED(result) == 55, "should write 55 bytes to the buffer");
 
   const char *expected = "struct-start, type=abc\n"
                          " key, type=i64\n"
@@ -779,12 +779,11 @@ static void can_write_struct_with_two_fields() {
   tokens[13].op = DOM_OP_STRUCT_END;
 
   // write the tokens
-  result = dom_write(&state, tokens, &size);
+  result = dom_write(&state, tokens, size);
 
   // assert the result
-  assert(result == 0, "should succeed");
-  assert(size == 14, "should consume all tokens");
-  assert(state.format.buffer_offset == 80, "should write 80 bytes to the buffer");
+  assert(CONSUMED(result) == size, "should consume all tokens");
+  assert(PRODUCED(result) == 80, "should write 80 bytes to the buffer");
 
   const char *expected = "struct-start, type=abc\n"
                          " key1, type=i64\n"
@@ -829,12 +828,11 @@ static void can_resume_write_on_u64() {
   tokens[4].op = DOM_OP_ARRAY_END;
 
   // write the tokens
-  result = dom_write(&state, tokens, &size);
+  result = dom_write(&state, tokens, size);
 
   // assert the result
-  assert(result == 0, "should succeed");
-  assert(size == 3, "should consume only three tokens");
-  assert(state.format.buffer_offset == 46, "should write 46 bytes to the buffer");
+  assert(CONSUMED(result) == 3, "should consume only three tokens");
+  assert(PRODUCED(result) == 46, "should write 46 bytes to the buffer");
 
   expected = "array-start\n"
              " index-start, index=0, type=u32\n"
@@ -852,17 +850,17 @@ static void can_resume_write_on_u64() {
   assert(state.format.buffer_offset == 6, "should write 6 bytes to the buffer");
 
   // write the tokens
-  result = dom_write(&state, tokens + 3, &size);
+  result = dom_write(&state, tokens + 3, size);
 
   // assert the result
-  assert(result == 0, "should succeed");
-  assert(size == 2, "should consume remaining two tokens");
-  assert(state.format.buffer_offset == 27, "should write 27 bytes to the buffer");
+  assert(CONSUMED(result) == size, "should consume remaining two tokens");
+  assert(PRODUCED(result) == 21, "should write 21 bytes to the buffer");
 
   expected = "12345\n"
              " index-end\n"
              "array-end\n";
 
+  assert(state.format.buffer_offset == 27, "should write 27 bytes to the buffer");
   assert_eq_str(buffer, expected, "should write exact text");
 }
 
@@ -899,12 +897,11 @@ static void can_resume_write_on_text() {
   tokens[4].op = DOM_OP_ARRAY_END;
 
   // write the tokens
-  result = dom_write(&state, tokens, &size);
+  result = dom_write(&state, tokens, size);
 
   // assert the result
-  assert(result == 0, "should succeed");
-  assert(size == 3, "should consume only three tokens");
-  assert(state.format.buffer_offset == 64, "should write 64 bytes to the buffer");
+  assert(CONSUMED(result) == 3, "should consume only three tokens");
+  assert(PRODUCED(result) == 64, "should write 64 bytes to the buffer");
 
   expected = "array-start\n"
              " index-start, index=0, type=text\n"
@@ -922,17 +919,17 @@ static void can_resume_write_on_text() {
   assert(state.format.buffer_offset == 24, "should write 24 bytes to the buffer");
 
   // write the tokens
-  result = dom_write(&state, tokens + 3, &size);
+  result = dom_write(&state, tokens + 3, size);
 
   // assert the result
-  assert(result == 0, "should succeed");
-  assert(size == 2, "should consume remaining two tokens");
-  assert(state.format.buffer_offset == 45, "should write 45 bytes to the buffer");
+  assert(CONSUMED(result) == size, "should consume remaining two tokens");
+  assert(PRODUCED(result) == 21, "should write 21 bytes to the buffer");
 
   expected = "89012345678901234567890\n"
              " index-end\n"
              "array-end\n";
 
+  assert(state.format.buffer_offset == 45, "should write 45 bytes to the buffer");
   assert_eq_str(buffer, expected, "should write exact text");
 }
 
@@ -969,12 +966,11 @@ static void can_resume_write_on_ascii() {
   tokens[4].op = DOM_OP_ARRAY_END;
 
   // write the tokens
-  result = dom_write(&state, tokens, &size);
+  result = dom_write(&state, tokens, size);
 
   // assert the result
-  assert(result == 0, "should succeed");
-  assert(size == 3, "should consume only three tokens");
-  assert(state.format.buffer_offset == 64, "should write 64 bytes to the buffer");
+  assert(CONSUMED(result) == 3, "should consume only three tokens");
+  assert(PRODUCED(result) == 64, "should write 64 bytes to the buffer");
 
   expected = "array-start\n"
              " index-start, index=0, type=text\n"
@@ -994,21 +990,20 @@ static void can_resume_write_on_ascii() {
   assert(state.format.buffer_offset == 23, "should write 23 bytes to the buffer");
 
   expected = "89012345678901234567890";
-
   assert_eq_str(state.format.buffer, expected, "should write exact text");
 
   // write the tokens
-  result = dom_write(&state, tokens + 3, &size);
+  result = dom_write(&state, tokens + 3, size);
 
   // assert the result
-  assert(result == 0, "should succeed");
-  assert(size == 2, "should consume remaining two tokens");
-  assert(state.format.buffer_offset == 45, "should write 45 bytes to the buffer");
+  assert(CONSUMED(result) == 2, "should consume remaining two tokens");
+  assert(PRODUCED(result) == 22, "should write 22 bytes to the buffer");
 
   expected = "89012345678901234567890\n"
              " index-end\n"
              "array-end\n";
 
+  assert(state.format.buffer_offset == 45, "should write 45 bytes to the buffer");
   assert_eq_str(buffer, expected, "should write exact text");
 }
 
@@ -1049,12 +1044,11 @@ static void can_resume_write_on_ascii_multipart() {
   tokens[5].op = DOM_OP_ARRAY_END;
 
   // write the tokens
-  result = dom_write(&state, tokens, &size);
+  result = dom_write(&state, tokens, size);
 
   // assert the result
-  assert(result == 0, "should succeed");
-  assert(size == 4, "should consume only four tokens");
-  assert(state.format.buffer_offset == 64, "should write 64 bytes to the buffer");
+  assert(CONSUMED(result) == 4, "should consume only four tokens");
+  assert(PRODUCED(result) == 64, "should write 64 bytes to the buffer");
 
   expected = "array-start\n"
              " index-start, index=0, type=text\n"
@@ -1078,17 +1072,17 @@ static void can_resume_write_on_ascii_multipart() {
   assert_eq_str(state.format.buffer, expected, "should write exact text");
 
   // write the tokens
-  result = dom_write(&state, tokens + 4, &size);
+  result = dom_write(&state, tokens + 4, size);
 
   // assert the result
-  assert(result == 0, "should succeed");
-  assert(size == 2, "should consume remaining two tokens");
-  assert(state.format.buffer_offset == 35, "should write 35 bytes to the buffer");
+  assert(CONSUMED(result) == 2, "should consume remaining two tokens");
+  assert(PRODUCED(result) == 22, "should write 22 bytes to the buffer");
 
   expected = "8901234567890\n"
              " index-end\n"
              "array-end\n";
 
+  assert(state.format.buffer_offset == 35, "should write 35 bytes to the buffer");
   assert_eq_str(buffer, expected, "should write exact text");
 }
 
