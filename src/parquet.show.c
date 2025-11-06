@@ -13,7 +13,6 @@
 i32 parquet_show(u32 argc, const char **argv) {
   i64 result;
   u32 tokens;
-  bool small;
   u32 written;
 
   struct parquet_file file;
@@ -63,27 +62,19 @@ i32 parquet_show(u32 argc, const char **argv) {
     while (tokens > 0) {
       // try to write them
       result = dom_write(&dom, iterator.tokens.items + written, &tokens);
+      if (result < 0 && result != FORMAT_ERROR_BUFFER_TOO_SMALL) goto cleanup_buffer;
 
       // determine new counters
       written += tokens;
       tokens = iterator.tokens.count - written;
-
-      // check if we need to retry it later
-      small = result == FORMAT_ERROR_BUFFER_TOO_SMALL;
-      if (result < 0 && !small) goto cleanup_buffer;
 
       // flush partially written data
       result = stdout_flush(&dom.format);
       if (result < 0) goto cleanup_buffer;
 
       // perhaps we need to flush the DOM buffer
-      if (small) {
-        result = dom_flush(&dom);
-        if (result < 0) goto cleanup_buffer;
-
-        // clear the flag
-        small = FALSE;
-      }
+      result = dom_flush(&dom);
+      if (result < 0) goto cleanup_buffer;
     }
 
   } while (iterator.tokens.count > 0);

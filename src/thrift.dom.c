@@ -2565,7 +2565,6 @@ static void can_detect_outgoing_buffer_overflow() {
 
   // iterate over the buffer
   result = thrift_dom_next(&iter, tokens + 2, entries + 2, 4);
-  writef("result: %x\n", result);
   assert(PRODUCED(result) == 11, "should produce eleven tokens");
   assert(CONSUMED(result) == 4, "should consume four entries");
 
