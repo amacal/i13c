@@ -1,7 +1,7 @@
 #pragma once
 
 #include "error.h"
-#include "format.h"
+#include "format.base.h"
 #include "malloc.h"
 #include "typing.h"
 #include "vargs.h"

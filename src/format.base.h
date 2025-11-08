@@ -27,6 +27,6 @@ extern i64 format(struct format_context *ctx);
 
 /// @brief Registers format test cases.
 /// @param ctx Pointer to the runner_context structure.
-extern void format_test_cases(struct runner_context *ctx);
+extern void format_test_cases_base(struct runner_context *ctx);
 
 #endif

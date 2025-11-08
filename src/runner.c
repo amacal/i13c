@@ -2,7 +2,7 @@
 #include "arena.h"
 #include "dom.h"
 #include "error.h"
-#include "format.h"
+#include "format.base.h"
 #include "malloc.h"
 #include "parquet.base.h"
 #include "parquet.iter.h"
@@ -89,7 +89,7 @@ i32 runner_execute() {
   parquet_test_cases_schema_open(&ctx);
   parquet_test_cases_schema_out(&ctx);
   runner_test_cases(&ctx);
-  format_test_cases(&ctx);
+  format_test_cases_base(&ctx);
 
   thrift_test_cases_base(&ctx);
   thrift_test_cases_dom(&ctx);

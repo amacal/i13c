@@ -1,4 +1,4 @@
-#include "format.h"
+#include "format.base.h"
 #include "error.h"
 #include "typing.h"
 #include "vargs.h"
@@ -899,7 +899,7 @@ static void can_detect_overflow_in_long_substitution_2() {
   assert_eq_str(buffer, "tring", "should format 'tring'");
 }
 
-void format_test_cases(struct runner_context *ctx) {
+void format_test_cases_base(struct runner_context *ctx) {
   // formatting cases
   test_case(ctx, "can format without substitutions", can_format_without_substitutions);
   test_case(ctx, "can format with string substitution", can_format_with_string_substitution);

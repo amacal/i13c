@@ -1,6 +1,6 @@
 #pragma once
 
-#include "format.h"
+#include "format.base.h"
 #include "typing.h"
 
 /// @brief Prints a formatted string to stderr (like printf).

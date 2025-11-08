@@ -1,5 +1,5 @@
 #include "parquet.schema.out.h"
-#include "format.h"
+#include "format.base.h"
 #include "malloc.h"
 #include "parquet.iter.h"
 #include "runner.h"
